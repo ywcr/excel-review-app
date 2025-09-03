@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Excel Review Application
 
-## Getting Started
+一个基于 Next.js 的 Excel 文件验证和审查应用程序。
 
-First, run the development server:
+## 功能特点
+
+- 📊 Excel 文件上传和验证
+- 🔍 智能模板解析
+- 📋 多种验证任务支持
+- ✨ 现代化用户界面
+- 🚀 实时验证结果展示
+
+## 技术栈
+
+- **框架**: Next.js 14 with App Router
+- **语言**: TypeScript
+- **样式**: Tailwind CSS
+- **Excel处理**: 自定义验证逻辑
+- **UI组件**: 自定义 React 组件
+
+## 安装和运行
 
 ```bash
+# 安装依赖
+npm install
+
+# 启动开发服务器
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# 构建生产版本
+npm run build
+
+# 启动生产服务器
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 项目结构
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+src/
+├── app/                 # Next.js App Router
+│   ├── api/            # API 路由
+│   └── globals.css     # 全局样式
+├── components/         # React 组件
+│   ├── FileUpload.tsx
+│   ├── SheetSelector.tsx
+│   ├── TaskSelector.tsx
+│   ├── ValidationRequirements.tsx
+│   └── ValidationResults.tsx
+└── lib/                # 工具库
+    ├── exportErrors.ts
+    ├── imageValidator.ts
+    ├── templateParser.ts
+    └── validator.ts
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 使用说明
 
-## Learn More
+1. 选择验证任务类型
+2. 上传 Excel 文件
+3. 选择要验证的工作表
+4. 查看验证结果和错误报告
+5. 导出错误信息（如需要）
 
-To learn more about Next.js, take a look at the following resources:
+## 开发者
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- 项目维护者: hida
+- 邮箱: hida@whitesand.online
