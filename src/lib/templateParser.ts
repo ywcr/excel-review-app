@@ -12,7 +12,8 @@ export interface ValidationRule {
     | "frequency"
     | "dateInterval"
     | "dateFormat"
-    | "minValue";
+    | "minValue"
+    | "medicalLevel";
   params?: any;
   message: string;
 }

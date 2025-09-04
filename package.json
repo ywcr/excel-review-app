@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "npx next lint"
+    "lint": "npx next lint",
+    "strict-check": "node scripts/strict-check.mjs",
+    "type-check": "npx tsc --noEmit"
   },
   "dependencies": {
     "@types/formidable": "^3.4.5",

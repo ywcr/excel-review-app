@@ -88,7 +88,7 @@ export class ImageValidator {
 
         worksheetImages.forEach((image) => {
           const imageData = workbook.model.media?.find(
-            (m) => m.index === image.imageId
+            (m: any) => m.index === image.imageId
           );
           if (imageData) {
             imageCounter++;
@@ -98,9 +98,9 @@ export class ImageValidator {
               id: `img_${imageCounter}`,
               sheetName: worksheet.name,
               position,
-              buffer: imageData.buffer as Buffer,
+              buffer: Buffer.from(imageData.buffer),
               extension: imageData.extension || "unknown",
-              size: imageData.buffer?.length || 0,
+              size: imageData.buffer?.byteLength || 0,
             });
           }
         });
@@ -494,13 +494,13 @@ export class ImageValidator {
       const image = await Jimp.read(imageBuffer);
 
       // 缩放到8x8像素
-      image.resize(8, 8);
+      image.resize({ w: 8, h: 8 });
       image.greyscale();
 
       const pixels: number[] = [];
       for (let y = 0; y < 8; y++) {
         for (let x = 0; x < 8; x++) {
-          const pixel = Jimp.intToRGBA(image.getPixelColor(x, y));
+          const pixel = (Jimp as any).intToRGBA(image.getPixelColor(x, y));
           pixels.push(pixel.r); // 灰度值
         }
       }

@@ -293,7 +293,7 @@ export class ExcelValidator {
         buffer.buffer.slice(
           buffer.byteOffset,
           buffer.byteOffset + buffer.byteLength
-        ),
+        ) as ArrayBuffer,
         dataRows.map((row) => this.convertRowToObject(row, headerMap))
       );
       console.log("图片验证完成");
@@ -346,7 +346,10 @@ export class ExcelValidator {
     const map = new Map<string, number>();
 
     // Field mappings - support both test format and template format
+    // 使用具体的 key 避免重复，格式：原始key + 上下文后缀
     const fieldMappings = {
+      序号: "sequence_number",
+
       // 药店拜访 - Test file format
       药店名称: "pharmacy_name",
       对接人: "contact_person",
@@ -359,13 +362,13 @@ export class ExcelValidator {
       拜访内容: "visit_content",
 
       // 药店拜访 - Template format from 模板总汇.xlsx
-      零售渠道: "pharmacy_name", // 零售渠道 maps to pharmacy_name
-      "实施\n人": "implementer", // Handle newline in header
-      "拜访开始\n时间": "visit_time", // Handle newline in header
-      任务标题: "task_title",
+      零售渠道: "pharmacy_name",
+      "实施\n人_pharmacy": "implementer",
+      "拜访开始\n时间_pharmacy": "visit_time",
+      任务标题_pharmacy: "task_title",
       渠道地址: "pharmacy_address",
-      "拜访事项\n（1）": "visit_content_1",
-      "信息反馈（1）": "feedback_1",
+      "拜访事项\n（1）_pharmacy": "visit_content_1_pharmacy",
+      "信息反馈（1）_pharmacy": "feedback_1_pharmacy",
 
       // 市场调研类任务字段映射
       调查对象姓名: "survey_target_name",
@@ -392,8 +395,6 @@ export class ExcelValidator {
 
       // 科室拜访字段映射
       科室名称: "department_name",
-      科室: "department_name",
-      拜访时长: "visit_duration",
       拜访持续时间: "visit_duration",
       时长: "visit_duration",
 
@@ -416,32 +417,26 @@ export class ExcelValidator {
       服务日期: "service_time",
       陈列内容: "display_content",
       陈列位置: "display_location",
-      "拜访事\n项（2）": "visit_content_2",
-      "信息反馈（2）": "feedback_2",
+      "拜访事\n项（2）_pharmacy": "visit_content_2_pharmacy",
+      "信息反馈（2）_pharmacy": "feedback_2_pharmacy",
 
       // 医院拜访 - Template format from 模板总汇.xlsx (actual headers from row 3)
-      序号: "sequence_number",
-      任务标题: "task_title",
-      实施人: "implementer",
       医生姓名: "doctor_name",
       医疗机构名称: "hospital_name",
       医疗类型: "medical_type",
-      渠道地址: "hospital_address",
-      科室: "department",
-      拜访开始时间: "visit_time",
-      拜访时长: "visit_duration",
-      "拜访事项（1）": "visit_content_1",
-      "信息反馈（1）": "feedback_1",
-      "拜访事项（2）": "visit_content_2",
-      "信息反馈（2）": "feedback_2",
+      拜访开始时间_hospital: "visit_time",
+      "拜访事项（1）_hospital": "visit_content_1_hospital",
+      "信息反馈（1）_hospital": "feedback_1_hospital",
+      "拜访事项（2）_hospital": "visit_content_2_hospital",
+      "信息反馈（2）_hospital": "feedback_2_hospital",
       医院门头照: "hospital_photo",
       内部照片: "internal_photo",
 
       // Handle variations with newlines (actual format from template)
-      "医疗机构\n名称": "hospital_name",
-      "拜访事项\n（1）": "visit_content_1",
-      "拜访事项\n（2）": "visit_content_2",
-      "医院门头\n照": "hospital_photo",
+      "医疗机构\n名称_hospital": "hospital_name",
+      "拜访事项\n（1）_hospital": "visit_content_1_hospital_newline",
+      "拜访事项\n（2）_hospital": "visit_content_2_hospital_newline",
+      "医院门头\n照_hospital": "hospital_photo",
     };
 
     headers.forEach((header, index) => {
@@ -453,10 +448,31 @@ export class ExcelValidator {
         map.set(header, index);
         map.set(cleanHeader, index);
 
-        // Check for field mappings
-        const mappedField =
+        // Check for field mappings with context-aware matching
+        let mappedField =
           fieldMappings[header as keyof typeof fieldMappings] ||
           fieldMappings[cleanHeader as keyof typeof fieldMappings];
+
+        // If no direct match, try with context suffixes
+        if (!mappedField) {
+          const taskType = this.template.name;
+          let suffix = "";
+
+          if (taskType.includes("医院拜访")) {
+            suffix = "_hospital";
+          } else if (taskType.includes("药店")) {
+            suffix = "_pharmacy";
+          }
+
+          if (suffix) {
+            mappedField =
+              fieldMappings[(header + suffix) as keyof typeof fieldMappings] ||
+              fieldMappings[
+                (cleanHeader + suffix) as keyof typeof fieldMappings
+              ];
+          }
+        }
+
         if (mappedField) {
           map.set(mappedField, index);
         }
@@ -1248,7 +1264,7 @@ export class ExcelValidator {
       const medicalType = value.trim();
 
       // 检查是否包含级别信息
-      const hasLevel = allowedLevels.some((level) =>
+      const hasLevel = allowedLevels.some((level: string) =>
         medicalType.includes(level)
       );
 

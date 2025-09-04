@@ -154,7 +154,7 @@ export default function Home() {
         validationResult.validation,
         validationResult.fileName,
         selectedTask,
-        null // Original file highlighting disabled
+        undefined // Original file highlighting disabled
       );
 
       const url = window.URL.createObjectURL(blob);

@@ -55,7 +55,7 @@ export function buildErrorReportWorkbook(
   validationResult: ValidationResult,
   fileName?: string,
   taskName?: string,
-  originalFileBuffer?: ArrayBuffer | null
+  originalFileBuffer?: ArrayBuffer
 ): XLSX.WorkBook {
   const workbook = XLSX.utils.book_new();
 
@@ -63,13 +63,14 @@ export function buildErrorReportWorkbook(
   // with large files containing images. The export now focuses on detailed error reporting only.
 
   // Skip original file processing to avoid memory issues
-  if (false && originalFileBuffer) {
+  if (
+    false &&
+    originalFileBuffer &&
+    originalFileBuffer instanceof ArrayBuffer
+  ) {
     try {
       // Convert ArrayBuffer to Uint8Array for XLSX.read
-      const uint8Array =
-        originalFileBuffer instanceof ArrayBuffer
-          ? new Uint8Array(originalFileBuffer)
-          : originalFileBuffer;
+      const uint8Array = new Uint8Array(originalFileBuffer as ArrayBuffer);
       const originalWorkbook = XLSX.read(uint8Array, { type: "array" });
       const originalSheetNames = originalWorkbook.SheetNames;
 
@@ -86,8 +87,8 @@ export function buildErrorReportWorkbook(
           (name) =>
             name.includes(errorSheetName) || errorSheetName.includes(name)
         );
-        if (possibleSheet) {
-          targetSheet = originalWorkbook.Sheets[possibleSheet];
+        if (possibleSheet && originalWorkbook.Sheets[possibleSheet as string]) {
+          targetSheet = originalWorkbook.Sheets[possibleSheet as string];
         }
       }
 
@@ -101,7 +102,7 @@ export function buildErrorReportWorkbook(
         const markedSheet = XLSX.utils.sheet_to_json(targetSheet, {
           header: 1,
           raw: false,
-        });
+        }) as unknown[][];
         const newSheet = XLSX.utils.aoa_to_sheet(markedSheet);
 
         // Copy original formatting
@@ -476,7 +477,7 @@ export function buildReportBlob(
   validationResult: ValidationResult,
   fileName?: string,
   taskName?: string,
-  originalFileBuffer?: ArrayBuffer | null
+  originalFileBuffer?: ArrayBuffer
 ): Blob {
   const wb = buildErrorReportWorkbook(
     validationResult,
