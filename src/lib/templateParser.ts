@@ -118,11 +118,11 @@ export class TemplateParser {
     //   "要求",
     //   "模板",
     //   "",
-      "项目占比",
-      "备注",
-      "样表链接",
-      "制定合规流程注意事项",
-    ];
+    //   "项目占比",
+    //   "备注",
+    //   "样表链接",
+    //   "制定合规流程注意事项",
+    // ];
 
     // Process data rows starting from row 3 (index 2)
     for (let i = 2; i < data.length; i++) {
