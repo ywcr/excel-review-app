@@ -1222,12 +1222,12 @@ export class ExcelValidator {
       "二级",
       "三级",
     ];
-    const allowedSuffixes = rule.params?.allowedSuffixes || [
-      "甲等",
-      "乙等",
-      "丙等",
-      "特等",
-    ];
+    // const allowedSuffixes = rule.params?.allowedSuffixes || [
+    //   "甲等",
+    //   "乙等",
+    //   "丙等",
+    //   "特等",
+    // ];
 
     rows.forEach(({ data, rowNumber }) => {
       const value = data[rule.field];

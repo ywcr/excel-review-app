@@ -57,7 +57,7 @@ export class TemplateParser {
           break;
         }
       }
-    } catch (error) {
+    } catch {
       console.warn(
         "Could not check file existence, using default path:",
         this.templatePath
@@ -80,7 +80,7 @@ export class TemplateParser {
       // Check file permissions
       try {
         fs.accessSync(this.templatePath, fs.constants.R_OK);
-      } catch (accessError) {
+      } catch {
         throw new Error(`Cannot read template file: ${this.templatePath}`);
       }
 
@@ -109,15 +109,15 @@ export class TemplateParser {
     const data = XLSX.utils.sheet_to_json(taskSheet, { header: 1 }) as any[][];
 
     // Find header row (row 2, index 1)
-    const headerRow = data[1];
-    const headers = [
-      "服务类别",
-      "服务项目",
-      "费用标准",
-      "计量单位",
-      "要求",
-      "模板",
-      "",
+    // const headerRow = data[1];
+    // const headers = [
+    //   "服务类别",
+    //   "服务项目",
+    //   "费用标准",
+    //   "计量单位",
+    //   "要求",
+    //   "模板",
+    //   "",
       "项目占比",
       "备注",
       "样表链接",

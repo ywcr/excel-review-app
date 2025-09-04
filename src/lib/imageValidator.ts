@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import sharp from "sharp";
 import Tesseract from "tesseract.js";
-import Jimp from "jimp";
+import { Jimp } from "jimp";
 
 // 图片信息接口
 export interface ImageInfo {

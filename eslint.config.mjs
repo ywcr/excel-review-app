@@ -19,6 +19,8 @@ const eslintConfig = [
       "build/**",
       "next-env.d.ts",
     ],
+  },
+  {
     rules: {
       // 禁用所有常见的 ESLint 规则
       "@typescript-eslint/no-unused-vars": "off",
