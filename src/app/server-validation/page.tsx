@@ -199,7 +199,7 @@ export default function ServerValidationPage() {
         {/* 任务选择 */}
         <div className="mb-8">
           <TaskSelector
-            availableTasks={availableTasks}
+            tasks={availableTasks}
             selectedTask={selectedTask}
             onTaskChange={handleTaskChange}
           />
@@ -216,10 +216,8 @@ export default function ServerValidationPage() {
         <div className="mb-8">
           <FileUpload
             onFileUpload={handleFileUpload}
-            isValidating={isValidating}
-            onValidate={handleValidate}
             uploadedFile={uploadedFile}
-            selectedTask={selectedTask}
+            isLoading={isValidating}
           />
         </div>
 
@@ -242,7 +240,7 @@ export default function ServerValidationPage() {
         {/* 工作表选择器 */}
         {showSheetSelector && (
           <SheetSelector
-            availableSheets={availableSheets}
+            availableSheets={(availableSheets || []).map((s) => s.name)}
             taskName={pendingValidation?.taskName || selectedTask}
             onSheetSelect={handleSheetSelect}
             onCancel={handleSheetSelectorCancel}

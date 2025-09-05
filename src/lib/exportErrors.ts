@@ -300,9 +300,10 @@ export function buildErrorReportWorkbook(
       ["验证规则说明"],
       [""],
       ["1. 医疗类型要求"],
-      ["   • 必须填写具体医院级别"],
-      ["   • 基本格式：一级、二级、三级"],
-      ["   • 完整格式：一级甲等、一级乙等、二级甲等、三级甲等等（可选）"],
+      ["   • 必须选择以下医疗机构类别之一"],
+      ["   • 等级医院：包括各级公立医院"],
+      ["   • 基层医疗：包括社区卫生服务中心、乡镇卫生院等"],
+      ["   • 民营医院：包括私立医院、专科医院等"],
       [""],
       ["2. 拜访时长要求"],
       ["   • 所有医院拜访类型：不低于100分钟"],
@@ -325,7 +326,7 @@ export function buildErrorReportWorkbook(
       ["常见错误解决方案"],
       [""],
       [
-        "• 医疗类型格式错误：填写具体级别，如一级、二级、三级，或完整格式如一级甲等、二级甲等等",
+        "• 医疗类型格式错误：请选择正确的医疗机构类别：等级医院、基层医疗、民营医院",
       ],
       ["• 时长不符：确保拜访时长不低于100分钟"],
       ["• 时间范围错误：确保拜访时间在07:00-19:00范围内"],
@@ -489,4 +490,37 @@ export function buildReportBlob(
   return new Blob([wbout], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
+}
+
+// Convenience function to export errors to an Excel file in the browser
+export async function exportErrorsToExcel(
+  errors: ValidationError[],
+  fileName: string,
+  options?: { taskName?: string; originalFileBuffer?: ArrayBuffer }
+): Promise<void> {
+  const validationResult: ValidationResult = {
+    isValid: errors.length === 0,
+    errors,
+    summary: {
+      totalRows: 0,
+      validRows: 0,
+      errorCount: errors.length,
+    },
+  };
+
+  const blob = buildReportBlob(
+    validationResult,
+    fileName,
+    options?.taskName,
+    options?.originalFileBuffer
+  );
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${fileName}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }

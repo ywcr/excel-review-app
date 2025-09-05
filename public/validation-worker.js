@@ -76,11 +76,10 @@ const TASK_TEMPLATES = {
         field: "medicalType",
         type: "medicalLevel",
         params: {
-          allowedLevels: ["一级", "二级", "三级"],
-          allowedSuffixes: ["甲等", "乙等", "丙等", "特等"],
+          allowedLevels: ["等级医院", "基层医疗", "民营医院"],
+          allowedSuffixes: [],
         },
-        message:
-          "医疗类型必须填写具体级别，如：一级、二级、三级，或完整格式：一级甲等、二级甲等等",
+        message: "医疗类型必须选择以下类别之一：等级医院、基层医疗、民营医院",
       },
     ],
   },
@@ -523,7 +522,7 @@ function validateUnique(rule, rows, fieldMapping) {
           }（与第${firstOccurrence}行重复，同一店铺：${value}${
             address ? ` - ${address}` : ""
           }）`,
-          type: rule.type,
+          errorType: rule.type,
         });
       } else {
         dailyGroups.get(dateStr).add(uniqueKey);
@@ -559,7 +558,7 @@ function validateUnique(rule, rows, fieldMapping) {
             field: rule.field,
             value,
             message: rule.message,
-            type: rule.type,
+            errorType: rule.type,
           });
         }
       }
@@ -628,7 +627,7 @@ function validateFrequency(rule, rows, fieldMapping) {
         message: `${rule.message}（${dateStr}当日第${
           currentCount + 1
         }家，超过${maxPerDay}家限制）`,
-        type: rule.type,
+        errorType: rule.type,
       });
     }
   }
@@ -710,7 +709,7 @@ function validateDateInterval(rule, rows, fieldMapping) {
           message: `${rule.message}（与第${
             previous.rowNumber
           }行冲突，同一店铺：${groupName}${address ? ` - ${address}` : ""}）`,
-          type: rule.type,
+          errorType: rule.type,
         });
       }
     }
@@ -1321,7 +1320,7 @@ function validateField(value, rule, row, column, rowData) {
           field: rule.field,
           value,
           message: rule.message,
-          type: rule.type,
+          errorType: rule.type,
         };
       }
       break;
@@ -1341,7 +1340,7 @@ function validateField(value, rule, row, column, rowData) {
             field: rule.field,
             value: originalValue,
             message: rule.message,
-            type: rule.type,
+            errorType: rule.type,
           };
         }
       }
@@ -1355,7 +1354,7 @@ function validateField(value, rule, row, column, rowData) {
           field: rule.field,
           value,
           message: rule.message,
-          type: rule.type,
+          errorType: rule.type,
         };
       }
       break;
@@ -1368,7 +1367,7 @@ function validateField(value, rule, row, column, rowData) {
           field: rule.field,
           value,
           message: rule.message,
-          type: rule.type,
+          errorType: rule.type,
         };
       }
       break;
@@ -1381,7 +1380,7 @@ function validateField(value, rule, row, column, rowData) {
           field: rule.field,
           value,
           message: rule.message,
-          type: rule.type,
+          errorType: rule.type,
         };
       }
       break;
@@ -1394,7 +1393,7 @@ function validateField(value, rule, row, column, rowData) {
           field: rule.field,
           value,
           message: rule.message,
-          type: rule.type,
+          errorType: rule.type,
         };
       }
       break;

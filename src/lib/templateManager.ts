@@ -1,9 +1,19 @@
-import { ValidationTemplate } from './types';
-import { EMBEDDED_TEMPLATES } from './embeddedTemplates';
+import { EMBEDDED_TEMPLATES } from "./embeddedTemplates";
+
+// Minimal template type to support embedded/local/remote templates
+// and the validations performed in this manager. Fields are optional
+// because different sources may provide different shapes.
+interface ValidationTemplate {
+  taskName?: string;
+  name?: string;
+  headers?: string[];
+  requiredFields?: string[];
+  validationRules?: Array<{ field: string; type: string; message: string }>;
+}
 
 // 模板配置
 interface TemplateConfig {
-  source: 'local' | 'remote' | 'embedded';
+  source: "local" | "remote" | "embedded";
   localPath?: string;
   remoteUrl?: string;
   cacheTimeout?: number; // 缓存超时时间（毫秒）
@@ -18,8 +28,8 @@ interface TemplateCacheItem {
 
 // 默认配置
 const DEFAULT_CONFIG: TemplateConfig = {
-  source: 'local',
-  localPath: '/data/模板总汇.xlsx',
+  source: "local",
+  localPath: "/data/模板总汇.xlsx",
   cacheTimeout: 5 * 60 * 1000, // 5分钟缓存
 };
 
@@ -44,18 +54,21 @@ class TemplateManager {
 
     try {
       switch (this.config.source) {
-        case 'local':
+        case "local":
           template = await this.loadFromLocal(taskName);
           break;
-        case 'remote':
+        case "remote":
           template = await this.loadFromRemote(taskName);
           break;
-        case 'embedded':
+        case "embedded":
           template = this.loadFromEmbedded(taskName);
           break;
       }
     } catch (error) {
-      console.warn(`Failed to load template from ${this.config.source}:`, error);
+      console.warn(
+        `Failed to load template from ${this.config.source}:`,
+        error
+      );
     }
 
     // 如果主要源失败，尝试备用源
@@ -72,9 +85,11 @@ class TemplateManager {
   }
 
   // 从本地文件加载
-  private async loadFromLocal(taskName: string): Promise<ValidationTemplate | null> {
+  private async loadFromLocal(
+    taskName: string
+  ): Promise<ValidationTemplate | null> {
     if (!this.config.localPath) {
-      throw new Error('Local path not configured');
+      throw new Error("Local path not configured");
     }
 
     try {
@@ -91,9 +106,11 @@ class TemplateManager {
   }
 
   // 从远程URL加载
-  private async loadFromRemote(taskName: string): Promise<ValidationTemplate | null> {
+  private async loadFromRemote(
+    taskName: string
+  ): Promise<ValidationTemplate | null> {
     if (!this.config.remoteUrl) {
-      throw new Error('Remote URL not configured');
+      throw new Error("Remote URL not configured");
     }
 
     try {
@@ -111,13 +128,15 @@ class TemplateManager {
 
   // 从内嵌模板加载
   private loadFromEmbedded(taskName: string): ValidationTemplate | null {
-    return EMBEDDED_TEMPLATES[taskName] || null;
+    return (EMBEDDED_TEMPLATES as Record<string, any>)[taskName] || null;
   }
 
   // 带备用方案的加载
-  private async loadWithFallback(taskName: string): Promise<ValidationTemplate | null> {
-    const fallbackOrder = ['local', 'embedded', 'remote'];
-    
+  private async loadWithFallback(
+    taskName: string
+  ): Promise<ValidationTemplate | null> {
+    const fallbackOrder = ["local", "embedded", "remote"];
+
     for (const source of fallbackOrder) {
       if (source === this.config.source) continue; // 跳过已经尝试过的主要源
 
@@ -125,13 +144,13 @@ class TemplateManager {
         let template: ValidationTemplate | null = null;
 
         switch (source) {
-          case 'local':
+          case "local":
             template = await this.loadFromLocal(taskName);
             break;
-          case 'remote':
+          case "remote":
             template = await this.loadFromRemote(taskName);
             break;
-          case 'embedded':
+          case "embedded":
             template = this.loadFromEmbedded(taskName);
             break;
         }
@@ -149,10 +168,13 @@ class TemplateManager {
   }
 
   // 解析Excel模板文件
-  private async parseTemplateFromExcel(arrayBuffer: ArrayBuffer, taskName: string): Promise<ValidationTemplate | null> {
+  private async parseTemplateFromExcel(
+    arrayBuffer: ArrayBuffer,
+    taskName: string
+  ): Promise<ValidationTemplate | null> {
     // 这里需要实现Excel模板解析逻辑
     // 暂时返回null，实际实现需要解析Excel文件
-    console.warn('Excel template parsing not implemented yet');
+    console.warn("Excel template parsing not implemented yet");
     return null;
   }
 
@@ -162,8 +184,9 @@ class TemplateManager {
     if (!cached) return null;
 
     const now = Date.now();
-    const isExpired = this.config.cacheTimeout && 
-                     (now - cached.timestamp) > this.config.cacheTimeout;
+    const isExpired =
+      this.config.cacheTimeout &&
+      now - cached.timestamp > this.config.cacheTimeout;
 
     if (isExpired) {
       this.cache.delete(taskName);
@@ -174,11 +197,15 @@ class TemplateManager {
   }
 
   // 缓存模板
-  private cacheTemplate(taskName: string, template: ValidationTemplate, source: string): void {
+  private cacheTemplate(
+    taskName: string,
+    template: ValidationTemplate,
+    source: string
+  ): void {
     this.cache.set(taskName, {
       template,
       timestamp: Date.now(),
-      source
+      source,
     });
   }
 
@@ -193,8 +220,8 @@ class TemplateManager {
 
   // 预加载所有模板
   async preloadTemplates(taskNames: string[]): Promise<void> {
-    const promises = taskNames.map(taskName => 
-      this.getTemplate(taskName).catch(error => {
+    const promises = taskNames.map((taskName) =>
+      this.getTemplate(taskName).catch((error) => {
         console.warn(`Failed to preload template ${taskName}:`, error);
         return null;
       })
@@ -209,31 +236,33 @@ class TemplateManager {
     return Array.from(this.cache.entries()).map(([taskName, item]) => ({
       taskName,
       source: item.source,
-      age: now - item.timestamp
+      age: now - item.timestamp,
     }));
   }
 
   // 验证模板完整性
-  async validateTemplate(taskName: string): Promise<{ isValid: boolean; errors: string[] }> {
+  async validateTemplate(
+    taskName: string
+  ): Promise<{ isValid: boolean; errors: string[] }> {
     const template = await this.getTemplate(taskName);
     const errors: string[] = [];
 
     if (!template) {
-      errors.push('Template not found');
+      errors.push("Template not found");
       return { isValid: false, errors };
     }
 
     // 验证必要字段
     if (!template.taskName) {
-      errors.push('Missing taskName');
+      errors.push("Missing taskName");
     }
 
     if (!template.headers || template.headers.length === 0) {
-      errors.push('Missing or empty headers');
+      errors.push("Missing or empty headers");
     }
 
     if (!template.validationRules || template.validationRules.length === 0) {
-      errors.push('Missing or empty validation rules');
+      errors.push("Missing or empty validation rules");
     }
 
     // 验证规则完整性
@@ -251,7 +280,7 @@ class TemplateManager {
 
     return {
       isValid: errors.length === 0,
-      errors
+      errors,
     };
   }
 
@@ -272,4 +301,5 @@ class TemplateManager {
 export const templateManager = new TemplateManager();
 
 // 导出类型和类
-export { TemplateManager, TemplateConfig, TemplateCacheItem };
+export { TemplateManager };
+export type { TemplateConfig, TemplateCacheItem };

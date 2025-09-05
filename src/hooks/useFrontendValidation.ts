@@ -26,7 +26,7 @@ export interface ValidationResult {
     field: string;
     value: any;
     message: string;
-    type: string;
+    errorType: string;
   }>;
   imageValidation?: {
     totalImages: number;

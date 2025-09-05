@@ -7,7 +7,7 @@ export interface ValidationError {
   field: string;
   value: any;
   message: string;
-  type: string;
+  errorType: string;
 }
 
 export interface HeaderValidationResult {
@@ -396,7 +396,7 @@ export class FrontendExcelValidator {
             field: rule.field,
             value,
             message: rule.message,
-            type: rule.type,
+            errorType: rule.type,
           };
         }
         break;
@@ -409,7 +409,7 @@ export class FrontendExcelValidator {
             field: rule.field,
             value,
             message: rule.message,
-            type: rule.type,
+            errorType: rule.type,
           };
         }
         break;
@@ -422,7 +422,7 @@ export class FrontendExcelValidator {
             field: rule.field,
             value,
             message: rule.message,
-            type: rule.type,
+            errorType: rule.type,
           };
         }
         break;
@@ -435,7 +435,7 @@ export class FrontendExcelValidator {
             field: rule.field,
             value,
             message: rule.message,
-            type: rule.type,
+            errorType: rule.type,
           };
         }
         break;
@@ -448,7 +448,7 @@ export class FrontendExcelValidator {
             field: rule.field,
             value,
             message: rule.message,
-            type: rule.type,
+            errorType: rule.type,
           };
         }
         break;
@@ -461,7 +461,7 @@ export class FrontendExcelValidator {
             field: rule.field,
             value,
             message: rule.message,
-            type: rule.type,
+            errorType: rule.type,
           };
         }
         break;
@@ -663,7 +663,7 @@ export class FrontendExcelValidator {
             field: rule.field,
             value,
             message: rule.message,
-            type: rule.type,
+            errorType: rule.type,
           });
         }
       }
@@ -734,7 +734,7 @@ export class FrontendExcelValidator {
               field: rule.field,
               value: group,
               message: rule.message,
-              type: rule.type,
+              errorType: rule.type,
             });
           }
         }
@@ -803,7 +803,7 @@ export class FrontendExcelValidator {
             field: rule.field,
             value: group,
             message: rule.message,
-            type: rule.type,
+            errorType: rule.type,
           });
         }
       }

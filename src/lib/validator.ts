@@ -507,19 +507,30 @@ export class ExcelValidator {
       if (fieldName === "medical_type" || fieldName === "医疗类型") {
         if (value && typeof value === "string") {
           // Remove extra whitespace and normalize common variations
-          value = value
-            .trim()
-            .replace(/医院$/, "医院") // Normalize hospital suffix
-            .replace(/^三级甲等医院$/, "三甲医院")
-            .replace(/^二级甲等医院$/, "二甲医院")
-            .replace(/^一级甲等医院$/, "一甲医院")
-            .replace(/^社区卫生服务中心$/, "社区卫生服务中心")
-            .replace(/^乡镇卫生院$/, "乡镇卫生院")
-            .replace(/^村卫生室$/, "村卫生室")
-            .replace(/^社区卫生服务站$/, "社区卫生服务站")
-            .replace(/^民营医院$/, "民营医院")
-            .replace(/^私立医院$/, "私立医院")
-            .replace(/^专科医院$/, "专科医院");
+          let normalizedValue = value.trim();
+
+          // Map old tier system to new categories
+          if (
+            normalizedValue.includes("三级") ||
+            normalizedValue.includes("二级") ||
+            normalizedValue.includes("一级")
+          ) {
+            normalizedValue = "等级医院";
+          } else if (
+            normalizedValue.includes("社区卫生") ||
+            normalizedValue.includes("乡镇卫生") ||
+            normalizedValue.includes("村卫生") ||
+            normalizedValue.includes("基层")
+          ) {
+            normalizedValue = "基层医疗";
+          } else if (
+            normalizedValue.includes("民营") ||
+            normalizedValue.includes("私立")
+          ) {
+            normalizedValue = "民营医院";
+          }
+
+          value = normalizedValue;
         }
       }
 
@@ -1234,9 +1245,9 @@ export class ExcelValidator {
     }
 
     const allowedLevels = rule.params?.allowedLevels || [
-      "一级",
-      "二级",
-      "三级",
+      "等级医院",
+      "基层医疗",
+      "民营医院",
     ];
     // const allowedSuffixes = rule.params?.allowedSuffixes || [
     //   "甲等",

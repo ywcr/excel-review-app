@@ -96,7 +96,7 @@ export default function Home() {
             row: error.row,
             column: error.column,
             field: error.field,
-            errorType: error.type,
+            errorType: error.errorType,
             message: error.message,
             value: error.value,
           })),
@@ -123,7 +123,7 @@ export default function Home() {
             error.row,
             error.column,
             error.field,
-            error.type,
+            error.errorType,
             `"${error.message.replace(/"/g, '""')}"`,
             `"${String(error.value || "").replace(/"/g, '""')}"`,
           ].join(",")

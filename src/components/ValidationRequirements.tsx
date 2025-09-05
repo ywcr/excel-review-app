@@ -107,7 +107,11 @@ export default function ValidationRequirements({
   const getErrorTypesForRequirement = (requirementText: string): string[] => {
     if (
       requirementText.includes("医疗类型") ||
-      requirementText.includes("级别")
+      requirementText.includes("级别") ||
+      requirementText.includes("医疗机构类别") ||
+      requirementText.includes("等级医院") ||
+      requirementText.includes("基层医疗") ||
+      requirementText.includes("民营医院")
     ) {
       return ["medicalLevel"];
     }
@@ -192,8 +196,7 @@ export default function ValidationRequirements({
             {
               category: "医疗类型要求",
               items: [
-                "必须填写具体医院级别，如：一级、二级、三级",
-                "可选完整格式：一级甲等、一级乙等、二级甲等、三级甲等等",
+                "必须选择以下医疗机构类别之一：等级医院、基层医疗、民营医院",
               ],
             },
             {
@@ -222,8 +225,7 @@ export default function ValidationRequirements({
             {
               category: "医疗类型要求",
               items: [
-                "必须填写具体医院级别，如：一级、二级、三级",
-                "可选完整格式：一级甲等、一级乙等、二级甲等、三级甲等等",
+                "必须选择以下医疗机构类别之一：等级医院、基层医疗、民营医院",
               ],
             },
             {
@@ -252,8 +254,7 @@ export default function ValidationRequirements({
             {
               category: "医疗类型要求",
               items: [
-                "必须填写具体医院级别，如：一级、二级、三级",
-                "可选完整格式：一级甲等、一级乙等、二级甲等、三级甲等等",
+                "必须选择以下医疗机构类别之一：等级医院、基层医疗、民营医院",
               ],
             },
             {
