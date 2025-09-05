@@ -91,6 +91,8 @@ export async function POST(request: NextRequest) {
 // Get available tasks/templates
 export async function GET() {
   try {
+    console.log("Loading templates for GET request...");
+
     // Create a new instance instead of using singleton
     const templateParser = new (
       await import("@/lib/templateParser")
@@ -98,6 +100,9 @@ export async function GET() {
     await templateParser.loadTemplates();
     const services = templateParser.getAvailableServices();
     const templates = templateParser.getAllTemplates();
+
+    console.log("Loaded services:", services);
+    console.log("Total templates:", templates.length);
 
     return NextResponse.json({
       success: true,
