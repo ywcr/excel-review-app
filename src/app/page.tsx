@@ -1,177 +1,148 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import FileUpload from "@/components/FileUpload";
 import TaskSelector from "@/components/TaskSelector";
-import ValidationResults from "@/components/ValidationResults";
 import ValidationRequirements from "@/components/ValidationRequirements";
-import SheetSelector from "@/components/SheetSelector";
-
-interface ValidationResult {
-  isValid: boolean;
-  errors: Array<{
-    sheet: string;
-    row: number;
-    column: string;
-    field: string;
-    errorType: string;
-    message: string;
-    value: any;
-  }>;
-  summary: {
-    totalRows: number;
-    validRows: number;
-    errorCount: number;
-  };
-}
-
-interface ValidationResponse {
-  success: boolean;
-  fileName: string;
-  taskName: string;
-  validation: ValidationResult;
-}
+import ValidationResults from "@/components/ValidationResults";
+import FrontendSheetSelector from "@/components/FrontendSheetSelector";
+import { useFrontendValidation } from "@/hooks/useFrontendValidation";
+import { getAvailableTasks } from "@/lib/validationRules";
 
 export default function Home() {
-  const [availableTasks, setAvailableTasks] = useState<string[]>([]);
-  const [selectedTask, setSelectedTask] = useState<string>("");
-  const [validationResult, setValidationResult] =
-    useState<ValidationResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string>("");
-  const [isExporting, setIsExporting] = useState(false);
+  const availableTasks = getAvailableTasks();
+  const [selectedTask, setSelectedTask] = useState<string>(
+    availableTasks[0] || ""
+  );
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [showSheetSelector, setShowSheetSelector] = useState(false);
-  const [availableSheets, setAvailableSheets] = useState<string[]>([]);
-  const [pendingValidation, setPendingValidation] = useState<{
-    file: File;
-    taskName: string;
-  } | null>(null);
-  // Original file buffer disabled to avoid memory issues with large files
-  // const [originalFileBuffer, setOriginalFileBuffer] = useState<ArrayBuffer | null>(null);
+  const [includeImageValidation, setIncludeImageValidation] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
-  useEffect(() => {
-    // Load available tasks on component mount
-    fetch("/api/validate")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setAvailableTasks(data.services);
-          // Set default to 药店拜访 if available
-          if (data.services.includes("药店拜访")) {
-            setSelectedTask("药店拜访");
-          }
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to load tasks:", err);
-        setError("Failed to load available tasks");
-      });
-  }, []);
+  const {
+    isValidating,
+    progress,
+    result,
+    error,
+    validateExcel,
+    cancelValidation,
+    clearResult,
+  } = useFrontendValidation();
 
-  const handleFileUpload = async (file: File) => {
-    setError("");
-    setValidationResult(null);
-    setUploadedFile(file);
+  const handleFileUpload = (file: File) => {
+    // 如果已有上传的文件，先触发重新上传逻辑
+    if (uploadedFile) {
+      setUploadedFile(null);
+      clearResult();
+      // 使用setTimeout确保状态更新完成后再设置新文件
+      setTimeout(() => {
+        setUploadedFile(file);
+        clearResult();
+      }, 0);
+    } else {
+      setUploadedFile(file);
+      clearResult();
+    }
   };
 
-  const handleValidate = async (selectedSheet?: string) => {
-    if (!uploadedFile) {
-      setError("请先上传文件");
-      return;
-    }
-
-    if (!selectedTask) {
-      setError("请先选择任务类型");
-      return;
-    }
-
-    setIsLoading(true);
-    setError("");
-    setValidationResult(null);
+  const handleValidate = async () => {
+    if (!uploadedFile || !selectedTask) return;
 
     try {
-      const formData = new FormData();
-      formData.append("file", uploadedFile);
-      formData.append("taskName", selectedTask);
-      if (selectedSheet) {
-        formData.append("selectedSheet", selectedSheet);
-      }
-
-      const response = await fetch("/api/validate", {
-        method: "POST",
-        body: formData,
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        setValidationResult(result);
-        // Original file highlighting disabled to avoid memory issues with large files
-      } else if (result.error === "SHEET_NOT_FOUND") {
-        // 显示工作表选择器
-        setAvailableSheets(result.availableSheets);
-        setPendingValidation({ file: uploadedFile, taskName: selectedTask });
-        setShowSheetSelector(true);
-      } else {
-        setError(result.message || result.error || "Validation failed");
-      }
+      // 传递图片验证选项到validateExcel
+      await validateExcel(
+        uploadedFile,
+        selectedTask,
+        undefined,
+        includeImageValidation
+      );
     } catch (err) {
-      console.error("Validation error:", err);
-      setError("验证失败，请重试");
-    } finally {
-      setIsLoading(false);
+      console.error("Validation failed:", err);
     }
   };
 
   const handleSheetSelect = async (sheetName: string) => {
     setShowSheetSelector(false);
-    if (pendingValidation) {
-      await handleValidate(sheetName);
-    }
-    setPendingValidation(null);
-  };
 
-  const handleSheetSelectorCancel = () => {
-    setShowSheetSelector(false);
-    setPendingValidation(null);
-    setAvailableSheets([]);
-  };
-
-  const handleExportErrors = async () => {
-    if (!validationResult || !selectedTask) {
-      setError("No validation result to export");
-      return;
-    }
-
-    setIsExporting(true);
-    setError("");
+    if (!uploadedFile || !selectedTask) return;
 
     try {
-      // Build report in browser to avoid API routing issues and large payloads
-      const { buildReportBlob } = await import("@/lib/exportErrors");
-      const blob = buildReportBlob(
-        validationResult.validation,
-        validationResult.fileName,
+      await validateExcel(
+        uploadedFile,
         selectedTask,
-        undefined // Original file highlighting disabled
+        sheetName,
+        includeImageValidation
       );
+    } catch (err) {
+      console.error("Validation with selected sheet failed:", err);
+    }
+  };
 
-      const url = window.URL.createObjectURL(blob);
+  // 处理需要选择工作表的情况
+  if (result?.needSheetSelection && !showSheetSelector) {
+    setShowSheetSelector(true);
+  }
+
+  // 转换验证结果格式以兼容ValidationResults组件
+  const convertedValidationResult = result
+    ? {
+        success: true,
+        fileName: uploadedFile?.name || "",
+        taskName: selectedTask,
+        validation: {
+          isValid: result.isValid,
+          errors: (result.errors || []).map((error) => ({
+            sheet: "Sheet1", // 前端验证暂时使用固定sheet名
+            row: error.row,
+            column: error.column,
+            field: error.field,
+            errorType: error.type,
+            message: error.message,
+            value: error.value,
+          })),
+          summary: result.summary || {
+            totalRows: 0,
+            validRows: 0,
+            errorCount: 0,
+          },
+          imageValidation: result.imageValidation,
+        },
+      }
+    : null;
+
+  const handleExportErrors = async () => {
+    if (!result || !result.errors || !result.errors.length) return;
+
+    setIsExporting(true);
+    try {
+      // 简化导出，直接创建CSV格式
+      const csvContent = [
+        ["行号", "列名", "字段", "错误类型", "错误信息", "值"].join(","),
+        ...result.errors.map((error) =>
+          [
+            error.row,
+            error.column,
+            error.field,
+            error.type,
+            `"${error.message.replace(/"/g, '""')}"`,
+            `"${String(error.value || "").replace(/"/g, '""')}"`,
+          ].join(",")
+        ),
+      ].join("\n");
+
+      const blob = new Blob(["\uFEFF" + csvContent], {
+        type: "text/csv;charset=utf-8;",
+      });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const timestamp = new Date()
-        .toISOString()
-        .slice(0, 19)
-        .replace(/:/g, "-");
-      a.download = `${selectedTask}_验证错误报告_${timestamp}.xlsx`;
+      a.download = `验证错误_${uploadedFile?.name || "unknown"}.csv`;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-    } catch (err) {
-      console.error("Export error:", err);
-      setError("Failed to export errors");
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export failed:", error);
     } finally {
       setIsExporting(false);
     }
@@ -187,6 +158,9 @@ export default function Home() {
           <p className="text-gray-700">
             上传您的 Excel 文件，选择对应任务进行自动审核
           </p>
+          <div className="mt-2 text-xs text-gray-500">
+            前端验证：更快、更安全、无需上传文件
+          </div>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
@@ -198,16 +172,15 @@ export default function Home() {
                 onTaskChange={(task) => {
                   setSelectedTask(task);
                   // 切换任务类型时清除之前的验证结果
-                  setValidationResult(null);
-                  setError("");
+                  clearResult();
                 }}
               />
             </div>
             <div>
               <FileUpload
                 onFileUpload={handleFileUpload}
-                isLoading={false}
-                disabled={false}
+                uploadedFile={uploadedFile}
+                isLoading={isValidating}
               />
             </div>
           </div>
@@ -227,8 +200,7 @@ export default function Home() {
                 <button
                   onClick={() => {
                     setUploadedFile(null);
-                    setValidationResult(null);
-                    setError("");
+                    clearResult();
                   }}
                   className="text-blue-600 hover:text-blue-800 text-sm underline"
                 >
@@ -238,15 +210,35 @@ export default function Home() {
             </div>
           )}
 
+          {/* 验证选项 */}
+          {uploadedFile && (
+            <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">
+                验证选项
+              </h3>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={includeImageValidation}
+                  onChange={(e) => setIncludeImageValidation(e.target.checked)}
+                  className="mr-3 text-blue-600"
+                />
+                <span className="text-gray-700 text-sm">
+                  包含图片验证（清晰度检测和重复检测）
+                </span>
+              </label>
+            </div>
+          )}
+
           {/* 审核按钮 */}
           {uploadedFile && (
             <div className="mt-6 text-center">
               <button
                 onClick={() => handleValidate()}
-                disabled={!selectedTask || isLoading}
+                disabled={!selectedTask || isValidating}
                 className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading ? (
+                {isValidating ? (
                   <>
                     <svg
                       className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
@@ -268,94 +260,97 @@ export default function Home() {
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       ></path>
                     </svg>
-                    审核中...
-                  </>
-                ) : validationResult ? (
-                  <>
-                    <svg
-                      className="-ml-1 mr-2 h-5 w-5"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                      />
-                    </svg>
-                    重新审核
+                    验证中...
                   </>
                 ) : (
-                  <>
-                    <svg
-                      className="-ml-1 mr-2 h-5 w-5"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    开始审核
-                  </>
+                  "开始审核"
                 )}
               </button>
-              {!selectedTask && uploadedFile && (
-                <p className="mt-2 text-sm text-gray-700">请先选择任务类型</p>
-              )}
-              {selectedTask && uploadedFile && !validationResult && (
-                <p className="mt-2 text-sm text-gray-700">
-                  点击按钮开始审核文件
-                </p>
-              )}
-              {selectedTask && uploadedFile && validationResult && (
-                <p className="mt-2 text-sm text-gray-700">
-                  切换任务类型后可重新审核同一文件
-                </p>
-              )}
-            </div>
-          )}
 
-          {error && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-red-800">{error}</p>
+              {isValidating && (
+                <button
+                  onClick={cancelValidation}
+                  className="ml-4 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  取消
+                </button>
+              )}
             </div>
           )}
         </div>
 
-        {/* 验证要求说明 */}
-        {selectedTask && (
-          <div className="mb-8">
-            <ValidationRequirements
-              taskName={selectedTask}
-              validationResult={validationResult}
-            />
+        {/* 进度显示 */}
+        {progress && (
+          <div className="mb-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-blue-900">
+                  {progress.message}
+                </span>
+                <span className="text-sm text-blue-700">
+                  {Math.round(progress.progress)}%
+                </span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${progress.progress}%` }}
+                />
+              </div>
+            </div>
           </div>
         )}
 
-        {validationResult && (
+        {/* 错误显示 */}
+        {error && (
+          <div className="mb-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <svg
+                  className="w-5 h-5 text-red-400 mr-3"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <div>
+                  <h3 className="text-sm font-medium text-red-800">验证失败</h3>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 验证要求显示 */}
+        {selectedTask && (
+          <ValidationRequirements
+            taskName={selectedTask}
+            validationResult={convertedValidationResult}
+          />
+        )}
+
+        {/* 验证结果显示 */}
+        {convertedValidationResult && (
           <ValidationResults
-            result={validationResult}
+            result={convertedValidationResult}
             onExportErrors={handleExportErrors}
             isExporting={isExporting}
           />
         )}
 
         {/* 工作表选择器 */}
-        {showSheetSelector && (
-          <SheetSelector
-            availableSheets={availableSheets}
-            taskName={pendingValidation?.taskName || selectedTask}
+        {showSheetSelector && result?.availableSheets && (
+          <FrontendSheetSelector
+            availableSheets={result.availableSheets}
             onSheetSelect={handleSheetSelect}
-            onCancel={handleSheetSelectorCancel}
+            onCancel={() => setShowSheetSelector(false)}
           />
         )}
       </div>

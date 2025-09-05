@@ -1,18 +1,27 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 
 interface FileUploadProps {
   onFileUpload: (file: File) => void | Promise<void>;
+  uploadedFile?: File | null;
   isLoading?: boolean;
   disabled?: boolean;
 }
 
 export default function FileUpload({
   onFileUpload,
+  uploadedFile,
   isLoading = false,
   disabled = false,
 }: FileUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
+
+  // Reset file input when uploadedFile becomes null
+  useEffect(() => {
+    if (!uploadedFile && fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, [uploadedFile]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -38,13 +47,27 @@ export default function FileUpload({
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files[0]) {
-      handleFile(files[0]);
+      // 克隆文件，避免浏览器后续权限或句柄失效导致读取失败
+      const original = files[0];
+      const cloned = new File([original], original.name, {
+        type: original.type,
+        lastModified: Date.now(),
+      });
+      handleFile(cloned);
+      // 允许选择同名同文件再次触发 change 事件
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
   const handleFile = (file: File) => {
     if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
       alert("请上传 Excel 文件 (.xlsx 或 .xls)");
+      // 重置文件输入框
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
       return;
     }
     onFileUpload(file);
@@ -52,6 +75,10 @@ export default function FileUpload({
 
   const openFileDialog = () => {
     if (!disabled && !isLoading) {
+      // 先清空 value，确保重复选择同一文件也能触发 onChange
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
       fileInputRef.current?.click();
     }
   };
