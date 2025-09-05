@@ -1,0 +1,12 @@
+{
+  "functions": {
+    "src/app/api/validate/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/tasks/route.ts": {
+      "maxDuration": 10
+    }
+  },
+  "regions": ["iad1"],
+  "buildCommand": "npm run build"
+}
