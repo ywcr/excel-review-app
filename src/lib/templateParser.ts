@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import path from "path";
 import fs from "fs";
+import { EMBEDDED_TEMPLATES } from "./embeddedTemplates";
 
 export interface ValidationRule {
   field: string;
@@ -20,12 +21,14 @@ export interface ValidationRule {
 
 export interface TaskTemplate {
   name: string;
-  serviceCategory: string;
-  serviceItem: string;
-  feeStandard: string;
-  unit: string;
-  requirements: string;
-  template: string;
+  description?: string;
+  requiredFields?: string[];
+  serviceCategory?: string;
+  serviceItem?: string;
+  feeStandard?: string;
+  unit?: string;
+  requirements?: string;
+  template?: string;
   ratio?: string;
   notes?: string;
   sampleLink?: string;
@@ -39,7 +42,9 @@ export class TemplateParser {
 
   constructor() {
     // Try multiple possible paths for the template file
+    // In Vercel, files should be in public directory or bundled as assets
     const possiblePaths = [
+      path.join(process.cwd(), "public", "data", "模板总汇.xlsx"),
       path.join(process.cwd(), "data", "模板总汇.xlsx"),
       path.join(process.cwd(), "src", "data", "模板总汇.xlsx"),
       path.join(__dirname, "..", "..", "data", "模板总汇.xlsx"),
@@ -49,64 +54,103 @@ export class TemplateParser {
     // Use the first path that exists
     this.templatePath = possiblePaths[0]; // Default to first path
 
-    // Check which path exists
+    // Check which path exists (with better error handling for Vercel)
     try {
       for (const testPath of possiblePaths) {
-        if (fs.existsSync(testPath)) {
-          this.templatePath = testPath;
-          console.log("Found template file at:", testPath);
-          break;
+        try {
+          if (fs.existsSync(testPath)) {
+            this.templatePath = testPath;
+            console.log("Found template file at:", testPath);
+            break;
+          }
+        } catch (pathError) {
+          // Continue to next path if this one fails
+          console.warn(`Cannot access path ${testPath}:`, pathError);
         }
       }
-    } catch {
+    } catch (error) {
       console.warn(
         "Could not check file existence, using default path:",
-        this.templatePath
+        this.templatePath,
+        "Error:",
+        error
       );
     }
+
+    console.log("Final template path:", this.templatePath);
   }
 
   async loadTemplates(): Promise<void> {
-    let workbook: XLSX.WorkBook;
-    let taskSheet: XLSX.WorkSheet;
-
     try {
       console.log("Loading templates from:", this.templatePath);
 
       // Check if file exists
       if (!fs.existsSync(this.templatePath)) {
-        throw new Error(`Template file does not exist: ${this.templatePath}`);
+        console.warn(
+          `Template file does not exist: ${this.templatePath}, using embedded templates`
+        );
+        this.loadEmbeddedTemplates();
+        return;
       }
 
       // Check file permissions
       try {
         fs.accessSync(this.templatePath, fs.constants.R_OK);
       } catch {
-        throw new Error(`Cannot read template file: ${this.templatePath}`);
+        console.warn(
+          `Cannot read template file: ${this.templatePath}, using embedded templates`
+        );
+        this.loadEmbeddedTemplates();
+        return;
       }
 
       // Read file as buffer first, then parse with XLSX
       const buffer = fs.readFileSync(this.templatePath);
-      workbook = XLSX.read(buffer, { type: "buffer" });
-      taskSheet = workbook.Sheets["任务说明-不用打印"];
+      const workbook = XLSX.read(buffer, { type: "buffer" });
+      const taskSheet = workbook.Sheets["任务说明-不用打印"];
 
       if (!taskSheet) {
         const availableSheets = Object.keys(workbook.Sheets);
-        throw new Error(
+        console.warn(
           `Sheet "任务说明-不用打印" not found. Available sheets: ${availableSheets.join(
             ", "
-          )}`
+          )}. Using embedded templates.`
         );
+        this.loadEmbeddedTemplates();
+        return;
       }
+
+      // Parse the Excel template
+      await this.parseExcelTemplate(workbook, taskSheet);
     } catch (error) {
       console.error("Error loading template file:", error);
-      throw new Error(
-        `Cannot access file ${this.templatePath}: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
+      console.warn("Falling back to embedded templates");
+      this.loadEmbeddedTemplates();
+    }
+  }
+
+  private loadEmbeddedTemplates(): void {
+    console.log("Loading embedded templates...");
+
+    for (const [name, template] of Object.entries(EMBEDDED_TEMPLATES)) {
+      this.templates.set(name, {
+        name: template.name,
+        description: template.description,
+        requiredFields: template.requiredFields,
+        validationRules: template.validationRules,
+      });
     }
 
+    console.log(
+      `Loaded ${this.templates.size} embedded templates:`,
+      Array.from(this.templates.keys())
+    );
+  }
+
+  private async parseExcelTemplate(
+    workbook: XLSX.WorkBook,
+    taskSheet: XLSX.WorkSheet
+  ): Promise<void> {
     const data = XLSX.utils.sheet_to_json(taskSheet, { header: 1 }) as any[][];
 
     // Find header row (row 2, index 1)
