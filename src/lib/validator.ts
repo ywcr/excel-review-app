@@ -706,6 +706,28 @@ export class ExcelValidator {
           }
         }
         break;
+
+      case "prohibitedContent":
+        if (value && typeof value === "string") {
+          const content = value.trim();
+          if (content && rule.params?.prohibitedTerms) {
+            const prohibitedTerms = rule.params.prohibitedTerms as string[];
+            for (const term of prohibitedTerms) {
+              if (content.includes(term)) {
+                return {
+                  sheet: sheetName,
+                  row: rowNumber,
+                  column: columnName,
+                  field: rule.field,
+                  errorType: "prohibitedContent",
+                  message: `${rule.message}：发现禁用词汇"${term}"`,
+                  value,
+                };
+              }
+            }
+          }
+        }
+        break;
     }
 
     return null;

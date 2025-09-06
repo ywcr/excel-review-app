@@ -1662,6 +1662,27 @@ function validateField(value, rule, row, column, rowData) {
         };
       }
       break;
+
+    case "prohibitedContent":
+      if (value && typeof value === "string") {
+        const content = value.trim();
+        if (content && rule.params?.prohibitedTerms) {
+          const prohibitedTerms = rule.params.prohibitedTerms;
+          for (const term of prohibitedTerms) {
+            if (content.includes(term)) {
+              return {
+                row,
+                column: columnLetter,
+                field: rule.field,
+                value,
+                message: `${rule.message}：发现禁用词汇"${term}"`,
+                errorType: rule.type,
+              };
+            }
+          }
+        }
+      }
+      break;
   }
 
   return null;

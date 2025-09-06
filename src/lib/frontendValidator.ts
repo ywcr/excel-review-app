@@ -427,6 +427,27 @@ export class FrontendExcelValidator {
         }
         break;
 
+      case "prohibitedContent":
+        if (value && typeof value === "string") {
+          const content = value.trim();
+          if (content && rule.params?.prohibitedTerms) {
+            const prohibitedTerms = rule.params.prohibitedTerms as string[];
+            for (const term of prohibitedTerms) {
+              if (content.includes(term)) {
+                return {
+                  row,
+                  column: columnLetter,
+                  field: rule.field,
+                  value,
+                  message: `${rule.message}：发现禁用词汇"${term}"`,
+                  errorType: rule.type,
+                };
+              }
+            }
+          }
+        }
+        break;
+
       case "timeRange":
         if (value && !this.isValidTimeRange(value, rule.params)) {
           return {

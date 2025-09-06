@@ -16,7 +16,8 @@ export interface ValidationRule {
     | "minValue"
     | "medicalLevel"
     | "sixMonthsInterval"
-    | "crossTaskValidation";
+    | "crossTaskValidation"
+    | "prohibitedContent";
   params?: any;
   message: string;
 }

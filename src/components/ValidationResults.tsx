@@ -94,6 +94,7 @@ export default function ValidationResults({
       unique: "重复值",
       structure: "结构错误",
       dateFormat: "日期格式错误",
+      prohibitedContent: "禁用内容",
     };
     return labels[type] || type;
   };
@@ -109,6 +110,7 @@ export default function ValidationResults({
       unique: "bg-pink-100 text-pink-800",
       structure: "bg-gray-100 text-gray-800",
       dateFormat: "bg-orange-100 text-orange-800",
+      prohibitedContent: "bg-red-100 text-red-800",
     };
     return colors[type] || "bg-gray-100 text-gray-800";
   };
