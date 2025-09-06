@@ -14,7 +14,9 @@ export interface ValidationRule {
     | "dateInterval"
     | "dateFormat"
     | "minValue"
-    | "medicalLevel";
+    | "medicalLevel"
+    | "sixMonthsInterval"
+    | "crossTaskValidation";
   params?: any;
   message: string;
 }
@@ -136,8 +138,8 @@ export class TemplateParser {
       this.templates.set(name, {
         name: template.name,
         description: template.description,
-        requiredFields: template.requiredFields,
-        validationRules: template.validationRules,
+        requiredFields: [...template.requiredFields],
+        validationRules: [...template.validationRules],
       });
     }
 

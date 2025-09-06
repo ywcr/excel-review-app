@@ -1,94 +1,231 @@
-// 内嵌的模板数据，作为模板文件的备用方案
+// 该文件由 scripts/generate-embedded-templates.mjs 自动生成，请勿手改
 export const EMBEDDED_TEMPLATES = {
-  "医院拜访": {
-    name: "医院拜访",
-    description: "医院拜访任务模板",
-    requiredFields: ["医生姓名", "医疗机构名称", "医疗类型", "拜访开始时间"],
-    validationRules: [
+  "消费者调研": {
+    "name": "消费者调研",
+    "description": "市场调研 - 消费者调研",
+    "requiredFields": [],
+    "validationRules": [
       {
-        field: "医生姓名",
-        type: "required" as const,
-        message: "医生姓名不能为空"
+        "field": "调查对象姓名",
+        "type": "unique",
+        "message": "调查对象姓名永远不能重复"
       },
       {
-        field: "医疗机构名称", 
-        type: "required" as const,
-        message: "医疗机构名称不能为空"
+        "field": "实施人",
+        "type": "frequency",
+        "params": {
+          "maxPerDay": 50,
+          "groupBy": "implementer"
+        },
+        "message": "同一实施人每日不得超过50份"
       },
       {
-        field: "医疗类型",
-        type: "medicalLevel" as const,
-        message: "医疗类型必须包含等级信息（如：三甲、二甲等）"
-      },
-      {
-        field: "拜访开始时间",
-        type: "dateFormat" as const,
-        message: "拜访开始时间格式不正确"
+        "field": "调研时间",
+        "type": "dateFormat",
+        "params": {
+          "allowTimeComponent": false
+        },
+        "message": "调研时间格式不正确，应为纯日期格式（如：2025-08-01）"
       }
     ]
   },
-  
+  "患者调研": {
+    "name": "患者调研",
+    "description": " - 患者调研",
+    "requiredFields": [],
+    "validationRules": [
+      {
+        "field": "调查对象姓名",
+        "type": "unique",
+        "message": "调查对象姓名永远不能重复"
+      },
+      {
+        "field": "实施人",
+        "type": "frequency",
+        "params": {
+          "maxPerDay": 20,
+          "groupBy": "implementer"
+        },
+        "message": "同一实施人每日不得超过20份"
+      },
+      {
+        "field": "调研时间",
+        "type": "dateFormat",
+        "params": {
+          "allowTimeComponent": false
+        },
+        "message": "调研时间格式不正确，应为纯日期格式（如：2025-08-01）"
+      }
+    ]
+  },
+  "店员调研": {
+    "name": "店员调研",
+    "description": " - 店员调研",
+    "requiredFields": [],
+    "validationRules": [
+      {
+        "field": "姓名",
+        "type": "unique",
+        "message": "姓名永远不能重复"
+      },
+      {
+        "field": "店员姓名",
+        "type": "unique",
+        "message": "店员姓名永远不能重复"
+      },
+      {
+        "field": "实施人",
+        "type": "frequency",
+        "params": {
+          "maxPerDay": 10,
+          "groupBy": "implementer"
+        },
+        "message": "同一实施人每日不得超过10份"
+      },
+      {
+        "field": "实施人",
+        "type": "frequency",
+        "params": {
+          "maxPerDay": 2,
+          "groupBy": "implementer",
+          "countBy": "pharmacyName"
+        },
+        "message": "同一实施人每日拜访不超过2家药店"
+      },
+      {
+        "field": "药店名称",
+        "type": "frequency",
+        "params": {
+          "maxPerDay": 5,
+          "groupBy": "pharmacyName"
+        },
+        "message": "每个药店不超过5份"
+      },
+      {
+        "field": "调研时间",
+        "type": "dateFormat",
+        "params": {
+          "allowTimeComponent": false
+        },
+        "message": "调研时间格式不正确，应为纯日期格式（如：2025-08-01）"
+      }
+    ]
+  },
+  "药店调研": {
+    "name": "药店调研",
+    "description": " - 药店调研",
+    "requiredFields": [],
+    "validationRules": [
+      {
+        "field": "调查对象姓名",
+        "type": "unique",
+        "message": "调查对象姓名永远不能重复"
+      },
+      {
+        "field": "实施人",
+        "type": "frequency",
+        "params": {
+          "maxPerDay": 2,
+          "groupBy": "implementer",
+          "countBy": "pharmacyName"
+        },
+        "message": "同一实施人每日拜访不超过2家药店"
+      },
+      {
+        "field": "药店名称",
+        "type": "frequency",
+        "params": {
+          "maxPerDay": 1,
+          "groupBy": "pharmacyName"
+        },
+        "message": "每个药店不超过1份"
+      },
+      {
+        "field": "调研时间",
+        "type": "dateFormat",
+        "params": {
+          "allowTimeComponent": false
+        },
+        "message": "调研时间格式不正确，应为纯日期格式（如：2025-08-01）"
+      }
+    ]
+  },
+  "竞品信息收集": {
+    "name": "竞品信息收集",
+    "description": "信息收集 - 竞品信息收集",
+    "requiredFields": [],
+    "validationRules": []
+  },
   "药店拜访": {
-    name: "药店拜访",
-    description: "药店拜访任务模板", 
-    requiredFields: ["零售渠道", "实施人", "拜访开始时间"],
-    validationRules: [
-      {
-        field: "零售渠道",
-        type: "required" as const,
-        message: "零售渠道不能为空"
-      },
-      {
-        field: "实施人",
-        type: "required" as const,
-        message: "实施人不能为空"
-      },
-      {
-        field: "拜访开始时间",
-        type: "dateFormat" as const,
-        message: "拜访开始时间格式不正确"
-      }
-    ]
+    "name": "药店拜访",
+    "description": "拜访类 - 药店拜访",
+    "requiredFields": [],
+    "validationRules": []
   },
-
+  "等级医院拜访": {
+    "name": "等级医院拜访",
+    "description": " - 等级医院拜访",
+    "requiredFields": [],
+    "validationRules": []
+  },
+  "基层医疗机构拜访": {
+    "name": "基层医疗机构拜访",
+    "description": " - 基层医疗机构拜访",
+    "requiredFields": [],
+    "validationRules": []
+  },
+  "民营医院拜访": {
+    "name": "民营医院拜访",
+    "description": " - 民营医院拜访",
+    "requiredFields": [],
+    "validationRules": []
+  },
   "科室拜访": {
-    name: "科室拜访",
-    description: "科室拜访任务模板",
-    requiredFields: ["科室名称", "拜访持续时间"],
-    validationRules: [
-      {
-        field: "科室名称",
-        type: "required" as const,
-        message: "科室名称不能为空"
-      },
-      {
-        field: "拜访持续时间",
-        type: "duration" as const,
-        message: "拜访持续时间格式不正确"
-      }
-    ]
+    "name": "科室拜访",
+    "description": " - 科室拜访",
+    "requiredFields": [],
+    "validationRules": []
   },
-
+  "培训会": {
+    "name": "培训会",
+    "description": "会议类 - 培训会",
+    "requiredFields": [],
+    "validationRules": []
+  },
+  "科室会": {
+    "name": "科室会",
+    "description": " - 科室会",
+    "requiredFields": [],
+    "validationRules": []
+  },
+  "圆桌会": {
+    "name": "圆桌会",
+    "description": " - 圆桌会",
+    "requiredFields": [],
+    "validationRules": []
+  },
+  "学术研讨、病例讨论会": {
+    "name": "学术研讨、病例讨论会",
+    "description": " - 学术研讨、病例讨论会",
+    "requiredFields": [],
+    "validationRules": []
+  },
+  "大型推广活动": {
+    "name": "大型推广活动",
+    "description": " - 大型推广活动",
+    "requiredFields": [],
+    "validationRules": []
+  },
+  "小型推广活动": {
+    "name": "小型推广活动",
+    "description": " - 小型推广活动",
+    "requiredFields": [],
+    "validationRules": []
+  },
   "药店陈列服务": {
-    name: "药店陈列服务",
-    description: "药店陈列服务任务模板",
-    requiredFields: ["服务时间", "陈列内容", "陈列位置"],
-    validationRules: [
-      {
-        field: "服务时间",
-        type: "dateFormat" as const,
-        message: "服务时间格式不正确"
-      },
-      {
-        field: "陈列内容",
-        type: "required" as const,
-        message: "陈列内容不能为空"
-      },
-      {
-        field: "陈列位置",
-        type: "required" as const,
-        message: "陈列位置不能为空"
-      }
-    ]
+    "name": "药店陈列服务",
+    "description": " - 药店陈列服务",
+    "requiredFields": [],
+    "validationRules": []
   }
-};
+} as const;

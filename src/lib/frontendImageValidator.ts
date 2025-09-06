@@ -9,6 +9,16 @@ export interface ImageInfo {
   height: number;
   mimeType: string;
   data: Uint8Array;
+  position?: string; // Excel位置，如 "A4"
+  row?: number; // Excel行号
+  column?: string; // Excel列号
+}
+
+export interface DuplicateInfo {
+  id: string;
+  position?: string;
+  row?: number;
+  column?: string;
 }
 
 export interface ImageValidationResult {
@@ -16,7 +26,10 @@ export interface ImageValidationResult {
   sharpness: number;
   isBlurry: boolean;
   hash: string;
-  duplicates: string[];
+  duplicates: DuplicateInfo[];
+  position?: string; // Excel位置，如 "A4"
+  row?: number; // Excel行号
+  column?: string; // Excel列号
 }
 
 export interface ImageValidationSummary {
@@ -50,6 +63,9 @@ export class FrontendImageValidator {
     const zipContent = await zip.loadAsync(file);
     const images: ImageInfo[] = [];
 
+    // 首先提取图片位置信息
+    const imagePositions = await this.extractImagePositions(zipContent);
+
     // 遍历 xl/media 目录中的图片文件
     const mediaFolder = zipContent.folder("xl/media");
     if (!mediaFolder) {
@@ -70,6 +86,20 @@ export class FrontendImageValidator {
         const promise = file.async("uint8array").then(async (data) => {
           try {
             const dimensions = await this.getImageDimensions(data);
+            // 尝试多种键匹配策略
+            let positionInfo = imagePositions.get(relativePath);
+            if (!positionInfo) {
+              positionInfo = imagePositions.get(`xl/media/${relativePath}`);
+            }
+            if (!positionInfo) {
+              // 如果还是找不到，使用默认值
+              positionInfo = {
+                position: "未知位置",
+                row: 0,
+                column: "A",
+              };
+            }
+
             images.push({
               id: relativePath,
               name: relativePath,
@@ -78,6 +108,9 @@ export class FrontendImageValidator {
               height: dimensions.height,
               mimeType: this.getMimeType(fileName),
               data,
+              position: positionInfo?.position || "未知位置",
+              row: positionInfo?.row,
+              column: positionInfo?.column,
             });
           } catch (error) {
             console.warn(`Failed to process image ${relativePath}:`, error);
@@ -144,6 +177,9 @@ export class FrontendImageValidator {
             isBlurry: sharpness < this.blurThreshold,
             hash,
             duplicates: [], // 稍后填充
+            position: image.position,
+            row: image.row,
+            column: image.column,
           };
         } catch (error) {
           console.warn(`Failed to validate image ${image.id}:`, error);
@@ -153,6 +189,9 @@ export class FrontendImageValidator {
             isBlurry: true,
             hash: "",
             duplicates: [],
+            position: image.position,
+            row: image.row,
+            column: image.column,
           };
         }
       });
@@ -344,11 +383,22 @@ export class FrontendImageValidator {
 
         const distance = this.hammingDistance(current.hash, other.hash);
         if (distance <= this.duplicateThreshold) {
-          if (!current.duplicates.includes(other.id)) {
-            current.duplicates.push(other.id);
+          // 检查是否已经存在该重复项
+          if (!current.duplicates.some((dup) => dup.id === other.id)) {
+            current.duplicates.push({
+              id: other.id,
+              position: other.position,
+              row: other.row,
+              column: other.column,
+            });
           }
-          if (!other.duplicates.includes(current.id)) {
-            other.duplicates.push(current.id);
+          if (!other.duplicates.some((dup) => dup.id === current.id)) {
+            other.duplicates.push({
+              id: current.id,
+              position: current.position,
+              row: current.row,
+              column: current.column,
+            });
           }
         }
       }
@@ -390,12 +440,473 @@ export class FrontendImageValidator {
         const currentResult = results.find((r) => r.id === current);
         if (currentResult) {
           queue.push(
-            ...currentResult.duplicates.filter((id) => !visited.has(id))
+            ...currentResult.duplicates
+              .map((dup) => dup.id)
+              .filter((id) => !visited.has(id))
           );
         }
       }
     }
 
     return groups;
+  }
+
+  // 从Excel文件中提取图片位置信息
+  private async extractImagePositions(
+    zipContent: JSZip
+  ): Promise<Map<string, { position: string; row: number; column: string }>> {
+    const imagePositions = new Map();
+
+    try {
+      // Helper to read a file as string if exists
+      const readTextIfExists = async (path: string): Promise<string | null> => {
+        const file = zipContent.file(path);
+        if (!file) return null;
+        try {
+          return await file.async("string");
+        } catch {
+          return null;
+        }
+      };
+
+      // Helper: parse XML safely
+      const parseXml = (xmlText: string): Document | null => {
+        try {
+          const parser = new DOMParser();
+          return parser.parseFromString(xmlText, "application/xml");
+        } catch {
+          return null;
+        }
+      };
+
+      const columnIndexToLetter = (index: number): string => {
+        // Excel columns are 0-based here; convert to letters
+        let n = Number(index);
+        if (Number.isNaN(n) || n < 0) n = 0;
+        let result = "";
+        n = n + 1; // convert to 1-based
+        while (n > 0) {
+          const rem = (n - 1) % 26;
+          result = String.fromCharCode(65 + rem) + result;
+          n = Math.floor((n - 1) / 26);
+        }
+        return result;
+      };
+
+      // 首先尝试处理 WPS 的 cellimages.xml 结构
+      const cellimagesResult = await this.extractFromCellImages(
+        zipContent,
+        readTextIfExists,
+        parseXml,
+        columnIndexToLetter
+      );
+      if (cellimagesResult.size > 0) {
+        console.log(
+          `🎯 从 cellimages.xml 提取到 ${cellimagesResult.size} 个图片位置`
+        );
+        return cellimagesResult;
+      }
+
+      // 标准 OOXML 解析路径
+      return await this.extractFromStandardDrawings(
+        zipContent,
+        readTextIfExists,
+        parseXml,
+        columnIndexToLetter
+      );
+    } catch (error) {
+      console.warn("无法提取图片位置信息:", error);
+      return new Map();
+    }
+  }
+
+  // 从 WPS 的 cellimages.xml 提取图片位置
+  private async extractFromCellImages(
+    zipContent: JSZip,
+    readTextIfExists: (path: string) => Promise<string | null>,
+    parseXml: (xmlText: string) => Document | null,
+    columnIndexToLetter: (index: number) => string
+  ): Promise<Map<string, { position: string; row: number; column: string }>> {
+    const imagePositions = new Map();
+
+    // 检查是否存在 cellimages.xml
+    const cellimagesXmlText = await readTextIfExists("xl/cellimages.xml");
+    if (!cellimagesXmlText) return imagePositions;
+
+    const cellimagesRelsText = await readTextIfExists(
+      "xl/_rels/cellimages.xml.rels"
+    );
+    if (!cellimagesRelsText) return imagePositions;
+
+    const cellimagesRelsXml = parseXml(cellimagesRelsText);
+    if (!cellimagesRelsXml) return imagePositions;
+
+    // 构建关系映射 rId -> 图片文件名
+    const embedRelMap = new Map();
+    const rels = cellimagesRelsXml.getElementsByTagName("Relationship");
+    for (let i = 0; i < rels.length; i++) {
+      const rel = rels[i];
+      const id = rel.getAttribute("Id");
+      const target = rel.getAttribute("Target");
+      if (id && target) {
+        // target 格式: "media/image1.jpeg"
+        const basename = target.replace(/^.*\//, "");
+        embedRelMap.set(id, basename);
+        console.log(`📎 WPS 关系映射: ${id} -> ${basename}`);
+      }
+    }
+
+    // 分析表格结构以确定列映射模式
+    const tableStructure = await this.analyzeTableStructure(
+      zipContent,
+      readTextIfExists,
+      parseXml
+    );
+    console.log(`🔍 检测到表格结构:`, tableStructure);
+
+    // WPS 的 cellimages.xml 包含图片但没有位置信息
+    // 我们需要使用智能位置估算
+    const cellimagesXml = parseXml(cellimagesXmlText);
+    if (!cellimagesXml) return imagePositions;
+
+    const cellImages = cellimagesXml.getElementsByTagName("etc:cellImage");
+    for (let i = 0; i < cellImages.length; i++) {
+      const cellImage = cellImages[i];
+      const blipEl = cellImage.getElementsByTagName("a:blip")[0];
+      if (!blipEl) continue;
+
+      const embedId = blipEl.getAttribute("r:embed");
+      if (!embedId) continue;
+
+      const mediaKey = embedRelMap.get(embedId);
+      if (!mediaKey) continue;
+
+      // 使用智能位置估算
+      const positionInfo = this.calculateImagePosition(i, tableStructure);
+
+      imagePositions.set(mediaKey, {
+        position: positionInfo.position,
+        row: positionInfo.row,
+        column: positionInfo.column,
+      });
+
+      console.log(
+        `🎯 WPS 图片位置估算: ${mediaKey} -> ${positionInfo.position} (${positionInfo.type})`
+      );
+    }
+
+    return imagePositions;
+  }
+
+  // 分析表格结构以确定列映射模式
+  private async analyzeTableStructure(
+    zipContent: JSZip,
+    readTextIfExists: (path: string) => Promise<string | null>,
+    parseXml: (xmlText: string) => Document | null
+  ): Promise<{
+    visitType: string;
+    imageColumns: string[];
+    columnMappings: { [key: string]: string };
+    imagesPerRecord: number;
+    dataStartRow: number;
+  }> {
+    try {
+      // 尝试读取工作表数据来分析结构
+      const sharedStringsText = await readTextIfExists("xl/sharedStrings.xml");
+      const workbookText = await readTextIfExists("xl/workbook.xml");
+
+      // 预定义的结构模式
+      const structurePatterns = {
+        药店拜访: {
+          visitType: "药店拜访",
+          imageColumns: ["M", "N"],
+          columnMappings: { M: "门头", N: "内部" },
+          imagesPerRecord: 2,
+          dataStartRow: 4,
+        },
+        医院拜访类: {
+          visitType: "医院拜访类",
+          imageColumns: ["O", "P"],
+          columnMappings: { O: "医院门头照", P: "科室照片" },
+          imagesPerRecord: 2,
+          dataStartRow: 4,
+        },
+        科室拜访: {
+          visitType: "科室拜访",
+          imageColumns: ["N", "O"],
+          columnMappings: { N: "医院门头照", O: "内部照片" },
+          imagesPerRecord: 2,
+          dataStartRow: 4,
+        },
+      };
+
+      // 如果无法读取工作表数据，返回默认结构
+      if (!sharedStringsText) {
+        console.log("📋 使用默认表格结构 (药店拜访模式)");
+        return structurePatterns["药店拜访"];
+      }
+
+      // 解析共享字符串以检测表头内容
+      const sharedStringsXml = parseXml(sharedStringsText);
+      const strings: string[] = [];
+      if (sharedStringsXml) {
+        const siElements = sharedStringsXml.getElementsByTagName("si");
+        for (let i = 0; i < siElements.length; i++) {
+          const tElement = siElements[i].getElementsByTagName("t")[0];
+          if (tElement && tElement.textContent) {
+            strings.push(tElement.textContent);
+          }
+        }
+      }
+
+      // 检测表头中的关键词来判断拜访类型
+      const headerText = strings.join(" ").toLowerCase();
+      console.log("📋 检测到的表头关键词:", headerText.substring(0, 200));
+
+      // 根据表头内容判断拜访类型
+      if (
+        headerText.includes("医院门头照") &&
+        headerText.includes("科室照片")
+      ) {
+        console.log("🏥 检测到医院拜访类模式");
+        return structurePatterns["医院拜访类"];
+      } else if (
+        headerText.includes("科室") &&
+        headerText.includes("内部照片")
+      ) {
+        console.log("🏥 检测到科室拜访模式");
+        return structurePatterns["科室拜访"];
+      } else if (headerText.includes("门头") && headerText.includes("内部")) {
+        console.log("🏪 检测到药店拜访模式");
+        return structurePatterns["药店拜访"];
+      }
+
+      // 默认返回药店拜访模式
+      console.log("📋 使用默认药店拜访模式");
+      return structurePatterns["药店拜访"];
+    } catch (error) {
+      console.warn("表格结构分析失败，使用默认结构:", error);
+      return {
+        visitType: "药店拜访",
+        imageColumns: ["M", "N"],
+        columnMappings: { M: "门头", N: "内部" },
+        imagesPerRecord: 2,
+        dataStartRow: 4,
+      };
+    }
+  }
+
+  // 智能计算图片位置
+  private calculateImagePosition(
+    imageIndex: number,
+    tableStructure: {
+      visitType: string;
+      imageColumns: string[];
+      columnMappings: { [key: string]: string };
+      imagesPerRecord: number;
+      dataStartRow: number;
+    }
+  ): { position: string; row: number; column: string; type: string } {
+    const { imageColumns, columnMappings, imagesPerRecord, dataStartRow } =
+      tableStructure;
+
+    // 计算记录索引和图片在记录中的位置
+    const recordIndex = Math.floor(imageIndex / imagesPerRecord);
+    const imageInRecord = imageIndex % imagesPerRecord;
+
+    // 计算行号
+    const row = dataStartRow + recordIndex;
+
+    // 获取列和类型
+    const column = imageColumns[imageInRecord] || imageColumns[0];
+    const type = columnMappings[column] || `图片${imageInRecord + 1}`;
+
+    return {
+      position: `${column}${row}`,
+      row,
+      column,
+      type,
+    };
+  }
+
+  // 标准 OOXML 绘图解析
+  private async extractFromStandardDrawings(
+    zipContent: JSZip,
+    readTextIfExists: (path: string) => Promise<string | null>,
+    parseXml: (xmlText: string) => Document | null,
+    columnIndexToLetter: (index: number) => string
+  ): Promise<Map<string, { position: string; row: number; column: string }>> {
+    const imagePositions = new Map();
+
+    // Iterate all worksheets to find drawing relationships
+    const worksheetsFolder = zipContent.folder("xl/worksheets");
+    if (!worksheetsFolder) return imagePositions;
+
+    const sheetFiles: string[] = [];
+    worksheetsFolder.forEach((relativePath, file) => {
+      if (file.dir) return;
+      if (relativePath.endsWith(".xml") && relativePath.startsWith("sheet")) {
+        sheetFiles.push(relativePath);
+      }
+    });
+
+    for (const sheetFile of sheetFiles.sort()) {
+      const sheetPath = `xl/worksheets/${sheetFile}`;
+      const sheetXmlText = await readTextIfExists(sheetPath);
+      if (!sheetXmlText) continue;
+      const sheetXml = parseXml(sheetXmlText);
+      if (!sheetXml) continue;
+
+      // Find drawing r:id in sheet xml
+      const drawingEl = sheetXml.getElementsByTagName("drawing")[0];
+      if (!drawingEl) continue;
+      const drawingRelId =
+        drawingEl.getAttribute("r:id") || drawingEl.getAttribute("rel:id");
+      if (!drawingRelId) continue;
+
+      // Resolve sheet rels to drawing path
+      const sheetRelsPath = `xl/worksheets/_rels/${sheetFile}.rels`;
+      const sheetRelsText = await readTextIfExists(sheetRelsPath);
+      if (!sheetRelsText) continue;
+      const sheetRelsXml = parseXml(sheetRelsText);
+      if (!sheetRelsXml) continue;
+
+      const rels = sheetRelsXml.getElementsByTagName("Relationship");
+      let drawingTarget = null;
+      for (let i = 0; i < rels.length; i++) {
+        const r = rels[i];
+        if ((r.getAttribute("Id") || r.getAttribute("id")) === drawingRelId) {
+          drawingTarget = r.getAttribute("Target");
+          break;
+        }
+      }
+      if (!drawingTarget) continue;
+
+      // Normalize drawing path (can be '../drawings/drawing1.xml')
+      let drawingPath = drawingTarget;
+      if (drawingPath.startsWith("../"))
+        drawingPath = drawingPath.replace(/^\.\.\//, "xl/");
+      if (!drawingPath.startsWith("xl/"))
+        drawingPath = `xl/worksheets/${drawingPath}`; // fallback
+
+      const drawingXmlText = await readTextIfExists(drawingPath);
+      if (!drawingXmlText) continue;
+      const drawingXml = parseXml(drawingXmlText);
+      if (!drawingXml) continue;
+
+      // Load drawing rels to map r:embed -> media path
+      const drawingFileName = drawingPath.substring(
+        drawingPath.lastIndexOf("/") + 1
+      );
+      const drawingRelsPath = drawingPath.replace(
+        "drawings/" + drawingFileName,
+        `drawings/_rels/${drawingFileName}.rels`
+      );
+      const drawingRelsText = await readTextIfExists(drawingRelsPath);
+      const embedRelMap = new Map(); // rId -> media key (basename inside xl/media)
+      if (drawingRelsText) {
+        const drawingRelsXml = parseXml(drawingRelsText);
+        if (drawingRelsXml) {
+          const dRels = drawingRelsXml.getElementsByTagName("Relationship");
+          for (let i = 0; i < dRels.length; i++) {
+            const dr = dRels[i];
+            const id = dr.getAttribute("Id") || dr.getAttribute("id");
+            let target = dr.getAttribute("Target") || "";
+            if (!id || !target) continue;
+            // 使用 basename 作为键，提高匹配成功率
+            const basename = target.replace(/^.*\//, "");
+            embedRelMap.set(id, basename);
+          }
+        }
+      }
+
+      // 支持多种锚点类型：twoCellAnchor, oneCellAnchor
+      const anchorSelectors = [
+        "xdr:twoCellAnchor",
+        "xdr:oneCellAnchor",
+        "twoCellAnchor",
+        "oneCellAnchor",
+      ];
+
+      let anchors: Element[] = [];
+      for (const selector of anchorSelectors) {
+        const elements = drawingXml.getElementsByTagName(selector);
+        if (elements.length > 0) {
+          anchors = Array.from(elements);
+          console.log(
+            `🔗 使用选择器 ${selector} 找到 ${anchors.length} 个锚点`
+          );
+          break;
+        }
+      }
+
+      for (let i = 0; i < anchors.length; i++) {
+        const anchor = anchors[i];
+
+        // 查找 from 元素（支持不同命名空间）
+        const fromSelectors = ["xdr:from", "from"];
+        let fromEl: Element | null = null;
+        for (const selector of fromSelectors) {
+          fromEl = anchor.getElementsByTagName(selector)[0];
+          if (fromEl) break;
+        }
+
+        let colIdx = 0;
+        let rowIdx = 0;
+        if (fromEl) {
+          const colSelectors = ["xdr:col", "col"];
+          const rowSelectors = ["xdr:row", "row"];
+
+          let colEl: Element | null = null;
+          let rowEl: Element | null = null;
+          for (const selector of colSelectors) {
+            colEl = fromEl.getElementsByTagName(selector)[0];
+            if (colEl) break;
+          }
+          for (const selector of rowSelectors) {
+            rowEl = fromEl.getElementsByTagName(selector)[0];
+            if (rowEl) break;
+          }
+
+          if (colEl && colEl.textContent)
+            colIdx = parseInt(colEl.textContent, 10) || 0;
+          if (rowEl && rowEl.textContent)
+            rowIdx = parseInt(rowEl.textContent, 10) || 0;
+        }
+
+        // 查找 blip 元素（支持不同命名空间和属性）
+        const blipSelectors = ["a:blip", "blip"];
+        let blipEls: HTMLCollectionOf<Element> | null = null;
+        for (const selector of blipSelectors) {
+          blipEls = anchor.getElementsByTagName(selector);
+          if (blipEls.length > 0) break;
+        }
+
+        if (!blipEls || blipEls.length === 0) continue;
+
+        const embedId =
+          blipEls[0].getAttribute("r:embed") ||
+          blipEls[0].getAttribute("rel:embed") ||
+          blipEls[0].getAttribute("embed");
+        if (!embedId) continue;
+
+        const mediaKeyFromRel = embedRelMap.get(embedId);
+        if (!mediaKeyFromRel) continue;
+
+        const excelRow = rowIdx + 1; // convert to 1-based
+        const excelColLetter = columnIndexToLetter(colIdx);
+        const position = `${excelColLetter}${excelRow}`;
+
+        imagePositions.set(mediaKeyFromRel, {
+          position,
+          row: excelRow,
+          column: excelColLetter,
+        });
+
+        console.log(`🎯 标准图片位置: ${mediaKeyFromRel} -> ${position}`);
+      }
+    }
+
+    return imagePositions;
   }
 }

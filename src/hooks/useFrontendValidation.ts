@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { getTaskTemplate } from "@/lib/validationRules";
 
 export interface ValidationProgress {
@@ -36,7 +36,14 @@ export interface ValidationResult {
       id: string;
       sharpness: number;
       isBlurry: boolean;
-      duplicates: string[];
+      duplicates: Array<{
+        id: string;
+        position?: string;
+        row?: number;
+      }>;
+      position?: string; // Excel位置，如 "A4", "B5"
+      row?: number; // Excel行号
+      column?: string; // Excel列号
     }>;
   };
   summary?: {
@@ -77,47 +84,13 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
   const [error, setError] = useState<string | null>(null);
 
   const workerRef = useRef<Worker | null>(null);
-  const currentValidationRef = useRef<string | null>(null);
 
-  // Initialize worker
-  const initWorker = useCallback(() => {
+  const cleanupWorker = () => {
     if (workerRef.current) {
       workerRef.current.terminate();
+      workerRef.current = null;
     }
-
-    workerRef.current = new Worker("/validation-worker.js");
-
-    workerRef.current.onmessage = (e) => {
-      const { type, data } = e.data;
-
-      switch (type) {
-        case MESSAGE_TYPES.PROGRESS:
-          setProgress(data);
-          break;
-
-        case MESSAGE_TYPES.RESULT:
-          setResult(data);
-          setIsValidating(false);
-          setProgress(null);
-          currentValidationRef.current = null;
-          break;
-
-        case MESSAGE_TYPES.ERROR:
-          setError(data.message);
-          setIsValidating(false);
-          setProgress(null);
-          currentValidationRef.current = null;
-          break;
-      }
-    };
-
-    workerRef.current.onerror = (error) => {
-      setError(`Worker error: ${error.message}`);
-      setIsValidating(false);
-      setProgress(null);
-      currentValidationRef.current = null;
-    };
-  }, []);
+  };
 
   // Validate Excel file
   const validateExcel = useCallback(
@@ -147,12 +120,43 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
 
       try {
         setIsValidating(true);
-        currentValidationRef.current = "excel";
+        cleanupWorker(); // Clean up any previous worker
 
-        // Initialize worker if needed
-        if (!workerRef.current) {
-          initWorker();
-        }
+        const cacheBuster = `v=${Date.now()}`;
+        const workerUrl = new URL(
+          `/validation-worker.js?${cacheBuster}`,
+          window.location.origin
+        );
+        const worker = new Worker(workerUrl);
+        workerRef.current = worker;
+
+        worker.onmessage = (e) => {
+          const { type, data } = e.data;
+          switch (type) {
+            case MESSAGE_TYPES.PROGRESS:
+              setProgress(data);
+              break;
+            case MESSAGE_TYPES.RESULT:
+              setResult(data);
+              setIsValidating(false);
+              setProgress(null);
+              cleanupWorker();
+              break;
+            case MESSAGE_TYPES.ERROR:
+              setError(data.message);
+              setIsValidating(false);
+              setProgress(null);
+              cleanupWorker();
+              break;
+          }
+        };
+
+        worker.onerror = (error) => {
+          setError(`Worker error: ${error.message}`);
+          setIsValidating(false);
+          setProgress(null);
+          cleanupWorker();
+        };
 
         // Create a new File object and clone into memory to avoid stale handles
         const newFile = new File([file], file.name, {
@@ -178,68 +182,80 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
       } catch (err) {
         setError(err instanceof Error ? err.message : "文件读取失败");
         setIsValidating(false);
-        currentValidationRef.current = null;
+        cleanupWorker();
       }
     },
-    [initWorker]
+    []
   );
 
   // Validate images in Excel file
-  const validateImages = useCallback(
-    async (file: File) => {
-      // Clear previous results
-      setResult(null);
-      setError(null);
-      setProgress(null);
+  const validateImages = useCallback(async (file: File) => {
+    // Clear previous results
+    setResult(null);
+    setError(null);
+    setProgress(null);
 
-      try {
-        setIsValidating(true);
-        currentValidationRef.current = "images";
+    try {
+      setIsValidating(true);
+      cleanupWorker(); // Clean up any previous worker
 
-        // Initialize worker if needed
-        if (!workerRef.current) {
-          initWorker();
+      const cacheBuster = `v=${Date.now()}`;
+      const workerUrl = new URL(
+        `/validation-worker.js?${cacheBuster}`,
+        window.location.origin
+      );
+      const worker = new Worker(workerUrl);
+      workerRef.current = worker;
+
+      worker.onmessage = (e) => {
+        const { type, data } = e.data;
+        switch (type) {
+          case MESSAGE_TYPES.PROGRESS:
+            setProgress(data);
+            break;
+          case MESSAGE_TYPES.RESULT:
+            setResult(data);
+            setIsValidating(false);
+            setProgress(null);
+            cleanupWorker();
+            break;
+          case MESSAGE_TYPES.ERROR:
+            setError(data.message);
+            setIsValidating(false);
+            setProgress(null);
+            cleanupWorker();
+            break;
         }
-
-        // Convert file to ArrayBuffer
-        const fileBuffer = await file.arrayBuffer();
-
-        // Send image validation request to worker
-        workerRef.current!.postMessage({
-          type: MESSAGE_TYPES.VALIDATE_IMAGES,
-          data: {
-            fileBuffer,
-          },
-        });
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "图片验证失败");
+      };
+      worker.onerror = (error) => {
+        setError(error instanceof Error ? error.message : "图片验证失败");
         setIsValidating(false);
-        currentValidationRef.current = null;
-      }
-    },
-    [initWorker]
-  );
+        setProgress(null);
+        cleanupWorker();
+      };
+
+      // Convert file to ArrayBuffer
+      const fileBuffer = await file.arrayBuffer();
+
+      // Send image validation request to worker
+      workerRef.current!.postMessage({
+        type: MESSAGE_TYPES.VALIDATE_IMAGES,
+        data: {
+          fileBuffer,
+        },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "图片验证失败");
+      setIsValidating(false);
+      cleanupWorker();
+    }
+  }, []);
 
   // Cancel current validation
   const cancelValidation = useCallback(() => {
-    if (workerRef.current && currentValidationRef.current) {
-      // 发送取消消息给Worker
-      workerRef.current.postMessage({
-        type: "CANCEL",
-      });
-
-      // 延迟终止Worker，给它时间清理
-      setTimeout(() => {
-        if (workerRef.current) {
-          workerRef.current.terminate();
-          workerRef.current = null;
-        }
-      }, 100);
-
-      setIsValidating(false);
-      setProgress(null);
-      currentValidationRef.current = null;
-    }
+    cleanupWorker();
+    setIsValidating(false);
+    setProgress(null);
   }, []);
 
   // Clear results
@@ -247,6 +263,11 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
     setResult(null);
     setError(null);
     setProgress(null);
+  }, []);
+
+  useEffect(() => {
+    // Cleanup worker on component unmount
+    return () => cleanupWorker();
   }, []);
 
   return {

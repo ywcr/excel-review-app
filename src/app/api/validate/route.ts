@@ -31,12 +31,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get template parser and find the template
-    const templateParser = new (
-      await import("@/lib/templateParser")
-    ).TemplateParser();
-    await templateParser.loadTemplates();
-    const template = templateParser.getTemplate(taskName);
+    // Get template from unified validation rules
+    const { getTaskTemplate } = await import("@/lib/validationRules");
+    const template = getTaskTemplate(taskName);
 
     if (!template) {
       return NextResponse.json(

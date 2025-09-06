@@ -18,6 +18,25 @@ interface ValidationResult {
     validRows: number;
     errorCount: number;
   };
+  imageValidation?: {
+    totalImages: number;
+    blurryImages: number;
+    duplicateGroups: number;
+    results: Array<{
+      id: string;
+      sharpness: number;
+      isBlurry: boolean;
+      duplicates: Array<{
+        id: string;
+        position?: string;
+        row?: number;
+        column?: string;
+      }>;
+      position?: string; // Excel位置，如 "A4", "B5"
+      row?: number; // Excel行号
+      column?: string; // Excel列号
+    }>;
+  };
 }
 
 interface ValidationResponse {
@@ -149,6 +168,45 @@ export default function ValidationResults({
             <p className="text-sm text-gray-700">错误数量</p>
           </div>
         </div>
+
+        {/* 图片验证摘要 */}
+        {validation.imageValidation && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h4 className="text-sm font-semibold text-blue-800 mb-3">
+              图片验证摘要
+            </h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="text-center">
+                <p className="text-lg font-bold text-gray-900">
+                  {validation.imageValidation.totalImages}
+                </p>
+                <p className="text-xs text-gray-700">总图片数</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold text-red-600">
+                  {validation.imageValidation.blurryImages}
+                </p>
+                <p className="text-xs text-gray-700">模糊图片</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold text-orange-600">
+                  {validation.imageValidation.duplicateGroups}
+                </p>
+                <p className="text-xs text-gray-700">重复组</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold text-green-600">
+                  {validation.imageValidation.totalImages -
+                    validation.imageValidation.blurryImages -
+                    validation.imageValidation.results.filter(
+                      (r) => r.duplicates.length > 0
+                    ).length}
+                </p>
+                <p className="text-xs text-gray-700">正常图片</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 医院拜访特殊统计 */}
         {taskName.includes("医院拜访") && errors.length > 0 && (
@@ -336,6 +394,135 @@ export default function ValidationResults({
           )}
         </div>
       )}
+
+      {/* 图片问题详情 */}
+      {validation.imageValidation &&
+        validation.imageValidation.results.length > 0 && (
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              图片问题详情
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      图片ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      位置/行数
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      问题类型
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      清晰度分数
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      重复图片
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {validation.imageValidation.results
+                    .filter(
+                      (result) =>
+                        result.isBlurry || result.duplicates.length > 0
+                    )
+                    .map((result) => (
+                      <tr key={result.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {result.id}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                          {result.column && result.row ? (
+                            <div>
+                              <span>
+                                列{result.column} 行{result.row}
+                              </span>
+                              <div className="text-xs text-gray-500 mt-1">
+                                位置: {result.position}
+                              </div>
+                            </div>
+                          ) : (
+                            "位置未知"
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex space-x-2">
+                            {result.isBlurry && (
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                模糊
+                              </span>
+                            )}
+                            {result.duplicates.length > 0 && (
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">
+                                重复
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                          {result.sharpness.toFixed(1)}
+                          {result.isBlurry && (
+                            <span className="ml-2 text-red-500">
+                              (低于100阈值)
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700">
+                          {result.duplicates.length > 0 ? (
+                            <div className="max-w-xs">
+                              <span className="text-xs text-gray-500">
+                                与以下图片重复：
+                              </span>
+                              <div className="text-xs text-gray-600 mt-1 space-y-1">
+                                {result.duplicates.map((duplicate, idx) => {
+                                  // 调试信息：查看duplicate的结构
+                                  console.log(
+                                    "Duplicate item:",
+                                    duplicate,
+                                    "Type:",
+                                    typeof duplicate
+                                  );
+
+                                  // 兼容性处理：支持旧格式(string)和新格式(object)
+                                  if (typeof duplicate === "string") {
+                                    return (
+                                      <div key={idx} className="flex flex-col">
+                                        <span>{duplicate}</span>
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div key={idx} className="flex flex-col">
+                                      <span>{duplicate.id}</span>
+                                      {duplicate.column && duplicate.row ? (
+                                        <span className="text-xs text-gray-400">
+                                          列{duplicate.column} 行{duplicate.row}
+                                        </span>
+                                      ) : duplicate.position ? (
+                                        <span className="text-xs text-gray-400">
+                                          位置: {duplicate.position}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
       {errors.length === 0 && validation.isValid && (
         <div className="text-center py-8">

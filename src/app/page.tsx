@@ -78,6 +78,19 @@ export default function Home() {
     }
   };
 
+  const handleSheetSelectorCancel = () => {
+    console.log("主页面: 处理Sheet选择器取消操作");
+    setShowSheetSelector(false);
+    // 清理验证状态
+    clearResult();
+    // 取消任何正在进行的验证
+    if (isValidating) {
+      console.log("主页面: 取消正在进行的验证");
+      cancelValidation();
+    }
+    console.log("主页面: Sheet选择器取消操作完成");
+  };
+
   // 处理需要选择工作表的情况
   if (result?.needSheetSelection && !showSheetSelector) {
     setShowSheetSelector(true);
@@ -111,24 +124,90 @@ export default function Home() {
     : null;
 
   const handleExportErrors = async () => {
-    if (!result || !result.errors || !result.errors.length) return;
+    if (
+      !result ||
+      (!result.errors?.length && !result.imageValidation?.results?.length)
+    )
+      return;
 
     setIsExporting(true);
     try {
-      // 简化导出，直接创建CSV格式
-      const csvContent = [
-        ["行号", "列名", "字段", "错误类型", "错误信息", "值"].join(","),
-        ...result.errors.map((error) =>
-          [
-            error.row,
-            error.column,
-            error.field,
-            error.errorType,
-            `"${error.message.replace(/"/g, '""')}"`,
-            `"${String(error.value || "").replace(/"/g, '""')}"`,
-          ].join(",")
-        ),
-      ].join("\n");
+      const csvRows = [];
+
+      // CSV标题行
+      csvRows.push(
+        [
+          "类型",
+          "位置/ID",
+          "列名",
+          "字段",
+          "错误类型",
+          "错误信息",
+          "值",
+          "清晰度分数",
+          "重复图片",
+        ].join(",")
+      );
+
+      // 添加Excel验证错误
+      if (result.errors && result.errors.length > 0) {
+        result.errors.forEach((error) => {
+          csvRows.push(
+            [
+              "Excel验证",
+              error.row,
+              error.column,
+              error.field,
+              error.errorType,
+              `"${error.message.replace(/"/g, '""')}"`,
+              `"${String(error.value || "").replace(/"/g, '""')}"`,
+              "",
+              "",
+            ].join(",")
+          );
+        });
+      }
+
+      // 添加图片验证错误
+      if (result.imageValidation && result.imageValidation.results) {
+        result.imageValidation.results
+          .filter(
+            (imgResult) => imgResult.isBlurry || imgResult.duplicates.length > 0
+          )
+          .forEach((imgResult) => {
+            const problemTypes = [];
+            if (imgResult.isBlurry) problemTypes.push("模糊");
+            if (imgResult.duplicates.length > 0) problemTypes.push("重复");
+
+            csvRows.push(
+              [
+                "图片验证",
+                `${imgResult.id}${
+                  imgResult.row ? ` (第${imgResult.row}行)` : ""
+                }`,
+                imgResult.position || "未知位置",
+                "",
+                problemTypes.join("+"),
+                imgResult.isBlurry ? "图片清晰度低于阈值" : "图片重复",
+                "",
+                imgResult.sharpness.toFixed(1),
+                imgResult.duplicates.length > 0
+                  ? `"${imgResult.duplicates
+                      .map((d) => {
+                        // 兼容性处理：支持旧格式(string)和新格式(object)
+                        if (typeof d === "string") {
+                          return d;
+                        }
+                        return `${d.id}${d.row ? ` (第${d.row}行)` : ""}`;
+                      })
+                      .join(", ")}"`
+                  : "",
+              ].join(",")
+            );
+          });
+      }
+
+      const csvContent = csvRows.join("\n");
 
       const blob = new Blob(["\uFEFF" + csvContent], {
         type: "text/csv;charset=utf-8;",
@@ -211,7 +290,7 @@ export default function Home() {
           )}
 
           {/* 验证选项 */}
-          {uploadedFile && (
+          {/* {uploadedFile && (
             <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
               <h3 className="text-sm font-medium text-gray-900 mb-3">
                 验证选项
@@ -228,7 +307,7 @@ export default function Home() {
                 </span>
               </label>
             </div>
-          )}
+          )} */}
 
           {/* 审核按钮 */}
           {uploadedFile && (
@@ -350,7 +429,7 @@ export default function Home() {
           <FrontendSheetSelector
             availableSheets={result.availableSheets}
             onSheetSelect={handleSheetSelect}
-            onCancel={() => setShowSheetSelector(false)}
+            onCancel={handleSheetSelectorCancel}
           />
         )}
       </div>

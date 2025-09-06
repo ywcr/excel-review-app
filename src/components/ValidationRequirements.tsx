@@ -37,6 +37,11 @@ export default function ValidationRequirements({
       return "neutral"; // 未验证时显示中性状态
     }
 
+    // 如果此条要求未映射到任何具体错误类型，则显示为中性，避免误导性“通过”状态
+    if (!errorTypes || errorTypes.length === 0) {
+      return "neutral";
+    }
+
     const hasError = validationResult.validation.errors.some((error) =>
       errorTypes.includes(error.errorType)
     );
@@ -115,11 +120,13 @@ export default function ValidationRequirements({
     ) {
       return ["medicalLevel"];
     }
+
+    // 唯一性 / 重复限制
     if (
       requirementText.includes("重复拜访") &&
       requirementText.includes("医院")
     ) {
-      return ["unique"];
+      return ["dateInterval"];
     }
     if (
       requirementText.includes("重复拜访") &&
@@ -139,12 +146,39 @@ export default function ValidationRequirements({
     ) {
       return ["dateInterval"];
     }
-    if (requirementText.includes("频次") || requirementText.includes("每日")) {
+
+    // 姓名“永远不能重复/不能重复”类（如：调查对象姓名永远不能重复、店员姓名永远不能重复）
+    if (
+      requirementText.includes("永远不能重复") ||
+      (requirementText.includes("姓名") && requirementText.includes("不能重复"))
+    ) {
+      return ["unique"];
+    }
+
+    // “只能调研1次/只能1次”类
+    if (
+      (requirementText.includes("只能调研") ||
+        requirementText.includes("只能")) &&
+      requirementText.includes("1次")
+    ) {
+      return ["unique"];
+    }
+
+    // 频次限制
+    if (
+      requirementText.includes("频次") ||
+      requirementText.includes("每日") ||
+      (requirementText.includes("不超过") && requirementText.includes("份"))
+    ) {
       return ["frequency"];
     }
+
+    // 时长限制
     if (requirementText.includes("时长") || requirementText.includes("分钟")) {
       return ["duration"];
     }
+
+    // 时间范围
     if (
       requirementText.includes("时间范围") ||
       requirementText.includes("07:00") ||
@@ -152,13 +186,63 @@ export default function ValidationRequirements({
     ) {
       return ["timeRange"];
     }
+
+    // 日期格式
     if (requirementText.includes("日期格式")) {
       return ["dateFormat"];
     }
+
+    // 必填项
     if (requirementText.includes("必填")) {
       return ["required"];
     }
-    return []; // 通用要求，无特定错误类型
+
+    // 完整性检查（常对应必填缺失等）
+    if (requirementText.includes("完整性")) {
+      return ["required"];
+    }
+
+    // 数值下限（如"参会人数不能少于X人"）
+    if (
+      (requirementText.includes("不能少于") ||
+        requirementText.includes("不少于")) &&
+      requirementText.includes("人")
+    ) {
+      return ["minValue"];
+    }
+
+    // 半年内医院不重复
+    if (
+      requirementText.includes("半年内") &&
+      requirementText.includes("医院")
+    ) {
+      return ["sixMonthsInterval"];
+    }
+
+    // 跨任务验证（科室拜访与医院级拜访互斥）
+    if (
+      requirementText.includes("当月") &&
+      requirementText.includes("同一医院") &&
+      requirementText.includes("不可同时出现")
+    ) {
+      return ["crossTaskValidation"];
+    }
+
+    // 材料要求
+    if (
+      requirementText.includes("申请审批表") ||
+      requirementText.includes("会议发票") ||
+      requirementText.includes("现场照片") ||
+      requirementText.includes("登记表") ||
+      requirementText.includes("议程") ||
+      requirementText.includes("总结") ||
+      requirementText.includes("横幅") ||
+      requirementText.includes("海报")
+    ) {
+      return ["materialRequirement"];
+    }
+
+    return []; // 未映射的通用要求，显示为"未验证"中性状态
   };
 
   const getRequirements = (task: string) => {
@@ -620,6 +704,208 @@ export default function ValidationRequirements({
           ],
         };
 
+      case "竞品信息收集":
+        return {
+          title: "竞品信息收集验证要求",
+          requirements: [
+            {
+              category: "时间间隔要求",
+              items: ["同一医院半年内不能重复收集竞品信息"],
+            },
+            {
+              category: "基本要求",
+              items: [
+                "日期格式：应为纯日期格式（如：2025-01-15）",
+                "必填字段不能为空",
+                "竞品信息完整性检查",
+              ],
+            },
+          ],
+        };
+
+      case "培训会":
+        return {
+          title: "培训会验证要求",
+          requirements: [
+            {
+              category: "参会要求",
+              items: ["参会人数不能少于30人"],
+            },
+            {
+              category: "材料要求",
+              items: [
+                "申请审批表、培训发票、培训大纲及课件",
+                "登记表、议程、总结",
+                "培训现场照片（包括主讲人和PPT）",
+              ],
+            },
+            {
+              category: "基本要求",
+              items: [
+                "日期格式：应为纯日期格式（如：2025-01-15）",
+                "必填字段不能为空",
+                "培训数据完整性检查",
+              ],
+            },
+          ],
+        };
+
+      case "科室会":
+        return {
+          title: "科室会验证要求",
+          requirements: [
+            {
+              category: "参会要求",
+              items: ["参会人数不能少于5人（不包括主讲人）"],
+            },
+            {
+              category: "材料要求",
+              items: [
+                "会议申请表、登记表、议程",
+                "现场照片（PPT、全景照片等）",
+                "相关会议发票、总结、费用结算单",
+              ],
+            },
+            {
+              category: "基本要求",
+              items: [
+                "日期格式：应为纯日期格式（如：2025-01-15）",
+                "必填字段不能为空",
+                "会议数据完整性检查",
+              ],
+            },
+          ],
+        };
+
+      case "圆桌会":
+        return {
+          title: "圆桌会验证要求",
+          requirements: [
+            {
+              category: "参会要求",
+              items: ["参会人数不能少于5人（不包括主讲人）"],
+            },
+            {
+              category: "材料要求",
+              items: [
+                "活动现场照片（PPT、横幅、海报等）",
+                "相关会议发票、登记表、议程、总结",
+              ],
+            },
+            {
+              category: "基本要求",
+              items: [
+                "日期格式：应为纯日期格式（如：2025-01-15）",
+                "必填字段不能为空",
+                "会议数据完整性检查",
+              ],
+            },
+          ],
+        };
+
+      case "学术研讨、病例讨论会":
+        return {
+          title: "学术研讨、病例讨论会验证要求",
+          requirements: [
+            {
+              category: "参会要求",
+              items: ["参会人数不能少于30人"],
+            },
+            {
+              category: "材料要求",
+              items: [
+                "申请审批表、会议发票、大纲及课件",
+                "登记表、议程、总结",
+                "培训现场照片（包括主讲人和PPT）",
+              ],
+            },
+            {
+              category: "基本要求",
+              items: [
+                "日期格式：应为纯日期格式（如：2025-01-15）",
+                "必填字段不能为空",
+                "会议数据完整性检查",
+              ],
+            },
+          ],
+        };
+
+      case "大型推广活动":
+        return {
+          title: "大型推广活动验证要求",
+          requirements: [
+            {
+              category: "参与要求",
+              items: ["参与人数不能少于20人"],
+            },
+            {
+              category: "材料要求",
+              items: [
+                "照片：横幅、海报、彩页、易拉宝、样品等要素",
+                "相关会议发票、活动申请表、总结、费用结算单",
+              ],
+            },
+            {
+              category: "基本要求",
+              items: [
+                "日期格式：应为纯日期格式（如：2025-01-15）",
+                "必填字段不能为空",
+                "活动数据完整性检查",
+              ],
+            },
+          ],
+        };
+
+      case "小型推广活动":
+        return {
+          title: "小型推广活动验证要求",
+          requirements: [
+            {
+              category: "参与要求",
+              items: ["参与人数不能少于10人"],
+            },
+            {
+              category: "材料要求",
+              items: [
+                "照片：横幅、海报、彩页、易拉宝、样品等要素",
+                "相关会议发票、活动申请表、总结、费用结算单",
+              ],
+            },
+            {
+              category: "基本要求",
+              items: [
+                "日期格式：应为纯日期格式（如：2025-01-15）",
+                "必填字段不能为空",
+                "活动数据完整性检查",
+              ],
+            },
+          ],
+        };
+
+      case "药店陈列服务":
+        return {
+          title: "药店陈列服务验证要求",
+          requirements: [
+            {
+              category: "基本要求",
+              items: [
+                "日期格式：应为纯日期格式（如：2025-01-15）",
+                "必填字段不能为空",
+                "陈列服务信息完整性检查",
+              ],
+            },
+            {
+              category: "陈列要求",
+              items: [
+                "药店名称不能为空",
+                "陈列位置明确",
+                "陈列效果照片完整",
+                "服务时间记录准确",
+              ],
+            },
+          ],
+        };
+
       default:
         return {
           title: "通用验证要求",
@@ -640,7 +926,7 @@ export default function ValidationRequirements({
   const config = getRequirements(taskName);
 
   return (
-    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6 shadow-sm">
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6 shadow-sm mb-8">
       <div className="flex items-center mb-6">
         <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full mr-3">
           <svg

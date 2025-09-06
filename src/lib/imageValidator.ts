@@ -493,29 +493,8 @@ export class ImageValidator {
       // 使用Jimp计算感知哈希
       const image = await Jimp.read(imageBuffer);
 
-      // 缩放到8x8像素
-      image.resize({ w: 8, h: 8 });
-      image.greyscale();
-
-      const pixels: number[] = [];
-      for (let y = 0; y < 8; y++) {
-        for (let x = 0; x < 8; x++) {
-          const pixel = (Jimp as any).intToRGBA(image.getPixelColor(x, y));
-          pixels.push(pixel.r); // 灰度值
-        }
-      }
-
-      // 计算平均值
-      const average =
-        pixels.reduce((sum, pixel) => sum + pixel, 0) / pixels.length;
-
-      // 生成哈希
-      let hash = "";
-      for (const pixel of pixels) {
-        hash += pixel >= average ? "1" : "0";
-      }
-
-      return hash;
+      // 返回pHash值
+      return image.pHash();
     } catch (error) {
       console.error("计算感知哈希失败:", error);
       return "";
