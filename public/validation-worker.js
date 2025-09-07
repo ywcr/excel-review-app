@@ -3,7 +3,28 @@
 
 importScripts("https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js");
 importScripts("https://unpkg.com/jszip@3.10.1/dist/jszip.min.js");
-importScripts("./blockhash-core.js"); // 引入 blockhash
+
+// 尝试加载 blockhash-core.js，如果失败则跳过图片验证
+let blockHashAvailable = false;
+try {
+  // 尝试多种路径方式，兼容不同浏览器
+  try {
+    importScripts("./blockhash-core.js");
+  } catch (e1) {
+    try {
+      importScripts("/blockhash-core.js");
+    } catch (e2) {
+      importScripts(self.location.origin + "/blockhash-core.js");
+    }
+  }
+  blockHashAvailable = true;
+  console.log("blockhash-core.js 加载成功");
+} catch (error) {
+  console.warn("blockhash-core.js 加载失败，图片验证功能将被禁用:", error);
+  // 提供一个空的 blockhash 函数作为后备
+  self.blockhash = function() { return null; };
+  blockHashAvailable = false;
+}
 
 // Worker message types
 const MESSAGE_TYPES = {
@@ -950,7 +971,7 @@ async function validateExcel(data) {
     isAutoMatched = true;
   }
 
-  // If no sheet was auto-matched and user hasn't selected one, ask user to choose
+  // If no sheet was auto-matched, ask user to choose
   if (!isAutoMatched) {
     sendResult({
       needSheetSelection: true,
@@ -962,9 +983,10 @@ async function validateExcel(data) {
     return;
   }
 
-  // Final fallback: if still no target sheet, use first available
+  // Final check: if still no target sheet, return error
   if (!targetSheet) {
-    targetSheet = sheetNames[0];
+    sendError("无法确定目标工作表");
+    return;
   }
 
   if (!targetSheet || !workbook.Sheets[targetSheet]) {
@@ -1059,6 +1081,21 @@ async function validateExcel(data) {
 
 // Internal image validation function (shared logic)
 async function validateImagesInternal(fileBuffer) {
+  // 如果 blockhash 不可用，返回空结果
+  if (!blockHashAvailable || typeof self.blockhash !== "function") {
+    console.warn("图片验证跳过：blockhash 不可用");
+    return {
+      images: [],
+      duplicates: [],
+      errors: [],
+      summary: {
+        totalImages: 0,
+        duplicateGroups: 0,
+        totalDuplicates: 0,
+      },
+    };
+  }
+
   try {
     const zip = new JSZip();
     const zipContent = await zip.loadAsync(fileBuffer);
@@ -1236,6 +1273,22 @@ async function validateImagesInternal(fileBuffer) {
 async function validateImages(data) {
   const { fileBuffer } = data;
 
+  // 如果 blockhash 不可用，返回空结果
+  if (!blockHashAvailable || typeof self.blockhash !== "function") {
+    console.warn("图片验证跳过：blockhash 不可用");
+    sendResult({
+      images: [],
+      duplicates: [],
+      errors: [],
+      summary: {
+        totalImages: 0,
+        duplicateGroups: 0,
+        totalDuplicates: 0,
+      },
+    });
+    return;
+  }
+
   sendProgress("正在提取图片...", 10);
 
   try {
@@ -1380,23 +1433,22 @@ function selectBestSheet(sheetNames, preferredNames) {
   return sheetNames[0] || null;
 }
 
-// New function that only returns a match if found, no fallback
+// Simple function that only does exact matching
 function findMatchingSheet(sheetNames, preferredNames) {
   if (!preferredNames || preferredNames.length === 0) {
     return null;
   }
 
+  // 只进行精确匹配
   for (const preferred of preferredNames) {
-    const found = sheetNames.find(
-      (name) =>
-        name === preferred ||
-        name.includes(preferred) ||
-        preferred.includes(name)
-    );
+    const found = sheetNames.find((name) => name === preferred);
     if (found) return found;
   }
-  return null; // No fallback to first sheet
+
+  return null;
 }
+
+
 
 function validateHeaders(sheet, template) {
   const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });

@@ -150,6 +150,7 @@ export class ExcelValidator {
     // Find the first sheet that exists
     const availableSheets = Object.keys(workbook.Sheets);
 
+    // 只尝试精确匹配，不进行自动匹配或后备策略
     for (const sheetName of possibleSheetNames) {
       if (workbook.Sheets[sheetName!]) {
         targetSheetName = sheetName!;
@@ -157,6 +158,9 @@ export class ExcelValidator {
         break;
       }
     }
+
+    // 如果没有找到精确匹配的工作表，直接返回错误让用户选择
+    // 不进行任何自动匹配或后备策略
 
     if (!worksheet || !targetSheetName) {
       // 返回特殊错误，包含可用工作表信息供用户选择
