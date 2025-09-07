@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sheet Selection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 3px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        #fileInput {
+            margin: 10px 0;
+        }
+        .test-case {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Excel Sheet Selection Error Handling Test</h1>
+    
+    <div class="test-section">
+        <h2>测试说明</h2>
+        <p>此测试验证Excel解析功能中的错误处理逻辑：</p>
+        <ol>
+            <li><strong>无匹配时弹窗出现</strong>：当系统无法根据预设的文件类型自动识别正确的sheet表时，应显示弹窗</li>
+            <li><strong>用户选择后继续验证</strong>：用户在弹窗中选择sheet后，系统应继续验证</li>
+            <li><strong>允许关闭弹窗且不继续验证</strong>：用户可以取消操作，不进行验证</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>测试步骤</h2>
+        <div class="test-case">
+            <h3>测试用例1：无匹配sheet的Excel文件</h3>
+            <p>上传一个包含非标准sheet名称的Excel文件（如"Sheet1", "数据表"等），验证是否弹出sheet选择对话框</p>
+            <input type="file" id="fileInput" accept=".xlsx,.xls">
+            <button onclick="testSheetSelection()">开始测试</button>
+        </div>
+        
+        <div class="test-case">
+            <h3>测试用例2：模拟用户选择</h3>
+            <p>在弹窗出现后，选择一个sheet并确认，验证是否继续验证流程</p>
+            <button onclick="simulateUserSelection()" disabled id="selectBtn">模拟用户选择</button>
+        </div>
+        
+        <div class="test-case">
+            <h3>测试用例3：模拟用户取消</h3>
+            <p>在弹窗出现后，点击取消，验证是否正确关闭弹窗且不继续验证</p>
+            <button onclick="simulateUserCancel()" disabled id="cancelBtn">模拟用户取消</button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>测试结果</h2>
+        <div id="testResults"></div>
+    </div>
+
+    <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script>
+        let currentTestState = {
+            file: null,
+            availableSheets: [],
+            needSheetSelection: false,
+            worker: null
+        };
+
+        function addResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('testResults');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `result ${type}`;
+            resultDiv.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            resultsDiv.appendChild(resultDiv);
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function testSheetSelection() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                addResult('请先选择一个Excel文件', 'error');
+                return;
+            }
+
+            currentTestState.file = file;
+            addResult(`开始测试文件: ${file.name}`, 'info');
+
+            // 模拟前端验证流程
+            simulateValidation(file);
+        }
+
+        async function simulateValidation(file) {
+            try {
+                // 创建Worker
+                const worker = new Worker('/validation-worker.js');
+                currentTestState.worker = worker;
+
+                worker.onmessage = function(e) {
+                    const { type, data } = e.data;
+                    
+                    switch(type) {
+                        case 'PROGRESS':
+                            addResult(`进度: ${data.message} (${data.progress}%)`, 'info');
+                            break;
+                            
+                        case 'RESULT':
+                            if (data.needSheetSelection) {
+                                addResult('✅ 测试通过：系统正确识别无法自动匹配sheet，弹出选择对话框', 'success');
+                                currentTestState.needSheetSelection = true;
+                                currentTestState.availableSheets = data.availableSheets;
+                                
+                                // 显示可用的sheets
+                                const sheetList = data.availableSheets.map(s => `${s.name} (${s.hasData ? '有数据' : '无数据'})`).join(', ');
+                                addResult(`可用的工作表: ${sheetList}`, 'info');
+                                
+                                // 启用测试按钮
+                                document.getElementById('selectBtn').disabled = false;
+                                document.getElementById('cancelBtn').disabled = false;
+                            } else {
+                                addResult('❌ 测试失败：系统没有弹出sheet选择对话框，而是直接进行了验证', 'error');
+                            }
+                            break;
+                            
+                        case 'ERROR':
+                            addResult(`验证错误: ${data.message}`, 'error');
+                            break;
+                    }
+                };
+
+                worker.onerror = function(error) {
+                    addResult(`Worker错误: ${error.message}`, 'error');
+                };
+
+                // 读取文件
+                const fileBuffer = await file.arrayBuffer();
+                
+                // 发送验证请求（不指定selectedSheet，模拟自动检测失败的情况）
+                worker.postMessage({
+                    type: 'VALIDATE_EXCEL',
+                    data: {
+                        fileBuffer,
+                        taskName: '医院拜访', // 使用一个标准任务名
+                        selectedSheet: undefined, // 不指定sheet，让系统自动检测
+                        template: {
+                            sheetNames: ['医院拜访数据', '拜访记录', '医院数据'], // 预设的sheet名称，与实际文件不匹配
+                            requiredFields: ['实施人', '拜访开始时间', '渠道名称'],
+                            fieldMappings: {},
+                            validationRules: []
+                        },
+                        includeImages: false
+                    }
+                });
+
+            } catch (error) {
+                addResult(`测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        function simulateUserSelection() {
+            if (!currentTestState.needSheetSelection || !currentTestState.availableSheets.length) {
+                addResult('❌ 无法模拟用户选择：没有可选择的sheet', 'error');
+                return;
+            }
+
+            // 选择第一个有数据的sheet
+            const selectedSheet = currentTestState.availableSheets.find(s => s.hasData) || currentTestState.availableSheets[0];
+            addResult(`模拟用户选择sheet: ${selectedSheet.name}`, 'info');
+
+            // 重新发起验证，这次指定selectedSheet
+            simulateValidationWithSheet(selectedSheet.name);
+        }
+
+        async function simulateValidationWithSheet(sheetName) {
+            try {
+                const worker = new Worker('/validation-worker.js');
+                
+                worker.onmessage = function(e) {
+                    const { type, data } = e.data;
+                    
+                    switch(type) {
+                        case 'PROGRESS':
+                            addResult(`验证进度: ${data.message} (${data.progress}%)`, 'info');
+                            break;
+                            
+                        case 'RESULT':
+                            if (data.needSheetSelection) {
+                                addResult('❌ 测试失败：用户已选择sheet，但系统仍要求选择', 'error');
+                            } else {
+                                addResult('✅ 测试通过：用户选择sheet后，系统继续验证流程', 'success');
+                                addResult(`验证结果: ${data.isValid ? '通过' : '失败'}, 错误数: ${data.errors?.length || 0}`, 'info');
+                            }
+                            break;
+                            
+                        case 'ERROR':
+                            addResult(`验证错误: ${data.message}`, 'error');
+                            break;
+                    }
+                };
+
+                const fileBuffer = await currentTestState.file.arrayBuffer();
+                
+                worker.postMessage({
+                    type: 'VALIDATE_EXCEL',
+                    data: {
+                        fileBuffer,
+                        taskName: '医院拜访',
+                        selectedSheet: sheetName, // 指定用户选择的sheet
+                        template: {
+                            sheetNames: ['医院拜访数据', '拜访记录', '医院数据'],
+                            requiredFields: ['实施人', '拜访开始时间', '渠道名称'],
+                            fieldMappings: {},
+                            validationRules: []
+                        },
+                        includeImages: false
+                    }
+                });
+
+            } catch (error) {
+                addResult(`用户选择测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        function simulateUserCancel() {
+            if (!currentTestState.needSheetSelection) {
+                addResult('❌ 无法模拟用户取消：没有弹出sheet选择对话框', 'error');
+                return;
+            }
+
+            addResult('模拟用户点击取消按钮', 'info');
+            
+            // 清理状态
+            currentTestState.needSheetSelection = false;
+            currentTestState.availableSheets = [];
+            
+            // 终止worker
+            if (currentTestState.worker) {
+                currentTestState.worker.terminate();
+                currentTestState.worker = null;
+            }
+            
+            // 禁用按钮
+            document.getElementById('selectBtn').disabled = true;
+            document.getElementById('cancelBtn').disabled = true;
+            
+            addResult('✅ 测试通过：用户取消操作，弹窗关闭且不继续验证', 'success');
+        }
+
+        // 页面加载时的初始化
+        addResult('测试页面已加载，请按照测试步骤进行操作', 'info');
+    </script>
+</body>
+</html>

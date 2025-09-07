@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>端到端Sheet选择测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-step {
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fafafa;
+        }
+        .test-step h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .download-link {
+            display: inline-block;
+            background-color: #28a745;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 4px;
+            margin: 5px;
+        }
+        .download-link:hover {
+            background-color: #218838;
+        }
+        #testResults {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #f8f9fa;
+        }
+        .step-indicator {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: #6c757d;
+            color: white;
+            text-align: center;
+            line-height: 24px;
+            margin-right: 10px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .step-indicator.active {
+            background-color: #007bff;
+        }
+        .step-indicator.completed {
+            background-color: #28a745;
+        }
+        .step-indicator.failed {
+            background-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Excel Sheet选择错误处理 - 端到端测试</h1>
+        <p>此测试验证修复后的Excel解析功能中的错误处理逻辑是否正确工作。</p>
+        
+        <div class="test-step">
+            <h3><span class="step-indicator" id="step1">1</span>准备测试文件</h3>
+            <p>首先下载测试用的Excel文件：</p>
+            <a href="/test-no-matching-sheets.xlsx" class="download-link" download>
+                📄 下载无匹配Sheet的测试文件
+            </a>
+            <a href="/test-matching-sheets.xlsx" class="download-link" download>
+                📄 下载有匹配Sheet的测试文件
+            </a>
+            <div class="result info">
+                <strong>测试文件说明：</strong><br>
+                • test-no-matching-sheets.xlsx: 包含 "Sheet1", "数据表", "空表" - 不匹配模板预设<br>
+                • test-matching-sheets.xlsx: 包含 "医院拜访数据", "备注" - 匹配模板预设
+            </div>
+        </div>
+
+        <div class="test-step">
+            <h3><span class="step-indicator" id="step2">2</span>测试无匹配Sheet的情况</h3>
+            <p>上传 test-no-matching-sheets.xlsx 文件，验证是否弹出Sheet选择对话框：</p>
+            <button onclick="openMainApp()">打开主应用进行测试</button>
+            <div class="result warning">
+                <strong>预期行为：</strong><br>
+                1. 上传文件后点击"开始审核"<br>
+                2. 系统应该弹出Sheet选择对话框<br>
+                3. 对话框中应显示所有可用的工作表<br>
+                4. 用户可以选择一个工作表继续验证<br>
+                5. 用户也可以点击取消关闭对话框
+            </div>
+        </div>
+
+        <div class="test-step">
+            <h3><span class="step-indicator" id="step3">3</span>测试有匹配Sheet的情况</h3>
+            <p>上传 test-matching-sheets.xlsx 文件，验证是否自动选择匹配的工作表：</p>
+            <div class="result warning">
+                <strong>预期行为：</strong><br>
+                1. 上传文件后点击"开始审核"<br>
+                2. 系统应该自动选择"医院拜访数据"工作表<br>
+                3. 不应该弹出Sheet选择对话框<br>
+                4. 直接进入验证流程
+            </div>
+        </div>
+
+        <div class="test-step">
+            <h3><span class="step-indicator" id="step4">4</span>记录测试结果</h3>
+            <p>请在下方记录您的测试结果：</p>
+            <button onclick="recordResult('test1', true)">✅ 测试1通过</button>
+            <button onclick="recordResult('test1', false)">❌ 测试1失败</button>
+            <button onclick="recordResult('test2', true)">✅ 测试2通过</button>
+            <button onclick="recordResult('test2', false)">❌ 测试2失败</button>
+            <button onclick="clearResults()">🗑️ 清除结果</button>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>📊 测试结果记录</h2>
+        <div id="testResults">
+            <div class="result info">等待测试结果...</div>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>🔧 故障排除指南</h2>
+        <div class="test-step">
+            <h3>如果测试1失败（应该弹窗但没有弹窗）</h3>
+            <ul>
+                <li>检查浏览器控制台是否有错误信息</li>
+                <li>确认Worker文件是否正确加载</li>
+                <li>验证findMatchingSheet函数是否正确实现</li>
+                <li>检查模板配置是否正确传递给Worker</li>
+            </ul>
+        </div>
+        
+        <div class="test-step">
+            <h3>如果测试2失败（应该自动选择但弹出了弹窗）</h3>
+            <ul>
+                <li>检查模板的sheetNames配置是否包含"医院拜访数据"</li>
+                <li>验证findMatchingSheet函数的匹配逻辑</li>
+                <li>确认isAutoMatched标志是否正确设置</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let testResults = {
+            test1: null, // 无匹配Sheet测试
+            test2: null  // 有匹配Sheet测试
+        };
+
+        function openMainApp() {
+            window.open('/', '_blank');
+            updateStepIndicator('step2', 'active');
+        }
+
+        function recordResult(testName, passed) {
+            testResults[testName] = passed;
+            updateTestResults();
+            updateStepIndicators();
+        }
+
+        function clearResults() {
+            testResults = { test1: null, test2: null };
+            updateTestResults();
+            resetStepIndicators();
+        }
+
+        function updateTestResults() {
+            const resultsDiv = document.getElementById('testResults');
+            let html = '';
+
+            // 测试1结果
+            if (testResults.test1 !== null) {
+                const status = testResults.test1 ? 'success' : 'error';
+                const icon = testResults.test1 ? '✅' : '❌';
+                const text = testResults.test1 ? '通过' : '失败';
+                html += `<div class="result ${status}">${icon} 测试1 (无匹配Sheet): ${text}</div>`;
+            }
+
+            // 测试2结果
+            if (testResults.test2 !== null) {
+                const status = testResults.test2 ? 'success' : 'error';
+                const icon = testResults.test2 ? '✅' : '❌';
+                const text = testResults.test2 ? '通过' : '失败';
+                html += `<div class="result ${status}">${icon} 测试2 (有匹配Sheet): ${text}</div>`;
+            }
+
+            // 总体结果
+            if (testResults.test1 !== null && testResults.test2 !== null) {
+                const allPassed = testResults.test1 && testResults.test2;
+                const status = allPassed ? 'success' : 'error';
+                const icon = allPassed ? '🎉' : '⚠️';
+                const text = allPassed ? '所有测试通过！Sheet选择错误处理逻辑修复成功。' : '部分测试失败，需要进一步检查。';
+                html += `<div class="result ${status}"><strong>${icon} 总体结果: ${text}</strong></div>`;
+            }
+
+            if (html === '') {
+                html = '<div class="result info">等待测试结果...</div>';
+            }
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function updateStepIndicators() {
+            // 更新步骤指示器
+            if (testResults.test1 !== null) {
+                updateStepIndicator('step2', testResults.test1 ? 'completed' : 'failed');
+            }
+            if (testResults.test2 !== null) {
+                updateStepIndicator('step3', testResults.test2 ? 'completed' : 'failed');
+            }
+            if (testResults.test1 !== null && testResults.test2 !== null) {
+                updateStepIndicator('step4', 'completed');
+            }
+        }
+
+        function updateStepIndicator(stepId, status) {
+            const indicator = document.getElementById(stepId);
+            indicator.className = `step-indicator ${status}`;
+        }
+
+        function resetStepIndicators() {
+            ['step1', 'step2', 'step3', 'step4'].forEach(stepId => {
+                updateStepIndicator(stepId, '');
+            });
+            updateStepIndicator('step1', 'completed'); // 第一步总是完成的
+        }
+
+        // 初始化
+        updateStepIndicator('step1', 'completed');
+        updateTestResults();
+
+        // 添加时间戳到结果
+        function addTimestamp() {
+            const now = new Date();
+            return `[${now.toLocaleTimeString()}]`;
+        }
+
+        console.log('🧪 端到端测试页面已加载');
+        console.log('📋 测试步骤:');
+        console.log('1. 下载测试文件');
+        console.log('2. 测试无匹配Sheet的情况');
+        console.log('3. 测试有匹配Sheet的情况');
+        console.log('4. 记录测试结果');
+    </script>
+</body>
+</html>

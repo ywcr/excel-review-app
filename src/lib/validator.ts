@@ -138,7 +138,24 @@ export class ExcelValidator {
     buffer: Buffer,
     sheetName?: string
   ): Promise<ValidationResult> {
-    const workbook = XLSX.read(buffer);
+    // 首先只解析工作表名称
+    let workbook: XLSX.WorkBook;
+    try {
+      workbook = XLSX.read(buffer, {
+        bookSheets: true, // 只解析工作表信息
+        bookVBA: false,
+        bookProps: false,
+        bookFiles: false,
+        bookDeps: false,
+      });
+    } catch (error: any) {
+      if (error.message && error.message.includes("Invalid array length")) {
+        throw new Error(
+          "Excel 文件格式复杂，请尝试减少数据行数或简化工作表内容"
+        );
+      }
+      throw new Error(`解析 Excel 文件失败: ${error.message}`);
+    }
 
     // Try multiple possible sheet names in order of preference
     const possibleSheetNames =
@@ -148,22 +165,22 @@ export class ExcelValidator {
     let worksheet: XLSX.WorkSheet | undefined;
 
     // Find the first sheet that exists
-    const availableSheets = Object.keys(workbook.Sheets);
+    const availableSheets = workbook.SheetNames || [];
 
-    // 只尝试精确匹配，不进行自动匹配或后备策略
+    if (availableSheets.length === 0) {
+      throw new Error("Excel 文件中没有找到任何工作表");
+    }
+
+    // 只尝试精确匹配工作表名称
     for (const sheetName of possibleSheetNames) {
-      if (workbook.Sheets[sheetName!]) {
+      if (availableSheets.includes(sheetName!)) {
         targetSheetName = sheetName!;
-        worksheet = workbook.Sheets[sheetName!];
         break;
       }
     }
 
     // 如果没有找到精确匹配的工作表，直接返回错误让用户选择
-    // 不进行任何自动匹配或后备策略
-
-    if (!worksheet || !targetSheetName) {
-      // 返回特殊错误，包含可用工作表信息供用户选择
+    if (!targetSheetName) {
       const error = new Error(
         `找不到匹配的工作表。任务类型: ${
           this.template.name
@@ -177,9 +194,58 @@ export class ExcelValidator {
       throw error;
     }
 
+    // 按需加载目标工作表
+    try {
+      const targetWorkbook = XLSX.read(buffer, {
+        cellDates: true,
+        cellNF: false,
+        cellText: false,
+        dense: false,
+        sheetStubs: false,
+        bookVBA: false,
+        bookSheets: false,
+        bookProps: false,
+        bookFiles: false,
+        bookDeps: false,
+        raw: false,
+        sheets: [targetSheetName], // 只解析目标工作表
+      });
+      worksheet = targetWorkbook.Sheets[targetSheetName];
+    } catch (error: any) {
+      if (error.message && error.message.includes("Invalid array length")) {
+        throw new Error("工作表数据过大，请尝试减少数据行数或简化内容");
+      }
+      throw new Error(`加载工作表 "${targetSheetName}" 失败: ${error.message}`);
+    }
+
+    if (!worksheet) {
+      throw new Error(`无法加载工作表 "${targetSheetName}"`);
+    }
+
     let headerRowIndex = 0; // Declare at function scope
 
-    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+    let data: any[][];
+    try {
+      data = XLSX.utils.sheet_to_json(worksheet, {
+        header: 1,
+        defval: "",
+        raw: false,
+        dateNF: "yyyy-mm-dd",
+      }) as any[][];
+    } catch (error: any) {
+      if (error.message && error.message.includes("Invalid array length")) {
+        throw new Error("工作表数据过大，请减少数据行数或简化内容");
+      }
+      throw new Error(`转换工作表数据失败: ${error.message}`);
+    }
+
+    // 检查数据行数，防止处理过大的数据集
+    if (data.length > 50000) {
+      throw new Error(
+        `数据行数过多 (${data.length} 行)，请减少到 50,000 行以内`
+      );
+    }
+
     const errors: ValidationError[] = [];
 
     if (data.length < 2) {

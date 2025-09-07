@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片重复检测测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .log-output {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 图片重复检测测试</h1>
+    
+    <div class="test-section">
+        <h2>测试说明</h2>
+        <p>这个页面用于测试新的视觉内容重复检测功能。请上传一个包含图片的Excel文件来测试。</p>
+        <p><strong>期望行为：</strong></p>
+        <ul>
+            <li>视觉上相似的图片应该被检测为重复</li>
+            <li>不同的图片不应该被误判为重复</li>
+            <li>控制台会显示详细的哈希计算和比较过程</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>文件上传测试</h2>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" />
+        <button onclick="testImageDetection()">开始测试图片检测</button>
+        <button onclick="clearLog()">清空日志</button>
+    </div>
+
+    <div class="test-section">
+        <h2>测试结果</h2>
+        <div id="results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>详细日志</h2>
+        <div id="logOutput" class="log-output"></div>
+    </div>
+
+    <script>
+        let worker = null;
+        let logOutput = document.getElementById('logOutput');
+        let resultsDiv = document.getElementById('results');
+
+        // 重写console.log来捕获日志
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+
+        function addLog(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logMessage = `[${timestamp}] ${message}\n`;
+            logOutput.textContent += logMessage;
+            logOutput.scrollTop = logOutput.scrollHeight;
+            
+            // 也输出到原始控制台
+            if (type === 'warn') {
+                originalWarn(message);
+            } else if (type === 'error') {
+                originalError(message);
+            } else {
+                originalLog(message);
+            }
+        }
+
+        console.log = (...args) => addLog(args.join(' '), 'log');
+        console.warn = (...args) => addLog('⚠️ ' + args.join(' '), 'warn');
+        console.error = (...args) => addLog('❌ ' + args.join(' '), 'error');
+
+        function clearLog() {
+            logOutput.textContent = '';
+            resultsDiv.innerHTML = '';
+        }
+
+        function addResult(message, type = 'success') {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `result ${type}`;
+            resultDiv.textContent = message;
+            resultsDiv.appendChild(resultDiv);
+        }
+
+        async function testImageDetection() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                addResult('请先选择一个Excel文件', 'error');
+                return;
+            }
+
+            addLog('🚀 开始测试图片重复检测功能');
+            addLog(`文件: ${file.name}, 大小: ${file.size} bytes`);
+
+            try {
+                // 创建Worker
+                if (worker) {
+                    worker.terminate();
+                }
+                
+                worker = new Worker('/validation-worker.js');
+                
+                // 监听Worker消息
+                worker.onmessage = function(e) {
+                    const { type, data } = e.data;
+                    
+                    switch (type) {
+                        case 'PROGRESS':
+                            addLog(`进度: ${data.message} (${data.progress}%)`);
+                            break;
+                            
+                        case 'RESULT':
+                            addLog('✅ 验证完成');
+                            handleResults(data);
+                            break;
+                            
+                        case 'ERROR':
+                            addLog(`❌ 验证失败: ${data.message}`);
+                            addResult(`验证失败: ${data.message}`, 'error');
+                            break;
+                    }
+                };
+
+                worker.onerror = function(error) {
+                    addLog(`❌ Worker错误: ${error.message}`);
+                    addResult(`Worker错误: ${error.message}`, 'error');
+                };
+
+                // 读取文件
+                const fileBuffer = await file.arrayBuffer();
+                
+                // 发送验证请求（只进行图片验证）
+                worker.postMessage({
+                    type: 'VALIDATE_IMAGES',
+                    data: {
+                        fileBuffer: fileBuffer
+                    }
+                });
+
+            } catch (error) {
+                addLog(`❌ 测试失败: ${error.message}`);
+                addResult(`测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        function handleResults(data) {
+            addLog('📊 分析检测结果...');
+            
+            if (!data.results || data.results.length === 0) {
+                addResult('未找到图片', 'warning');
+                return;
+            }
+
+            const totalImages = data.totalImages || 0;
+            const blurryImages = data.blurryImages || 0;
+            const duplicateGroups = data.duplicateGroups || 0;
+
+            addResult(`总图片数: ${totalImages}`, 'success');
+            addResult(`模糊图片: ${blurryImages}`, blurryImages > 0 ? 'warning' : 'success');
+            addResult(`重复组数: ${duplicateGroups}`, duplicateGroups > 0 ? 'warning' : 'success');
+
+            // 分析哈希值分布
+            const hashCounts = new Map();
+            data.results.forEach(result => {
+                if (result.hash) {
+                    hashCounts.set(result.hash, (hashCounts.get(result.hash) || 0) + 1);
+                }
+            });
+
+            addLog('\n📈 哈希值分布分析:');
+            let uniqueHashes = 0;
+            let duplicateHashes = 0;
+            
+            for (const [hash, count] of hashCounts) {
+                if (count === 1) {
+                    uniqueHashes++;
+                } else {
+                    duplicateHashes++;
+                    addLog(`  哈希 ${hash}: ${count} 张图片`);
+                }
+            }
+
+            addResult(`唯一哈希: ${uniqueHashes}`, 'success');
+            addResult(`重复哈希: ${duplicateHashes}`, duplicateHashes > 0 ? 'warning' : 'success');
+
+            // 检查是否所有图片都有相同哈希（算法问题的迹象）
+            const maxSameHash = Math.max(...hashCounts.values());
+            if (maxSameHash > totalImages * 0.8) {
+                addResult(`⚠️ 警告: ${maxSameHash}/${totalImages} 张图片具有相同哈希，可能是算法问题`, 'error');
+            }
+
+            // 显示重复检测详情
+            if (duplicateGroups > 0) {
+                addLog('\n🔍 重复检测详情:');
+                data.results.forEach(result => {
+                    if (result.duplicates && result.duplicates.length > 0) {
+                        addLog(`  图片 ${result.id} (${result.position}) 与以下图片重复:`);
+                        result.duplicates.forEach(dup => {
+                            addLog(`    - ${dup.id} (${dup.position})`);
+                        });
+                    }
+                });
+            }
+
+            addLog('\n✅ 结果分析完成');
+        }
+
+        // 页面卸载时清理Worker
+        window.addEventListener('beforeunload', function() {
+            if (worker) {
+                worker.terminate();
+            }
+        });
+    </script>
+</body>
+</html>

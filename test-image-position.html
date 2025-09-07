@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>图片位置提取测试</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .upload-area {
+        border: 2px dashed #ccc;
+        padding: 20px;
+        text-align: center;
+        margin: 20px 0;
+      }
+      .result {
+        margin-top: 20px;
+        padding: 15px;
+        background-color: #f5f5f5;
+        border-radius: 5px;
+      }
+      .image-info {
+        margin: 10px 0;
+        padding: 10px;
+        background-color: white;
+        border-radius: 3px;
+      }
+      .error {
+        color: red;
+      }
+      .success {
+        color: green;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Excel图片位置提取测试</h1>
+
+    <div class="upload-area">
+      <p>请选择一个包含图片的Excel文件进行测试</p>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" />
+    </div>
+
+    <div id="result" class="result" style="display: none">
+      <h3>测试结果</h3>
+      <div id="imageList"></div>
+    </div>
+
+    <div id="error" class="error" style="display: none"></div>
+
+    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script>
+      document
+        .getElementById("fileInput")
+        .addEventListener("change", async function (e) {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          try {
+            const result = await testImagePositionExtraction(file);
+            displayResult(result);
+          } catch (error) {
+            displayError(error.message);
+          }
+        });
+
+      async function testImagePositionExtraction(file) {
+        console.log("开始测试图片位置提取...");
+
+        // 使用JSZip解析Excel文件
+        const zip = new JSZip();
+        const zipContent = await zip.loadAsync(file);
+
+        // 提取图片位置信息
+        const imagePositions = await extractImagePositions(zipContent);
+        console.log("图片位置映射结果:", imagePositions);
+
+        // 提取图片文件
+        const images = [];
+        const mediaFolder = zipContent.folder("xl/media");
+
+        if (mediaFolder) {
+          const imageFiles = [];
+          mediaFolder.forEach((relativePath, file) => {
+            if (
+              !file.dir &&
+              (relativePath.endsWith(".png") ||
+                relativePath.endsWith(".jpg") ||
+                relativePath.endsWith(".jpeg"))
+            ) {
+              imageFiles.push({ relativePath, file });
+            }
+          });
+
+          for (const { relativePath, file } of imageFiles) {
+            const data = await file.async("uint8array");
+            const positionInfo = imagePositions.get(relativePath);
+
+            images.push({
+              name: relativePath,
+              size: data.length,
+              position: positionInfo ? positionInfo.position : "未知位置",
+              row: positionInfo ? positionInfo.row : null,
+              column: positionInfo ? positionInfo.column : null,
+              hasPosition: !!positionInfo,
+            });
+          }
+        }
+
+        return {
+          totalImages: images.length,
+          imagePositions: imagePositions.size,
+          images: images,
+        };
+      }
+
+      // 复制extractImagePositions函数
+      async function extractImagePositions(zipContent) {
+        const imagePositions = new Map();
+
+        try {
+          const readTextIfExists = async (path) => {
+            const file = zipContent.file(path);
+            if (!file) return null;
+            try {
+              return await file.async("string");
+            } catch {
+              return null;
+            }
+          };
+
+          const parseXml = (xmlText) => {
+            try {
+              const parser = new DOMParser();
+              return parser.parseFromString(xmlText, "application/xml");
+            } catch {
+              return null;
+            }
+          };
+
+          const columnIndexToLetter = (index) => {
+            let n = Number(index);
+            if (Number.isNaN(n) || n < 0) n = 0;
+            let result = "";
+            n = n + 1;
+            while (n > 0) {
+              const rem = (n - 1) % 26;
+              result = String.fromCharCode(65 + rem) + result;
+              n = Math.floor((n - 1) / 26);
+            }
+            return result;
+          };
+
+          // 遍历所有工作表
+          const worksheetsFolder = zipContent.folder("xl/worksheets");
+          if (!worksheetsFolder) return imagePositions;
+
+          const sheetFiles = [];
+          worksheetsFolder.forEach((relativePath, file) => {
+            if (
+              !file.dir &&
+              relativePath.endsWith(".xml") &&
+              relativePath.startsWith("sheet")
+            ) {
+              sheetFiles.push(relativePath);
+            }
+          });
+
+          console.log(`找到 ${sheetFiles.length} 个工作表文件`);
+
+          for (const sheetFile of sheetFiles.sort()) {
+            const sheetPath = `xl/worksheets/${sheetFile}`;
+            console.log(`处理工作表: ${sheetFile}`);
+
+            const sheetXmlText = await readTextIfExists(sheetPath);
+            if (!sheetXmlText) {
+              console.log(`工作表 ${sheetFile} 无内容，跳过`);
+              continue;
+            }
+
+            const sheetXml = parseXml(sheetXmlText);
+            if (!sheetXml) {
+              console.log(`工作表 ${sheetFile} XML解析失败，跳过`);
+              continue;
+            }
+
+            // 查找drawing元素
+            const drawingEl = sheetXml.getElementsByTagName("drawing")[0];
+            if (!drawingEl) {
+              console.log(`工作表 ${sheetFile} 无drawing元素，跳过`);
+              continue;
+            }
+
+            const drawingRelId =
+              drawingEl.getAttribute("r:id") ||
+              drawingEl.getAttribute("rel:id");
+            if (!drawingRelId) {
+              console.log(`工作表 ${sheetFile} drawing元素无ID，跳过`);
+              continue;
+            }
+
+            console.log(`工作表 ${sheetFile} 找到drawing ID: ${drawingRelId}`);
+
+            // 解析drawing关系
+            const sheetRelsPath = `xl/worksheets/_rels/${sheetFile}.rels`;
+            const sheetRelsText = await readTextIfExists(sheetRelsPath);
+            if (!sheetRelsText) continue;
+
+            const sheetRelsXml = parseXml(sheetRelsText);
+            if (!sheetRelsXml) continue;
+
+            const rels = sheetRelsXml.getElementsByTagName("Relationship");
+            let drawingTarget = null;
+            for (let i = 0; i < rels.length; i++) {
+              const r = rels[i];
+              if (
+                (r.getAttribute("Id") || r.getAttribute("id")) === drawingRelId
+              ) {
+                drawingTarget = r.getAttribute("Target");
+                break;
+              }
+            }
+            if (!drawingTarget) continue;
+
+            // 标准化drawing路径
+            let drawingPath = drawingTarget;
+            if (drawingPath.startsWith("../"))
+              drawingPath = drawingPath.replace(/^\.\.\//, "xl/");
+            if (!drawingPath.startsWith("xl/"))
+              drawingPath = `xl/worksheets/${drawingPath}`;
+
+            const drawingXmlText = await readTextIfExists(drawingPath);
+            if (!drawingXmlText) continue;
+
+            const drawingXml = parseXml(drawingXmlText);
+            if (!drawingXml) continue;
+
+            // 加载drawing关系映射
+            const drawingFileName = drawingPath.substring(
+              drawingPath.lastIndexOf("/") + 1
+            );
+            const drawingRelsPath = drawingPath.replace(
+              "drawings/" + drawingFileName,
+              `drawings/_rels/${drawingFileName}.rels`
+            );
+            const drawingRelsText = await readTextIfExists(drawingRelsPath);
+            const embedRelMap = new Map();
+
+            if (drawingRelsText) {
+              const drawingRelsXml = parseXml(drawingRelsText);
+              if (drawingRelsXml) {
+                const dRels =
+                  drawingRelsXml.getElementsByTagName("Relationship");
+                for (let i = 0; i < dRels.length; i++) {
+                  const dr = dRels[i];
+                  const id = dr.getAttribute("Id") || dr.getAttribute("id");
+                  let target = dr.getAttribute("Target") || "";
+                  if (!id || !target) continue;
+                  if (target.startsWith("../"))
+                    target = target.replace(/^\.\.\//, "xl/");
+                  if (!target.startsWith("xl/"))
+                    target = `xl/drawings/${target}`;
+
+                  const m = /xl\/media\/(.+)$/.exec(target);
+                  const mediaKey = m ? m[1] : target;
+                  embedRelMap.set(id, mediaKey);
+                }
+              }
+            }
+
+            // 解析图片锚点
+            const anchors = [
+              ...Array.from(
+                drawingXml.getElementsByTagName("xdr:twoCellAnchor")
+              ),
+              ...Array.from(
+                drawingXml.getElementsByTagName("xdr:oneCellAnchor")
+              ),
+            ];
+
+            console.log(
+              `工作表 ${sheetFile} 找到 ${anchors.length} 个图片锚点`
+            );
+
+            for (let i = 0; i < anchors.length; i++) {
+              const anchor = anchors[i];
+              const fromEl = anchor.getElementsByTagName("xdr:from")[0];
+              let colIdx = 0;
+              let rowIdx = 0;
+
+              if (fromEl) {
+                const colEl = fromEl.getElementsByTagName("xdr:col")[0];
+                const rowEl = fromEl.getElementsByTagName("xdr:row")[0];
+                if (colEl && colEl.textContent)
+                  colIdx = parseInt(colEl.textContent, 10) || 0;
+                if (rowEl && rowEl.textContent)
+                  rowIdx = parseInt(rowEl.textContent, 10) || 0;
+              }
+
+              const blipEls = anchor.getElementsByTagName("a:blip");
+              if (blipEls.length === 0) continue;
+
+              const embedId =
+                blipEls[0].getAttribute("r:embed") ||
+                blipEls[0].getAttribute("rel:embed");
+              if (!embedId) continue;
+
+              const mediaKeyFromRel = embedRelMap.get(embedId);
+              if (!mediaKeyFromRel) continue;
+
+              const excelRow = rowIdx + 1;
+              const excelColLetter = columnIndexToLetter(colIdx);
+              const position = `${excelColLetter}${excelRow}`;
+
+              console.log(
+                `找到图片位置: ${mediaKeyFromRel} -> ${position} (行${excelRow}, 列${excelColLetter})`
+              );
+
+              imagePositions.set(mediaKeyFromRel, {
+                position,
+                row: excelRow,
+                column: excelColLetter,
+              });
+            }
+          }
+
+          return imagePositions;
+        } catch (error) {
+          console.warn("无法提取图片位置信息:", error);
+          return new Map();
+        }
+      }
+
+      function displayResult(result) {
+        const resultDiv = document.getElementById("result");
+        const imageListDiv = document.getElementById("imageList");
+
+        resultDiv.style.display = "block";
+        document.getElementById("error").style.display = "none";
+
+        let html = `
+                <p><strong>总图片数:</strong> ${result.totalImages}</p>
+                <p><strong>位置映射数:</strong> ${result.imagePositions}</p>
+                <p><strong>成功解析位置的图片:</strong> ${
+                  result.images.filter((img) => img.hasPosition).length
+                }</p>
+            `;
+
+        if (result.images.length > 0) {
+          html += "<h4>图片详情:</h4>";
+          result.images.forEach((img, index) => {
+            html += `
+                        <div class="image-info">
+                            <strong>图片 ${index + 1}:</strong> ${img.name}<br>
+                            <strong>位置:</strong> ${img.position}<br>
+                            <strong>行:</strong> ${img.row || "未知"}<br>
+                            <strong>列:</strong> ${img.column || "未知"}<br>
+                            <strong>大小:</strong> ${(img.size / 1024).toFixed(
+                              2
+                            )} KB<br>
+                            <strong>状态:</strong> <span class="${
+                              img.hasPosition ? "success" : "error"
+                            }">${
+              img.hasPosition ? "✓ 位置已解析" : "✗ 位置未解析"
+            }</span>
+                        </div>
+                    `;
+          });
+        }
+
+        imageListDiv.innerHTML = html;
+      }
+
+      function displayError(message) {
+        const errorDiv = document.getElementById("error");
+        errorDiv.style.display = "block";
+        errorDiv.textContent = message;
+        document.getElementById("result").style.display = "none";
+      }
+    </script>
+  </body>
+</html>
+

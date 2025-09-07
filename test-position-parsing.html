@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片位置解析测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .result {
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+        }
+        .error {
+            background: #ffe6e6;
+            color: #d00;
+        }
+        .success {
+            background: #e6ffe6;
+            color: #060;
+        }
+        button {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #005a87;
+        }
+        input[type="file"] {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>图片位置解析测试</h1>
+    
+    <div class="test-section">
+        <h2>测试说明</h2>
+        <p>此页面用于测试新的图片位置解析功能：</p>
+        <ul>
+            <li>✅ 从Excel drawings XML中准确解析图片位置</li>
+            <li>✅ 显示"列A 行4"格式的位置信息</li>
+            <li>✅ 重复图片显示具体位置信息</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>上传Excel文件测试</h2>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" />
+        <button onclick="testImageExtraction()">测试图片提取和位置解析</button>
+        <div id="results"></div>
+    </div>
+
+    <script type="module">
+        import { FrontendImageValidator } from './src/lib/frontendImageValidator.js';
+
+        window.testImageExtraction = async function() {
+            const fileInput = document.getElementById('fileInput');
+            const resultsDiv = document.getElementById('results');
+            
+            if (!fileInput.files[0]) {
+                resultsDiv.innerHTML = '<div class="result error">请先选择一个Excel文件</div>';
+                return;
+            }
+
+            try {
+                resultsDiv.innerHTML = '<div class="result">正在处理文件...</div>';
+                
+                const validator = new FrontendImageValidator();
+                const file = fileInput.files[0];
+                
+                // 提取图片
+                const images = await validator.extractImages(file);
+                
+                let html = `<div class="result success">
+                    <h3>图片提取结果</h3>
+                    <p>找到 ${images.length} 张图片</p>
+                </div>`;
+                
+                // 显示每张图片的位置信息
+                images.forEach((image, index) => {
+                    html += `<div class="result">
+                        <h4>图片 ${index + 1}: ${image.id}</h4>
+                        <p><strong>位置信息:</strong></p>
+                        <ul>
+                            <li>位置: ${image.position || '未知'}</li>
+                            <li>行: ${image.row || '未知'}</li>
+                            <li>列: ${image.column || '未知'}</li>
+                            <li>格式化显示: ${image.column && image.row ? `列${image.column} 行${image.row}` : '未知位置'}</li>
+                        </ul>
+                        <p><strong>图片信息:</strong></p>
+                        <ul>
+                            <li>尺寸: ${image.width} x ${image.height}</li>
+                            <li>大小: ${(image.size / 1024).toFixed(1)} KB</li>
+                            <li>类型: ${image.mimeType}</li>
+                        </ul>
+                    </div>`;
+                });
+                
+                // 验证图片（包括重复检测）
+                if (images.length > 0) {
+                    html += '<div class="result">正在进行图片验证...</div>';
+                    const validationResult = await validator.validateImages(images);
+                    
+                    html += `<div class="result success">
+                        <h3>验证结果</h3>
+                        <p>总图片数: ${validationResult.totalImages}</p>
+                        <p>模糊图片: ${validationResult.blurryImages}</p>
+                        <p>重复组数: ${validationResult.duplicateGroups}</p>
+                    </div>`;
+                    
+                    // 显示有问题的图片详情
+                    const problemImages = validationResult.results.filter(r => 
+                        r.isBlurry || r.duplicates.length > 0
+                    );
+                    
+                    if (problemImages.length > 0) {
+                        html += '<div class="result"><h3>问题图片详情</h3>';
+                        problemImages.forEach(result => {
+                            html += `<div style="margin: 10px 0; padding: 10px; border: 1px solid #ccc;">
+                                <h4>${result.id}</h4>
+                                <p><strong>位置:</strong> ${result.column && result.row ? `列${result.column} 行${result.row}` : '未知位置'}</p>
+                                <p><strong>清晰度:</strong> ${result.sharpness.toFixed(1)} ${result.isBlurry ? '(模糊)' : ''}</p>
+                                ${result.duplicates.length > 0 ? `
+                                    <p><strong>重复图片:</strong></p>
+                                    <ul>
+                                        ${result.duplicates.map(dup => `
+                                            <li>${dup.id} - ${dup.column && dup.row ? `列${dup.column} 行${dup.row}` : '位置未知'}</li>
+                                        `).join('')}
+                                    </ul>
+                                ` : ''}
+                            </div>`;
+                        });
+                        html += '</div>';
+                    }
+                }
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                console.error('测试失败:', error);
+                resultsDiv.innerHTML = `<div class="result error">
+                    <h3>测试失败</h3>
+                    <p>错误信息: ${error.message}</p>
+                    <p>请检查控制台获取详细信息</p>
+                </div>`;
+            }
+        };
+    </script>
+</body>
+</html>

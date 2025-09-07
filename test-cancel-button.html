@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>取消按钮测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 3px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #console-output {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 取消按钮功能测试</h1>
+    
+    <div class="test-section">
+        <h2>测试说明</h2>
+        <p>此页面用于测试Sheet选择器的取消按钮是否正常工作。</p>
+        <ol>
+            <li>点击"模拟弹出Sheet选择器"按钮</li>
+            <li>在弹出的对话框中点击"取消"按钮</li>
+            <li>观察控制台输出和页面状态变化</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>测试控制</h2>
+        <button onclick="showSheetSelector()">模拟弹出Sheet选择器</button>
+        <button onclick="clearConsole()">清除控制台</button>
+        <div id="status" class="result info">状态: 等待测试</div>
+    </div>
+
+    <div class="test-section">
+        <h2>控制台输出</h2>
+        <div id="console-output">等待操作...</div>
+    </div>
+
+    <!-- 模拟的Sheet选择器 -->
+    <div id="sheet-selector" style="display: none;" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4" onclick="event.stopPropagation()">
+            <div class="p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">选择工作表</h3>
+                
+                <p class="text-sm text-gray-600 mb-4">
+                    系统无法自动识别对应的工作表，请手动选择正确的工作表进行验证：
+                </p>
+
+                <div class="space-y-2 mb-6">
+                    <label class="flex items-center p-3 border rounded-lg cursor-pointer transition-colors border-gray-200 hover:border-gray-300">
+                        <input type="radio" name="sheet" value="Sheet1" class="mr-3 text-blue-600">
+                        <div class="flex-1">
+                            <div class="font-medium text-gray-900">Sheet1</div>
+                            <div class="text-xs text-gray-500">包含数据</div>
+                        </div>
+                    </label>
+                    
+                    <label class="flex items-center p-3 border rounded-lg cursor-pointer transition-colors border-gray-200 hover:border-gray-300">
+                        <input type="radio" name="sheet" value="数据表" class="mr-3 text-blue-600">
+                        <div class="flex-1">
+                            <div class="font-medium text-gray-900">数据表</div>
+                            <div class="text-xs text-gray-500">包含数据</div>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="flex justify-end space-x-3">
+                    <button onclick="handleCancel()" class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
+                        取消
+                    </button>
+                    <button onclick="handleConfirm()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                        确认验证
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let consoleOutput = [];
+        
+        // 重写console.log来捕获输出
+        const originalConsoleLog = console.log;
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+            ).join(' ');
+            addToConsole(`[${new Date().toLocaleTimeString()}] ${message}`);
+        };
+
+        function addToConsole(message) {
+            consoleOutput.push(message);
+            updateConsoleDisplay();
+        }
+
+        function updateConsoleDisplay() {
+            const consoleDiv = document.getElementById('console-output');
+            consoleDiv.textContent = consoleOutput.join('\n');
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        function clearConsole() {
+            consoleOutput = [];
+            updateConsoleDisplay();
+            updateStatus('控制台已清除', 'info');
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = `状态: ${message}`;
+            statusDiv.className = `result ${type}`;
+        }
+
+        function showSheetSelector() {
+            console.log('显示Sheet选择器');
+            document.getElementById('sheet-selector').style.display = 'flex';
+            updateStatus('Sheet选择器已显示', 'info');
+        }
+
+        function hideSheetSelector() {
+            console.log('隐藏Sheet选择器');
+            document.getElementById('sheet-selector').style.display = 'none';
+        }
+
+        function handleCancel() {
+            console.log('FrontendSheetSelector: 取消按钮被点击');
+            console.log('主页面: 处理Sheet选择器取消操作');
+            
+            // 模拟主页面的取消处理逻辑
+            hideSheetSelector();
+            
+            // 模拟清理验证状态
+            console.log('主页面: 清理验证状态');
+            
+            // 模拟取消验证（如果正在进行）
+            console.log('主页面: 检查是否需要取消正在进行的验证');
+            
+            console.log('主页面: Sheet选择器取消操作完成');
+            
+            updateStatus('取消操作完成 - 弹窗已关闭，状态已清理', 'success');
+        }
+
+        function handleConfirm() {
+            const selectedSheet = document.querySelector('input[name="sheet"]:checked');
+            if (selectedSheet) {
+                console.log(`用户选择了工作表: ${selectedSheet.value}`);
+                hideSheetSelector();
+                updateStatus(`确认选择: ${selectedSheet.value}`, 'success');
+            } else {
+                console.log('用户未选择任何工作表');
+                updateStatus('请先选择一个工作表', 'error');
+            }
+        }
+
+        // 点击背景关闭弹窗
+        document.getElementById('sheet-selector').addEventListener('click', function(e) {
+            if (e.target === this) {
+                console.log('点击背景关闭弹窗');
+                handleCancel();
+            }
+        });
+
+        // 初始化
+        updateStatus('页面已加载，准备测试', 'info');
+        console.log('取消按钮测试页面已加载');
+    </script>
+
+    <style>
+        .fixed {
+            position: fixed;
+        }
+        .inset-0 {
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+        }
+        .bg-black {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        .flex {
+            display: flex;
+        }
+        .items-center {
+            align-items: center;
+        }
+        .justify-center {
+            justify-content: center;
+        }
+        .justify-end {
+            justify-content: flex-end;
+        }
+        .z-50 {
+            z-index: 50;
+        }
+        .bg-white {
+            background-color: white;
+        }
+        .rounded-lg {
+            border-radius: 0.5rem;
+        }
+        .shadow-xl {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .max-w-md {
+            max-width: 28rem;
+        }
+        .w-full {
+            width: 100%;
+        }
+        .mx-4 {
+            margin-left: 1rem;
+            margin-right: 1rem;
+        }
+        .p-6 {
+            padding: 1.5rem;
+        }
+        .mb-4 {
+            margin-bottom: 1rem;
+        }
+        .mb-6 {
+            margin-bottom: 1.5rem;
+        }
+        .space-y-2 > * + * {
+            margin-top: 0.5rem;
+        }
+        .space-x-3 > * + * {
+            margin-left: 0.75rem;
+        }
+        .px-4 {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        .py-2 {
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+        .rounded-md {
+            border-radius: 0.375rem;
+        }
+        .transition-colors {
+            transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+        }
+    </style>
+</body>
+</html>

@@ -62,16 +62,68 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
       data: { progress: 10, message: "解析Excel文件..." },
     });
 
-    const workbook = XLSX.read(fileBuffer, { type: "array" });
+    let workbook;
+    try {
+      // 首先只解析工作表名称，不加载具体内容
+      workbook = XLSX.read(fileBuffer, {
+        type: "array",
+        bookSheets: true, // 只解析工作表信息
+        bookVBA: false,
+        bookProps: false,
+        bookFiles: false,
+        bookDeps: false,
+      });
+    } catch (error) {
+      if (error.message && error.message.includes("Invalid array length")) {
+        throw new Error(
+          "Excel 文件格式复杂，请尝试减少数据行数或简化工作表内容"
+        );
+      }
+      throw new Error(`解析 Excel 文件失败: ${error.message}`);
+    }
 
     if (isValidationCancelled) return;
 
-    // 获取工作表
+    // 获取工作表名称
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      throw new Error("Excel 文件中没有找到任何工作表");
+    }
+
     const sheetName = selectedSheet || workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
+
+    if (!workbook.SheetNames.includes(sheetName)) {
+      throw new Error(`工作表 "${sheetName}" 不存在`);
+    }
+
+    // 按需解析目标工作表，使用优化选项
+    let worksheet;
+    try {
+      // 重新解析文件，但只加载目标工作表
+      const targetWorkbook = XLSX.read(fileBuffer, {
+        type: "array",
+        cellDates: true,
+        cellNF: false,
+        cellText: false,
+        dense: false, // 使用稀疏数组格式，节省内存
+        sheetStubs: false, // 不包含空单元格
+        bookVBA: false,
+        bookSheets: false,
+        bookProps: false,
+        bookFiles: false,
+        bookDeps: false,
+        raw: false,
+        sheets: [sheetName], // 只解析目标工作表
+      });
+      worksheet = targetWorkbook.Sheets[sheetName];
+    } catch (error) {
+      if (error.message && error.message.includes("Invalid array length")) {
+        throw new Error("工作表数据过大，请尝试减少数据行数或简化内容");
+      }
+      throw new Error(`解析工作表 "${sheetName}" 失败: ${error.message}`);
+    }
 
     if (!worksheet) {
-      throw new Error(`工作表 "${sheetName}" 不存在`);
+      throw new Error(`无法加载工作表 "${sheetName}"`);
     }
 
     postMessage({
@@ -80,10 +132,30 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
     });
 
     // 转换为数组格式进行流式处理
-    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    let data;
+    try {
+      data = XLSX.utils.sheet_to_json(worksheet, {
+        header: 1,
+        defval: "", // 空单元格使用空字符串
+        raw: false, // 不保留原始值
+        dateNF: "yyyy-mm-dd", // 标准化日期格式
+      });
+    } catch (error) {
+      if (error.message && error.message.includes("Invalid array length")) {
+        throw new Error("工作表数据过大，请减少数据行数或简化内容");
+      }
+      throw new Error(`转换工作表数据失败: ${error.message}`);
+    }
 
     if (data.length === 0) {
       throw new Error("工作表为空");
+    }
+
+    // 检查数据行数，防止处理过大的数据集
+    if (data.length > 50000) {
+      throw new Error(
+        `数据行数过多 (${data.length} 行)，请减少到 50,000 行以内`
+      );
     }
 
     // 接收从主线程传递的完整模板
@@ -93,6 +165,11 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
       throw new Error(
         `未找到任务模板: ${taskName}，请确保从主线程传入了完整的模板`
       );
+    }
+
+    // 验证模板的必需字段
+    if (!template.requiredFields || !Array.isArray(template.requiredFields)) {
+      throw new Error(`任务模板格式错误: ${taskName}，缺少必需字段定义`);
     }
 
     // 智能查找表头行（扫描前5行）
@@ -939,9 +1016,27 @@ async function validateExcel(data) {
 
   sendProgress("正在解析Excel文件...", 10);
 
-  // Parse Excel file
-  const workbook = XLSX.read(fileBuffer, { type: "array" });
-  const sheetNames = Object.keys(workbook.Sheets);
+  // 首先只解析工作表名称
+  let workbook;
+  try {
+    workbook = XLSX.read(fileBuffer, {
+      type: "array",
+      bookSheets: true, // 只解析工作表信息
+      bookVBA: false,
+      bookProps: false,
+      bookFiles: false,
+      bookDeps: false,
+    });
+  } catch (error) {
+    if (error.message && error.message.includes("Invalid array length")) {
+      sendError("Excel 文件格式复杂，请尝试减少数据行数或简化工作表内容");
+    } else {
+      sendError(`解析 Excel 文件失败: ${error.message}`);
+    }
+    return;
+  }
+
+  const sheetNames = workbook.SheetNames || [];
 
   sendProgress("正在分析工作表...", 20);
 
@@ -952,11 +1047,20 @@ async function validateExcel(data) {
     return;
   }
 
+  // 验证模板的必需字段
+  if (
+    !validationTemplate.requiredFields ||
+    !Array.isArray(validationTemplate.requiredFields)
+  ) {
+    sendError(`任务模板格式错误: ${taskName}，缺少必需字段定义`);
+    return;
+  }
+
   // Select sheet
   let targetSheet = selectedSheet;
   let isAutoMatched = false;
 
-  if (!targetSheet || !workbook.Sheets[targetSheet]) {
+  if (!targetSheet || !sheetNames.includes(targetSheet)) {
     // Try to find a matching sheet based on template preferences
     const matchedSheet = findMatchingSheet(
       sheetNames,
@@ -977,7 +1081,7 @@ async function validateExcel(data) {
       needSheetSelection: true,
       availableSheets: sheetNames.map((name) => ({
         name,
-        hasData: !!workbook.Sheets[name]["!ref"],
+        hasData: true, // 假设所有工作表都有数据，避免预加载检查
       })),
     });
     return;
@@ -989,18 +1093,44 @@ async function validateExcel(data) {
     return;
   }
 
-  if (!targetSheet || !workbook.Sheets[targetSheet]) {
-    sendError("未找到可用的工作表");
+  // 按需加载目标工作表
+  let targetWorksheet;
+  try {
+    sendProgress("正在加载目标工作表...", 25);
+    const targetWorkbook = XLSX.read(fileBuffer, {
+      type: "array",
+      cellDates: true,
+      cellNF: false,
+      cellText: false,
+      dense: false,
+      sheetStubs: false,
+      bookVBA: false,
+      bookSheets: false,
+      bookProps: false,
+      bookFiles: false,
+      bookDeps: false,
+      raw: false,
+      sheets: [targetSheet], // 只解析目标工作表
+    });
+    targetWorksheet = targetWorkbook.Sheets[targetSheet];
+  } catch (error) {
+    if (error.message && error.message.includes("Invalid array length")) {
+      sendError("工作表数据过大，请尝试减少数据行数或简化内容");
+    } else {
+      sendError(`加载工作表 "${targetSheet}" 失败: ${error.message}`);
+    }
+    return;
+  }
+
+  if (!targetWorksheet) {
+    sendError(`无法加载工作表 "${targetSheet}"`);
     return;
   }
 
   sendProgress("正在验证表头...", 40);
 
   // Validate headers (auto-detect header row inside)
-  const headerValidation = validateHeaders(
-    workbook.Sheets[targetSheet],
-    validationTemplate
-  );
+  const headerValidation = validateHeaders(targetWorksheet, validationTemplate);
 
   if (!headerValidation.isValid) {
     sendResult({
@@ -1016,7 +1146,7 @@ async function validateExcel(data) {
 
   // Validate data rows using detected header row index
   const errors = validateRows(
-    workbook.Sheets[targetSheet],
+    targetWorksheet,
     validationTemplate,
     headerValidation.headerRowIndex
   );
@@ -1024,9 +1154,23 @@ async function validateExcel(data) {
   sendProgress("正在执行跨行验证...", 80);
 
   // 执行跨行验证（unique、frequency、dateInterval）
-  const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], {
-    header: 1,
-  });
+  let sheetData;
+  try {
+    sheetData = XLSX.utils.sheet_to_json(targetWorksheet, {
+      header: 1,
+      defval: "",
+      raw: false,
+      dateNF: "yyyy-mm-dd",
+    });
+  } catch (error) {
+    if (error.message && error.message.includes("Invalid array length")) {
+      sendError("工作表数据过大，请减少数据行数");
+      return;
+    }
+    sendError(`处理工作表数据失败: ${error.message}`);
+    return;
+  }
+
   const headerRow = sheetData[headerValidation.headerRowIndex];
   const dataRows = sheetData.slice(headerValidation.headerRowIndex + 1);
 
@@ -1448,10 +1592,21 @@ function findMatchingSheet(sheetNames, preferredNames) {
   return null;
 }
 
-
-
 function validateHeaders(sheet, template) {
-  const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  let data;
+  try {
+    data = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      defval: "",
+      raw: false,
+      dateNF: "yyyy-mm-dd",
+    });
+  } catch (error) {
+    if (error.message && error.message.includes("Invalid array length")) {
+      throw new Error("工作表数据过大，请减少数据行数");
+    }
+    throw error;
+  }
   if (data.length === 0) {
     return {
       isValid: false,
@@ -1539,7 +1694,20 @@ function validateHeaders(sheet, template) {
 
 function validateRows(sheet, template, headerRowIndexOverride) {
   const errors = [];
-  const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  let data;
+  try {
+    data = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      defval: "",
+      raw: false,
+      dateNF: "yyyy-mm-dd",
+    });
+  } catch (error) {
+    if (error.message && error.message.includes("Invalid array length")) {
+      throw new Error("工作表数据过大，请减少数据行数");
+    }
+    throw error;
+  }
 
   if (data.length === 0) return errors;
 
