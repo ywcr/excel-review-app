@@ -1091,15 +1091,25 @@ export class ExcelValidator {
     const columnIndex = headerMap.get(rule.field);
     const columnName = this.getColumnName(columnIndex);
 
-    // Group by the specified field and pharmacy address to identify unique stores
+    // Group by implementer + specified field + address to identify unique combinations
     const groups = new Map<
       string,
-      Array<{ date: Date; rowNumber: number; address: string }>
+      Array<{
+        date: Date;
+        rowNumber: number;
+        address: string;
+        implementer: string;
+      }>
     >();
 
     rows.forEach(({ data, rowNumber }) => {
       const groupValue = data[groupBy];
-      const address = data["pharmacy_address"] || data["渠道地址"] || "";
+      const implementer = data["implementer"] || data["实施人"] || "";
+      const address =
+        data["pharmacy_address"] ||
+        data["渠道地址"] ||
+        data["channelAddress"] ||
+        "";
 
       // Try multiple possible date/time fields
       const dateValue =
@@ -1108,22 +1118,26 @@ export class ExcelValidator {
         data["visit_time"] ||
         data["拜访时间"] ||
         data["拜访开始时间"] || // Template format
-        data["拜访开始\n时间"]; // Template format with newline
+        data["拜访开始\n时间"] || // Template format with newline
+        data["visitStartTime"]; // Field mapping format
 
-      if (groupValue && dateValue) {
+      if (groupValue && dateValue && implementer) {
         const date = this.parseDate(dateValue);
         if (date) {
-          // Create a unique key combining pharmacy name and address
-          const uniqueKey = `${groupValue}|${address}`;
+          // Create a unique key combining implementer + groupBy field + address
+          // This ensures that different implementers can visit the same target
+          const uniqueKey = `${implementer}|${groupValue}|${address}`;
           if (!groups.has(uniqueKey)) {
             groups.set(uniqueKey, []);
           }
-          groups.get(uniqueKey)!.push({ date, rowNumber, address });
+          groups
+            .get(uniqueKey)!
+            .push({ date, rowNumber, address, implementer });
         }
       }
     });
 
-    // Check for violations within each group
+    // Check for violations within each group (same implementer + same target)
     groups.forEach((visits, uniqueKey) => {
       visits.sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -1136,8 +1150,10 @@ export class ExcelValidator {
         );
 
         if (daysDiff < days) {
-          // Extract pharmacy name from uniqueKey (format: "pharmacyName|address")
-          const pharmacyName = uniqueKey.split("|")[0];
+          // Extract target name from uniqueKey (format: "implementer|targetName|address")
+          const parts = uniqueKey.split("|");
+          const implementer = parts[0];
+          const targetName = parts[1];
           const address = current.address;
 
           errors.push({
@@ -1148,10 +1164,10 @@ export class ExcelValidator {
             errorType: "dateInterval",
             message: `${rule.message}（与第${
               previous.rowNumber
-            }行冲突，同一店铺：${pharmacyName}${
+            }行冲突，实施人：${implementer}，目标：${targetName}${
               address ? ` - ${address}` : ""
             }）`,
-            value: pharmacyName,
+            value: targetName,
           });
         }
       }

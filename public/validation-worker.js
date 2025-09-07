@@ -759,7 +759,7 @@ function validateFrequency(rule, rows, fieldMapping) {
   return errors;
 }
 
-// 日期间隔验证 - 与服务端逻辑保持一致
+// 日期间隔验证 - 与服务端逻辑保持一致，按实施人分组
 function validateDateInterval(rule, rows, fieldMapping) {
   const errors = [];
   const { params = {} } = rule;
@@ -768,12 +768,13 @@ function validateDateInterval(rule, rows, fieldMapping) {
 
   if (columnIndex === undefined) return errors;
 
-  // 按分组字段分组，包含地址信息以识别唯一店铺
+  // 按实施人+分组字段分组，包含地址信息以识别唯一组合
   const groups = new Map();
 
   for (const { data, rowNumber } of rows) {
     const groupValue = data[groupBy];
-    if (!groupValue) continue;
+    const implementer = data["implementer"] || data["实施人"] || "";
+    if (!groupValue || !implementer) continue;
 
     const address = data["channelAddress"] || data["渠道地址"] || "";
 
@@ -792,8 +793,9 @@ function validateDateInterval(rule, rows, fieldMapping) {
     const date = parseDate(dateValue);
     if (!date) continue;
 
-    // 创建唯一键，结合分组值和地址
-    const uniqueKey = `${groupValue}|${address}`;
+    // 创建唯一键，结合实施人+分组值+地址
+    // 这确保不同实施人可以拜访同一目标
+    const uniqueKey = `${implementer}|${groupValue}|${address}`;
 
     if (!groups.has(uniqueKey)) {
       groups.set(uniqueKey, []);
@@ -803,10 +805,12 @@ function validateDateInterval(rule, rows, fieldMapping) {
       date,
       rowNumber,
       address,
+      implementer,
+      target: groupValue,
     });
   }
 
-  // 检查每个分组内的日期间隔
+  // 检查每个分组内的日期间隔（同一实施人+同一目标）
   for (const [uniqueKey, visits] of groups) {
     // 按日期排序
     visits.sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -821,18 +825,22 @@ function validateDateInterval(rule, rows, fieldMapping) {
       );
 
       if (daysDiff < days) {
-        // 从uniqueKey中提取分组名称
-        const groupName = uniqueKey.split("|")[0];
+        // 从uniqueKey中提取信息 (format: "implementer|target|address")
+        const parts = uniqueKey.split("|");
+        const implementer = parts[0];
+        const target = parts[1];
         const address = current.address;
 
         errors.push({
           row: current.rowNumber,
           column: XLSX.utils.encode_col(columnIndex),
           field: rule.field,
-          value: groupName,
+          value: target,
           message: `${rule.message}（与第${
             previous.rowNumber
-          }行冲突，同一店铺：${groupName}${address ? ` - ${address}` : ""}）`,
+          }行冲突，实施人：${implementer}，目标：${target}${
+            address ? ` - ${address}` : ""
+          }）`,
           errorType: rule.type,
         });
       }

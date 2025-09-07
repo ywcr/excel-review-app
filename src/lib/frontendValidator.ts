@@ -778,33 +778,47 @@ export class FrontendExcelValidator {
     if (!days || !groupBy) return errors;
 
     const groupColumnIndex = fieldMapping.get(groupBy);
-    if (groupColumnIndex === undefined) return errors;
+    const implementerColumnIndex = fieldMapping.get("implementer");
 
-    // 按分组字段收集日期
+    if (groupColumnIndex === undefined || implementerColumnIndex === undefined)
+      return errors;
+
+    // 按实施人+分组字段收集日期
     const groupDates = new Map<
       string,
-      Array<{ date: Date; rowNumber: number }>
+      Array<{
+        date: Date;
+        rowNumber: number;
+        implementer: string;
+        target: string;
+      }>
     >();
 
     allRows.forEach(({ rowNumber, data }) => {
       const groupValue = data[groupColumnIndex];
+      const implementer = data[implementerColumnIndex];
       const dateValue = data[columnIndex];
 
-      if (groupValue && dateValue) {
+      if (groupValue && dateValue && implementer) {
         const date = this.extractDate(dateValue);
-        const group = String(groupValue).trim();
+        const target = String(groupValue).trim();
+        const implementerStr = String(implementer).trim();
 
         if (date) {
-          if (!groupDates.has(group)) {
-            groupDates.set(group, []);
+          // 创建唯一键：实施人+目标，确保不同实施人可以拜访同一目标
+          const uniqueKey = `${implementerStr}|${target}`;
+          if (!groupDates.has(uniqueKey)) {
+            groupDates.set(uniqueKey, []);
           }
-          groupDates.get(group)!.push({ date, rowNumber });
+          groupDates
+            .get(uniqueKey)!
+            .push({ date, rowNumber, implementer: implementerStr, target });
         }
       }
     });
 
-    // 检查日期间隔
-    groupDates.forEach((dateList, group) => {
+    // 检查日期间隔（同一实施人+同一目标）
+    groupDates.forEach((dateList, uniqueKey) => {
       // 按日期排序
       dateList.sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -818,12 +832,16 @@ export class FrontendExcelValidator {
         );
 
         if (daysDiff < days) {
+          const parts = uniqueKey.split("|");
+          const implementer = parts[0];
+          const target = parts[1];
+
           errors.push({
             row: current.rowNumber,
             column: XLSX.utils.encode_col(columnIndex),
             field: rule.field,
-            value: group,
-            message: rule.message,
+            value: target,
+            message: `${rule.message}（与第${previous.rowNumber}行冲突，实施人：${implementer}，目标：${target}）`,
             errorType: rule.type,
           });
         }
