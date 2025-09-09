@@ -44,6 +44,17 @@ const PERFORMANCE_CONFIG = {
   MAX_ROWS_IN_MEMORY: 10000, // 内存中最大行数
 };
 
+// Image duplicate detection configuration
+const IMAGE_DUP_CONFIG = {
+  BLOCKHASH_BITS: 12, // 提升 blockhash 精度（原为8）
+  HAMMING_THRESHOLD: 12, // 放宽相似阈值，捕获更多相似图片
+  NEAR_THRESHOLD_MARGIN: 4, // 扩大近阈值范围
+  MAD_SIZE: 64, // MAD 对比尺寸从32提升到64
+  USE_SSIM: true, // 启用SSIM作为补充
+  SSIM_GOOD: 0.7, // 放宽SSIM通过阈值
+  SSIM_STRICT: 0.85, // 放宽SSIM严格阈值
+};
+
 // Global state
 let isValidationCancelled = false;
 let templateFromMainThread = null;
@@ -1234,7 +1245,11 @@ async function validateExcel(data) {
 // Internal image validation function (shared logic)
 async function validateImagesInternal(fileBuffer) {
   // 如果 blockhash 不可用，返回空结果
-  if (!blockHashAvailable || typeof self.blockhash !== "function") {
+  if (
+    !blockHashAvailable ||
+    !self.blockhash ||
+    typeof self.blockhash.bmvbhash !== "function"
+  ) {
     console.warn("图片验证跳过：blockhash 不可用");
     return {
       images: [],
@@ -1275,7 +1290,14 @@ async function validateImagesInternal(fileBuffer) {
           fileName.endsWith(".jpg") ||
           fileName.endsWith(".jpeg") ||
           fileName.endsWith(".gif") ||
-          fileName.endsWith(".bmp")
+          fileName.endsWith(".bmp") ||
+          fileName.endsWith(".tif") ||
+          fileName.endsWith(".tiff") ||
+          fileName.endsWith(".webp") ||
+          fileName.endsWith(".jfif") ||
+          fileName.endsWith(".svg") ||
+          fileName.endsWith(".emf") ||
+          fileName.endsWith(".wmf")
         ) {
           imageFiles.push({ relativePath, file });
         }
@@ -1288,49 +1310,70 @@ async function validateImagesInternal(fileBuffer) {
       imageFiles.forEach(({ relativePath, file }, index) => {
         imagePromises.push(
           file.async("uint8array").then((data) => {
-            // Try direct key and also 'xl/media/<relativePath>' in case map used full path
-            let positionInfo = imagePositions.get(relativePath);
-            if (!positionInfo) {
-              positionInfo = imagePositions.get(`xl/media/${relativePath}`);
+            // 支持同一媒体文件的多次放置：位置列表
+            let posList = imagePositions.get(relativePath);
+            if (!posList) {
+              posList = imagePositions.get(`xl/media/${relativePath}`);
             }
 
-            if (positionInfo) {
-              console.log(
-                `图片位置信息: ${relativePath} -> 行${positionInfo.row}, 位置${positionInfo.position}`
-              );
+            if (Array.isArray(posList) && posList.length > 0) {
+              posList.forEach((positionInfo, dupIdx) => {
+                console.log(
+                  `✅ 图片位置信息: ${relativePath} -> 行${positionInfo.row}, 位置${positionInfo.position} (精确解析)`
+                );
+                images.push({
+                  id:
+                    positionInfo && positionInfo.position
+                      ? positionInfo.position
+                      : `${relativePath}#${dupIdx}`,
+                  name: relativePath,
+                  size: data.length,
+                  data: data,
+                  position: positionInfo ? positionInfo.position : undefined,
+                  row: positionInfo ? positionInfo.row : undefined,
+                  column: positionInfo ? positionInfo.column : undefined,
+                });
+              });
             } else {
               console.warn(
-                `[validateImagesInternal] 未找到精确位置映射: ${relativePath}, 将报告为"位置未知"`
+                `⚠️ 未找到位置映射: ${relativePath}, 将使用估算位置`
               );
+              const positionInfo = extractPositionFromPath(relativePath, index);
+              images.push({
+                id: positionInfo.position || relativePath,
+                name: relativePath,
+                size: data.length,
+                data: data,
+                position: positionInfo.position,
+                row: positionInfo.row,
+                column: positionInfo.column,
+              });
             }
-
-            const id =
-              positionInfo && positionInfo.position
-                ? positionInfo.position
-                : relativePath;
-
-            return {
-              id,
-              name: relativePath,
-              size: data.length,
-              data: data,
-              position: positionInfo ? positionInfo.position : undefined,
-              row: positionInfo ? positionInfo.row : undefined,
-              column: positionInfo ? positionInfo.column : undefined,
-            };
           })
         );
       });
 
-      const extractedImages = await Promise.all(imagePromises);
-      images.push(...extractedImages);
+      // 等待所有图片处理完成（图片已在异步处理内直接推入 images）
+      await Promise.all(imagePromises);
     }
 
     console.log(`图片验证: 找到 ${images.length} 张图片`);
     images.forEach((img, i) => {
       console.log(
-        `图片 ${i + 1}: ${img.id} -> 位置 ${img.position} (第${img.row}行)`
+        `图片 ${i + 1}: ID=${img.id}, 显示位置=${img.position}, 实际行号=${
+          img.row
+        }, 列=${img.column}`
       );
+
+      // 仅记录位置不一致，用于排查；不强制修改，避免覆盖真实锚点
+      if (img.position && img.row) {
+        const expectedPosition = `${img.column || "N"}${img.row}`;
+        if (img.position !== expectedPosition) {
+          console.warn(
+            `⚠️ 位置不一致(仅记录): 显示=${img.position}, 期望=${expectedPosition} (行${img.row})`
+          );
+        }
+      }
     });
 
     sendProgress(`找到 ${images.length} 张图片，正在分析...`, 30);
@@ -1360,12 +1403,21 @@ async function validateImagesInternal(fileBuffer) {
         const result = {
           id: image.id,
           sharpness,
-          isBlurry: sharpness < 100, // 使用阈值100
+          isBlurry: sharpness < 40, // Laplacian 方差阈值：< 30 判为模糊（宽松）
           hash,
           duplicates: [],
           position: image.position,
           row: image.row,
           column: image.column,
+          // 添加图片数据用于展示（使用普通数组，兼容现有前端判断与类型）
+          imageData: Array.from(image.data),
+          mimeType: image.name.toLowerCase().endsWith(".png")
+            ? "image/png"
+            : image.name.toLowerCase().endsWith(".jpg") ||
+              image.name.toLowerCase().endsWith(".jpeg")
+            ? "image/jpeg"
+            : "image/png", // 默认PNG
+          size: image.data.length,
         };
 
         results.push(result);
@@ -1426,7 +1478,11 @@ async function validateImages(data) {
   const { fileBuffer } = data;
 
   // 如果 blockhash 不可用，返回空结果
-  if (!blockHashAvailable || typeof self.blockhash !== "function") {
+  if (
+    !blockHashAvailable ||
+    !self.blockhash ||
+    typeof self.blockhash.bmvbhash !== "function"
+  ) {
     console.warn("图片验证跳过：blockhash 不可用");
     sendResult({
       images: [],
@@ -1453,36 +1509,77 @@ async function validateImages(data) {
 
 // Image analysis functions
 
-// 计算图片清晰度（基于文件特征的启发式方法）
+// 计算图片清晰度（基于 Laplacian 方差的模糊检测）
 async function calculateImageSharpness(imageData) {
   try {
-    // 基于文件大小和熵的启发式清晰度评估
-    // 更大的文件通常包含更多细节（在相同格式下）
-    const fileSize = imageData.length;
-
-    // 计算数据熵（信息量）
-    const frequency = new Map();
-    for (let i = 0; i < Math.min(imageData.length, 10000); i++) {
-      // 采样前10k字节
-      const byte = imageData[i];
-      frequency.set(byte, (frequency.get(byte) || 0) + 1);
+    if (
+      typeof OffscreenCanvas === "undefined" ||
+      typeof createImageBitmap === "undefined"
+    ) {
+      return 50; // 默认中等清晰度
     }
 
-    let entropy = 0;
-    const sampleSize = Math.min(imageData.length, 10000);
-    for (const [, count] of frequency) {
-      const p = count / sampleSize;
-      if (p > 0) {
-        entropy -= p * Math.log2(p);
+    const blob = new Blob([imageData]);
+    const bitmap = await createImageBitmap(blob);
+
+    // 缩放到合适尺寸以提高性能（短边不超过256px）
+    const scale = Math.min(256 / Math.min(bitmap.width, bitmap.height), 1);
+    const width = Math.floor(bitmap.width * scale);
+    const height = Math.floor(bitmap.height * scale);
+
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return 50;
+
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    const imagePixelData = ctx.getImageData(0, 0, width, height);
+    const data = imagePixelData.data;
+
+    // 转换为灰度并计算 Laplacian 方差
+    const gray = new Array(width * height);
+    for (let i = 0; i < data.length; i += 4) {
+      const grayValue = Math.round(
+        0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+      );
+      gray[i / 4] = grayValue;
+    }
+
+    // Laplacian 卷积核 (3x3)
+    const laplacian = [
+      [0, -1, 0],
+      [-1, 4, -1],
+      [0, -1, 0],
+    ];
+
+    let variance = 0;
+    let count = 0;
+
+    // 应用 Laplacian 卷积（跳过边界像素）
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        let sum = 0;
+        for (let ky = 0; ky < 3; ky++) {
+          for (let kx = 0; kx < 3; kx++) {
+            const px = x + kx - 1;
+            const py = y + ky - 1;
+            sum += gray[py * width + px] * laplacian[ky][kx];
+          }
+        }
+        variance += sum * sum;
+        count++;
       }
     }
 
-    // 组合文件大小和熵得到清晰度分数
-    // 清晰的图片通常有更高的熵值和合理的文件大小
-    const sizeScore = Math.min(fileSize / 50000, 5); // 文件大小分数，50KB为基准
-    const entropyScore = entropy * 20; // 熵分数
+    // 计算方差并映射到 0-100 分数
+    const laplacianVariance = count > 0 ? variance / count : 0;
 
-    return sizeScore + entropyScore;
+    // 将方差映射到 0-100 的清晰度分数
+    // 经验值：方差 > 500 通常是清晰图片，< 100 通常是模糊图片
+    const sharpnessScore = Math.min(100, Math.max(0, laplacianVariance / 10));
+
+    return sharpnessScore;
   } catch (error) {
     console.warn("清晰度计算失败:", error);
     return 50; // 默认中等清晰度
@@ -1502,7 +1599,7 @@ async function calculateImageHash(imageData) {
     const bitmap = await createImageBitmap(blob);
 
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return "";
 
     ctx.drawImage(bitmap, 0, 0);
@@ -1510,8 +1607,11 @@ async function calculateImageHash(imageData) {
 
     const imagePixelData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-    // 使用 blockhash 算法
-    const hash = blockhash.bmvbhash(imagePixelData, 8); // 8 bits for precision
+    // 使用更高位数的 blockhash 提升区分度
+    const hash = blockhash.bmvbhash(
+      imagePixelData,
+      IMAGE_DUP_CONFIG.BLOCKHASH_BITS
+    );
     return hash;
   } catch (error) {
     console.warn("感知哈希计算失败:", error);
@@ -1528,14 +1628,14 @@ async function averageAbsDiffFromImageData(imageDataA, imageDataB) {
     ) {
       return Infinity;
     }
-    const w = 32,
-      h = 32;
+    const w = IMAGE_DUP_CONFIG.MAD_SIZE,
+      h = IMAGE_DUP_CONFIG.MAD_SIZE;
     const [bmA, bmB] = await Promise.all([
       createImageBitmap(new Blob([imageDataA])),
       createImageBitmap(new Blob([imageDataB])),
     ]);
     const canvas = new OffscreenCanvas(w, h);
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return Infinity;
 
     ctx.drawImage(bmA, 0, 0, w, h);
@@ -1559,6 +1659,84 @@ async function averageAbsDiffFromImageData(imageDataA, imageDataB) {
   } catch {
     return Infinity;
   }
+}
+
+// 结构相似度 SSIM（简化实现，窗口均值/方差估计，返回 0-1）
+async function computeSSIM(imageDataA, imageDataB, size = 64) {
+  if (
+    typeof OffscreenCanvas === "undefined" ||
+    typeof createImageBitmap === "undefined"
+  ) {
+    return 0;
+  }
+
+  const [bmA, bmB] = await Promise.all([
+    createImageBitmap(new Blob([imageDataA])),
+    createImageBitmap(new Blob([imageDataB])),
+  ]);
+
+  const w = size,
+    h = size;
+  const canvas = new OffscreenCanvas(w, h);
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return 0;
+
+  // 渲染并获取灰度
+  const getGray = (bm) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(bm, 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+    const g = new Float32Array(w * h);
+    for (let i = 0; i < d.length; i += 4) {
+      g[i / 4] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    }
+    return g;
+  };
+
+  const A = getGray(bmA);
+  const B = getGray(bmB);
+  bmA.close();
+  bmB.close();
+
+  // 全图 SSIM（简化，无滑动窗口）
+  const N = A.length;
+  let meanA = 0,
+    meanB = 0;
+  for (let i = 0; i < N; i++) {
+    meanA += A[i];
+    meanB += B[i];
+  }
+  meanA /= N;
+  meanB /= N;
+
+  let varA = 0,
+    varB = 0,
+    cov = 0;
+  for (let i = 0; i < N; i++) {
+    const da = A[i] - meanA;
+    const db = B[i] - meanB;
+    varA += da * da;
+    varB += db * db;
+    cov += da * db;
+  }
+  varA /= N - 1;
+  varB /= N - 1;
+  cov /= N - 1;
+
+  // SSIM 公式常数
+  const L = 255;
+  const k1 = 0.01,
+    k2 = 0.03;
+  const C1 = k1 * L * (k1 * L);
+  const C2 = k2 * L * (k2 * L);
+
+  const numerator = (2 * meanA * meanB + C1) * (2 * cov + C2);
+  const denominator = (meanA * meanA + meanB * meanB + C1) * (varA + varB + C2);
+  if (denominator === 0) return 0;
+  let ssim = numerator / denominator;
+  if (!isFinite(ssim)) ssim = 0;
+  // Clamp 0..1
+  return Math.max(0, Math.min(1, ssim));
 }
 
 // 简化哈希生成（仅调试用途；不参与视觉重复判定）
@@ -1999,10 +2177,10 @@ function generateSimpleHash(data) {
 }
 
 async function detectDuplicates(results, imageDataMap) {
-  // 使用汉明距离检测视觉相似图片
-  // 对于 blockhash，阈值建议：0-5 极相似，6-10 相似，11-15 较相似，16+ 不相似
-  const threshold = 4; // 收紧阈值以减少误报
-  const madThreshold = 10; // MAD二次确认阈值，越小越相似。同样收紧。
+  // 使用汉明距离检测视觉相似图片（动态阈值 + 近阈值二次确认）
+  const threshold = IMAGE_DUP_CONFIG.HAMMING_THRESHOLD;
+  const nearMargin = IMAGE_DUP_CONFIG.NEAR_THRESHOLD_MARGIN;
+  const madThreshold = 10; // MAD阈值（与 64x64 尺寸配套可适当上调或下调）
 
   console.log(
     `视觉重复检测开始，blockhash阈值: ${threshold}, MAD阈值: ${madThreshold}, 图片数量: ${results.length}`
@@ -2029,7 +2207,8 @@ async function detectDuplicates(results, imageDataMap) {
       if (hash1 && hash2 && hash1.length === hash2.length) {
         const distance = calculateHammingDistanceHex(hash1, hash2);
 
-        if (distance <= threshold) {
+        // 第一阶段：严格阈值直接进入二次/三次确认
+        if (distance <= threshold + nearMargin) {
           // 哈希值接近，进行二次确认以避免误报
           const dataA = imageDataMap.get(validResults[i].id);
           const dataB = imageDataMap.get(validResults[j].id);
@@ -2044,25 +2223,44 @@ async function detectDuplicates(results, imageDataMap) {
             }
           }
 
-          // **修正逻辑**: 如果MAD值过高，说明图片实际差异大，应跳过
-          if (mad > madThreshold) {
+          // 若在严格阈值内且MAD通过，直接判定；
+          // 若在近阈值带内，且启用SSIM，则再用SSIM确认提升准确性
+          let ssim = 0;
+          if (
+            IMAGE_DUP_CONFIG.USE_SSIM &&
+            isFinite(mad) &&
+            distance > threshold // 仅在近阈值段再跑SSIM
+          ) {
+            try {
+              ssim = await computeSSIM(dataA, dataB, 64);
+            } catch (e) {
+              console.warn("SSIM 计算失败:", e);
+            }
+          }
+
+          const madOk = !isFinite(mad) ? true : mad <= madThreshold;
+          const ssimOk =
+            !IMAGE_DUP_CONFIG.USE_SSIM ||
+            distance <= threshold ||
+            ssim >= IMAGE_DUP_CONFIG.SSIM_GOOD;
+
+          if (!(madOk && ssimOk)) {
             console.log(
-              `[二次确认失败] ${validResults[i].id} vs ${
+              `[二次/三次确认失败] ${validResults[i].id} vs ${
                 validResults[j].id
-              }: 哈希距离=${distance} (通过), 但 MAD=${mad.toFixed(
-                1
-              )} > ${madThreshold} (差异大), 跳过`
+              }: 哈希=${distance}, MAD=${mad.toFixed(1)}, SSIM=${ssim.toFixed(
+                3
+              )}`
             );
             continue;
           }
 
-          // 只有哈希距离和MAD都低于阈值，才判定为重复
           console.log(
             `✅ 发现视觉重复图片: ${validResults[i].id} 与 ${
               validResults[j].id
             }, 哈希距离: ${distance}/${hash1.length * 4}, MAD: ${mad.toFixed(
               1
-            )}`
+            )}${IMAGE_DUP_CONFIG.USE_SSIM ? `, SSIM: ${ssim.toFixed(3)}` : ""}`
           );
 
           // 标记为重复，包含位置信息
@@ -2166,7 +2364,7 @@ function countDuplicateGroups(results) {
 
 // Extract image positions by parsing Excel drawings XML accurately
 async function extractImagePositions(zipContent) {
-  const imagePositions = new Map(); // key: 'xl/media/imageN.ext' -> { position, row, column }
+  const imagePositions = new Map(); // key: 'xl/media/imageN.ext' -> Array<{ position, row, column }>
 
   try {
     // Helper to read a file as string if exists
@@ -2284,7 +2482,7 @@ async function extractImagePositions(zipContent) {
       return cellimagesResult;
     }
 
-    // 标准 OOXML 解析路径
+    // 标准 OOXML 解析路径（包含 header/footer 与 absoluteAnchor 支持）
     // Iterate all worksheets to find drawing relationships
     const worksheetsFolder = zipContent.folder("xl/worksheets");
     if (!worksheetsFolder) return imagePositions;
@@ -2311,21 +2509,16 @@ async function extractImagePositions(zipContent) {
         continue;
       }
 
-      // Find drawing r:id in sheet xml
+      // Find drawing r:id in sheet xml（工作表图层图片）
       const drawingEl = sheetXml.getElementsByTagName("drawing")[0];
-      if (!drawingEl) {
-        console.log(`工作表 ${sheetFile} 无drawing元素，跳过`);
-        continue;
+      const drawingRelId = drawingEl
+        ? drawingEl.getAttribute("r:id") || drawingEl.getAttribute("rel:id")
+        : null;
+      if (drawingEl && drawingRelId) {
+        console.log(`工作表 ${sheetFile} 找到drawing ID: ${drawingRelId}`);
       }
-      const drawingRelId =
-        drawingEl.getAttribute("r:id") || drawingEl.getAttribute("rel:id");
-      if (!drawingRelId) {
-        console.log(`工作表 ${sheetFile} drawing元素无ID，跳过`);
-        continue;
-      }
-      console.log(`工作表 ${sheetFile} 找到drawing ID: ${drawingRelId}`);
 
-      // Resolve sheet rels to drawing path
+      // Resolve sheet rels to drawing path（包括 headerFooter 图）
       const sheetRelsPath = `xl/worksheets/_rels/${sheetFile}.rels`;
       const sheetRelsText = await readTextIfExists(sheetRelsPath);
       if (!sheetRelsText) continue;
@@ -2334,22 +2527,91 @@ async function extractImagePositions(zipContent) {
 
       const rels = sheetRelsXml.getElementsByTagName("Relationship");
       let drawingTarget = null;
+      const headerFooterTargets = [];
       for (let i = 0; i < rels.length; i++) {
         const r = rels[i];
-        if ((r.getAttribute("Id") || r.getAttribute("id")) === drawingRelId) {
-          drawingTarget = r.getAttribute("Target");
-          break;
+        const idAttr = r.getAttribute("Id") || r.getAttribute("id");
+        const target = r.getAttribute("Target");
+        const type = r.getAttribute("Type") || "";
+        if (idAttr && idAttr === drawingRelId) {
+          drawingTarget = target;
+        }
+        // 识别 header/footer 图片关系
+        if (
+          type.includes("/headerFooter") ||
+          (target && target.includes("header") && target.endsWith(".xml"))
+        ) {
+          headerFooterTargets.push(target);
         }
       }
-      if (!drawingTarget) continue;
+      if (!drawingTarget && headerFooterTargets.length === 0) continue;
 
       // Normalize drawing path (can be '../drawings/drawing1.xml')
       let drawingPath = drawingTarget;
-      if (drawingPath.startsWith("../"))
-        drawingPath = drawingPath.replace(/^\.\.\//, "xl/");
-      if (!drawingPath.startsWith("xl/"))
-        drawingPath = `xl/worksheets/${drawingPath}`; // fallback
+      if (drawingPath) {
+        if (drawingPath.startsWith("../"))
+          drawingPath = drawingPath.replace(/^\.\.\//, "xl/");
+        if (!drawingPath.startsWith("xl/"))
+          drawingPath = `xl/worksheets/${drawingPath}`; // fallback
+      }
 
+      // 处理 header/footer 媒体：它们可能不在 drawings 下，而在页面设置中引用
+      if (headerFooterTargets.length > 0) {
+        for (const hfTargetRaw of headerFooterTargets) {
+          let hfTarget = hfTargetRaw || "";
+          if (hfTarget.startsWith("../"))
+            hfTarget = hfTarget.replace(/^\.\.\//, "xl/");
+          if (!hfTarget.startsWith("xl/"))
+            hfTarget = `xl/worksheets/${hfTarget}`;
+          const hfXmlText = await readTextIfExists(hfTarget);
+          if (!hfXmlText) continue;
+          const hfXml = parseXml(hfXmlText);
+          if (!hfXml) continue;
+          // header/footer 图通常没有单元格锚点，记录为 absolute（位置未知）
+          const blips = hfXml.getElementsByTagName("a:blip");
+          for (let i = 0; i < blips.length; i++) {
+            const embedId =
+              blips[i].getAttribute("r:embed") ||
+              blips[i].getAttribute("rel:embed") ||
+              blips[i].getAttribute("embed");
+            if (!embedId) continue;
+            // 解析对应 rels 文件以拿到 media 路径
+            const hfFileName = hfTarget.substring(
+              hfTarget.lastIndexOf("/") + 1
+            );
+            const hfRelsPath = hfTarget.replace(
+              hfFileName,
+              `_rels/${hfFileName}.rels`
+            );
+            const hfRelsText = await readTextIfExists(hfRelsPath);
+            if (!hfRelsText) continue;
+            const hfRelsXml = parseXml(hfRelsText);
+            if (!hfRelsXml) continue;
+            const rels2 = hfRelsXml.getElementsByTagName("Relationship");
+            let mediaKey = null;
+            for (let j = 0; j < rels2.length; j++) {
+              const r2 = rels2[j];
+              const id2 = r2.getAttribute("Id") || r2.getAttribute("id");
+              if (id2 === embedId) {
+                const target2 = r2.getAttribute("Target") || "";
+                mediaKey = target2.replace(/^.*\//, "");
+                break;
+              }
+            }
+            if (mediaKey) {
+              const list = imagePositions.get(mediaKey) || [];
+              list.push({
+                position: undefined,
+                row: undefined,
+                column: undefined,
+              });
+              imagePositions.set(mediaKey, list);
+            }
+          }
+        }
+      }
+
+      if (!drawingPath) continue;
       const drawingXmlText = await readTextIfExists(drawingPath);
       if (!drawingXmlText) continue;
       const drawingXml = parseXml(drawingXmlText);
@@ -2479,11 +2741,9 @@ async function extractImagePositions(zipContent) {
           `找到图片位置: ${mediaKeyFromRel} -> ${position} (行${excelRow}, 列${excelColLetter})`
         );
 
-        imagePositions.set(mediaKeyFromRel, {
-          position,
-          row: excelRow,
-          column: excelColLetter,
-        });
+        const list = imagePositions.get(mediaKeyFromRel) || [];
+        list.push({ position, row: excelRow, column: excelColLetter });
+        imagePositions.set(mediaKeyFromRel, list);
       }
     }
 
@@ -2665,11 +2925,13 @@ async function extractFromCellImagesWorker(
       // 使用智能位置估算
       const positionInfo = calculateImagePositionWorker(i, tableStructure);
 
-      imagePositions.set(mediaKey, {
+      const list = imagePositions.get(mediaKey) || [];
+      list.push({
         position: positionInfo.position,
         row: positionInfo.row,
         column: positionInfo.column,
       });
+      imagePositions.set(mediaKey, list);
 
       console.log(
         `🎯 Worker WPS 图片位置估算: ${mediaKey} -> ${positionInfo.position} (${positionInfo.type})`
@@ -2777,7 +3039,7 @@ function calculateImagePositionWorker(imageIndex, tableStructure) {
   const recordIndex = Math.floor(imageIndex / imagesPerRecord);
   const imageInRecord = imageIndex % imagesPerRecord;
 
-  // 计算行号
+  // 计算行号（保持简单估算，避免引入额外偏差）
   const row = dataStartRow + recordIndex;
 
   // 获取列和类型
@@ -2801,10 +3063,63 @@ function sendProgress(message, progress) {
 }
 
 function sendResult(result) {
-  self.postMessage({
-    type: MESSAGE_TYPES.RESULT,
-    data: result,
-  });
+  // 使用 Transferable Objects 传递二进制，避免大数据结构克隆导致内存爆
+  const transferList = [];
+  try {
+    const resultsArray = Array.isArray(result?.results)
+      ? result.results
+      : Array.isArray(result?.imageValidation?.results)
+      ? result.imageValidation.results
+      : null;
+
+    if (resultsArray) {
+      for (const r of resultsArray) {
+        const buf = r?.imageData && r.imageData.buffer;
+        if (buf instanceof ArrayBuffer) {
+          transferList.push(buf);
+        }
+      }
+    }
+  } catch (e) {
+    // 忽略收集传输列表时的错误，回退为普通发送
+  }
+
+  try {
+    if (transferList.length > 0) {
+      self.postMessage(
+        {
+          type: MESSAGE_TYPES.RESULT,
+          data: result,
+        },
+        transferList
+      );
+    } else {
+      self.postMessage({
+        type: MESSAGE_TYPES.RESULT,
+        data: result,
+      });
+    }
+  } catch (e) {
+    // 如果因为某些字段无法克隆，尝试去除图片二进制，仅返回摘要，避免中断主流程
+    try {
+      const sanitized = JSON.parse(
+        JSON.stringify(result, (key, value) => {
+          if (key === "imageData") return undefined;
+          return value;
+        })
+      );
+      self.postMessage({ type: MESSAGE_TYPES.RESULT, data: sanitized });
+    } catch (e2) {
+      self.postMessage({
+        type: MESSAGE_TYPES.ERROR,
+        data: {
+          message: `图片结果传输失败: ${
+            e instanceof Error ? e.message : String(e)
+          }`,
+        },
+      });
+    }
+  }
 }
 
 function sendError(message) {

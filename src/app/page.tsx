@@ -290,7 +290,7 @@ export default function Home() {
           )}
 
           {/* 验证选项 */}
-          {/* {uploadedFile && (
+          {uploadedFile && (
             <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
               <h3 className="text-sm font-medium text-gray-900 mb-3">
                 验证选项
@@ -307,7 +307,7 @@ export default function Home() {
                 </span>
               </label>
             </div>
-          )} */}
+          )}
 
           {/* 审核按钮 */}
           {uploadedFile && (

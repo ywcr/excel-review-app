@@ -325,10 +325,10 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
         field: "medicalType",
         type: "medicalLevel",
         params: {
-          allowedLevels: ["等级医院", "基层医疗", "民营医院"],
+          allowedLevels: ["等级", "基层", "民营"],
           allowedSuffixes: [],
         },
-        message: "医疗类型必须选择以下类别之一：等级医院、基层医疗、民营医院",
+        message: "医疗类型必须选择以下类别之一：等级、基层、民营",
       },
       {
         field: "hospitalName",
@@ -872,10 +872,10 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
         field: "medicalType",
         type: "medicalLevel",
         params: {
-          allowedLevels: ["等级医院", "基层医疗", "民营医院"],
+          allowedLevels: ["等级", "基层", "民营"],
           allowedSuffixes: [],
         },
-        message: "医疗类型必须选择以下类别之一：等级医院、基层医疗、民营医院",
+        message: "医疗类型必须选择以下类别之一：等级、基层、民营",
       },
       {
         field: "visitStartTime",
@@ -1146,10 +1146,10 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
         field: "medicalType",
         type: "medicalLevel",
         params: {
-          allowedLevels: ["等级医院", "基层医疗", "民营医院"],
+          allowedLevels: ["等级", "基层", "民营"],
           allowedSuffixes: [],
         },
-        message: "医疗类型必须选择以下类别之一：等级医院、基层医疗、民营医院",
+        message: "医疗类型必须选择以下类别之一：等级、基层、民营",
       },
       {
         field: "visitStartTime",

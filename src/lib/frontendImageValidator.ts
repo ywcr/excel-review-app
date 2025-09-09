@@ -40,7 +40,7 @@ export interface ImageValidationSummary {
 }
 
 export class FrontendImageValidator {
-  private blurThreshold: number = 100; // 清晰度阈值
+  private blurThreshold: number = 80; // 清晰度阈值（放宽）
   private duplicateThreshold: number = 5; // 重复检测汉明距离阈值
   private useWasm: boolean = false; // 是否使用WASM加速
 

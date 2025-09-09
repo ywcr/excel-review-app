@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ImagePreview, ImageModal, LazyImagePreview } from "./ImagePreview";
 
 interface ValidationError {
   sheet: string;
@@ -35,6 +36,9 @@ interface ValidationResult {
       position?: string; // Excel位置，如 "A4", "B5"
       row?: number; // Excel行号
       column?: string; // Excel列号
+      imageData?: number[]; // Worker传递的数组格式
+      mimeType?: string;
+      size?: number;
     }>;
   };
 }
@@ -60,6 +64,12 @@ export default function ValidationResults({
   const [filterType, setFilterType] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const errorsPerPage = 10;
+  const [selectedImage, setSelectedImage] = useState<{
+    data: Uint8Array;
+    mimeType: string;
+    id: string;
+    position?: string;
+  } | null>(null);
 
   const { validation, fileName, taskName } = result;
   const { errors, summary } = validation;
@@ -198,10 +208,10 @@ export default function ValidationResults({
               </div>
               <div className="text-center">
                 <p className="text-lg font-bold text-green-600">
-                  {validation.imageValidation.totalImages -
-                    validation.imageValidation.blurryImages -
-                    validation.imageValidation.results.filter(
-                      (r) => r.duplicates.length > 0
+                  {(validation.imageValidation?.totalImages ?? 0) -
+                    (validation.imageValidation?.blurryImages ?? 0) -
+                    (validation.imageValidation?.results ?? []).filter(
+                      (r) => (r.duplicates?.length ?? 0) > 0
                     ).length}
                 </p>
                 <p className="text-xs text-gray-700">正常图片</p>
@@ -398,88 +408,120 @@ export default function ValidationResults({
       )}
 
       {/* 图片问题详情 */}
-      {validation.imageValidation &&
-        validation.imageValidation.results.length > 0 && (
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              图片问题详情
-            </h3>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      图片ID
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      位置/行数
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      问题类型
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      清晰度分数
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      重复图片
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {validation.imageValidation.results
-                    .filter(
-                      (result) =>
-                        result.isBlurry || result.duplicates.length > 0
-                    )
-                    .map((result) => (
-                      <tr key={result.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {result.id}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                          {result.column && result.row ? (
-                            <div>
-                              <span>
-                                列{result.column} 行{result.row}
-                              </span>
-                              <div className="text-xs text-gray-500 mt-1">
-                                位置: {result.position}
-                              </div>
-                            </div>
-                          ) : (
-                            "位置未知"
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex space-x-2">
-                            {result.isBlurry && (
-                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                                模糊
-                              </span>
-                            )}
-                            {result.duplicates.length > 0 && (
-                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">
-                                重复
-                              </span>
-                            )}
+      {(validation.imageValidation?.results?.length ?? 0) > 0 && (
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            图片问题详情
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    图片预览
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    图片ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    位置/行数
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    问题类型
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    清晰度分数
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    重复图片
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {(validation.imageValidation?.results ?? [])
+                  .filter(
+                    (result) =>
+                      result.isBlurry || (result.duplicates?.length ?? 0) > 0
+                  )
+                  .map((result) => (
+                    <tr key={result.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {result.imageData ? (
+                          <div className="flex items-center space-x-2">
+                            <LazyImagePreview
+                              imageData={new Uint8Array(result.imageData!)}
+                              mimeType={result.mimeType || "image/png"}
+                              imageId={result.id}
+                              className="w-16 h-16"
+                              lazy={true}
+                            />
+                            <button
+                              onClick={() =>
+                                setSelectedImage({
+                                  data: new Uint8Array(result.imageData!),
+                                  mimeType: result.mimeType || "image/png",
+                                  id: result.id,
+                                  position: result.position,
+                                })
+                              }
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              查看大图
+                            </button>
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                          {result.sharpness.toFixed(1)}
+                        ) : (
+                          <span className="text-gray-400 text-sm">无预览</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {result.id}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        {result.column && result.row ? (
+                          <div>
+                            <span>
+                              列{result.column} 行{result.row}
+                            </span>
+                            <div className="text-xs text-gray-500 mt-1">
+                              位置: {result.position}
+                            </div>
+                          </div>
+                        ) : (
+                          "位置未知"
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex space-x-2">
                           {result.isBlurry && (
-                            <span className="ml-2 text-red-500">
-                              (低于100阈值)
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                              模糊
                             </span>
                           )}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">
-                          {result.duplicates.length > 0 ? (
-                            <div className="max-w-xs">
-                              <span className="text-xs text-gray-500">
-                                与以下图片重复：
-                              </span>
-                              <div className="text-xs text-gray-600 mt-1 space-y-1">
-                                {result.duplicates.map((duplicate, idx) => {
+                          {(result.duplicates?.length ?? 0) > 0 && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">
+                              重复
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        {result.sharpness.toFixed(1)}
+                        {result.isBlurry && (
+                          <span className="ml-2 text-red-500">
+                            (低于100阈值)
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        {(result.duplicates?.length ?? 0) > 0 ? (
+                          <div className="max-w-xs">
+                            <span className="text-xs text-gray-500">
+                              共{result.duplicates.length}张重复图片
+                            </span>
+                            <div className="text-xs text-gray-600 mt-1 space-y-1">
+                              {result.duplicates
+                                .slice(0, 3)
+                                .map((duplicate, idx) => {
                                   // 调试信息：查看duplicate的结构
                                   console.log(
                                     "Duplicate item:",
@@ -512,19 +554,24 @@ export default function ValidationResults({
                                     </div>
                                   );
                                 })}
-                              </div>
+                              {result.duplicates.length > 3 && (
+                                <div className="text-xs text-gray-400">
+                                  ...还有{result.duplicates.length - 3}张
+                                </div>
+                              )}
                             </div>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
+                          </div>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
+      )}
 
       {errors.length === 0 && validation.isValid && (
         <div className="text-center py-8">
@@ -586,6 +633,17 @@ export default function ValidationResults({
             </li>
           </ul>
         </div>
+      )}
+
+      {selectedImage && (
+        <ImageModal
+          imageData={selectedImage.data}
+          mimeType={selectedImage.mimeType}
+          imageId={selectedImage.id}
+          position={selectedImage.position}
+          isOpen={!!selectedImage}
+          onClose={() => setSelectedImage(null)}
+        />
       )}
     </div>
   );
