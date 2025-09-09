@@ -15,8 +15,8 @@
 - **框架**: Next.js 14 with App Router
 - **语言**: TypeScript
 - **样式**: Tailwind CSS
-- **Excel处理**: 自定义验证逻辑
-- **UI组件**: 自定义 React 组件
+- **Excel 处理**: 自定义验证逻辑
+- **UI 组件**: 自定义 React 组件
 
 ## 安装和运行
 
@@ -53,6 +53,10 @@ src/
     ├── templateParser.ts
     └── validator.ts
 ```
+
+## 知识库
+
+请查看更完整的架构说明、API 与流程文档：`docs/knowledge-base.md`。
 
 ## 使用说明
 

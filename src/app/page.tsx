@@ -6,6 +6,8 @@ import TaskSelector from "@/components/TaskSelector";
 import ValidationRequirements from "@/components/ValidationRequirements";
 import ValidationResults from "@/components/ValidationResults";
 import FrontendSheetSelector from "@/components/FrontendSheetSelector";
+import AuthGuard from "@/components/auth/AuthGuard";
+import UserMenu from "@/components/auth/UserMenu";
 import { useFrontendValidation } from "@/hooks/useFrontendValidation";
 import { getAvailableTasks } from "@/lib/validationRules";
 
@@ -228,69 +230,86 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Excel 审核系统
-          </h1>
-          <p className="text-gray-700">
-            上传您的 Excel 文件，选择对应任务进行自动审核
-          </p>
-          <div className="mt-2 text-xs text-gray-500">
-            前端验证：更快、更安全、无需上传文件
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <TaskSelector
-                tasks={availableTasks}
-                selectedTask={selectedTask}
-                onTaskChange={(task) => {
-                  setSelectedTask(task);
-                  // 切换任务类型时清除之前的验证结果
-                  clearResult();
-                }}
-              />
-            </div>
-            <div>
-              <FileUpload
-                onFileUpload={handleFileUpload}
-                uploadedFile={uploadedFile}
-                isLoading={isValidating}
-              />
+    <AuthGuard>
+      <div className="min-h-screen bg-gray-50">
+        {/* 顶部导航 */}
+        <nav className="bg-white shadow-sm border-b border-gray-200">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center">
+                <h1 className="text-xl font-semibold text-gray-900">
+                  Excel 审核系统
+                </h1>
+              </div>
+              <UserMenu />
             </div>
           </div>
+        </nav>
 
-          {/* 文件上传状态显示 */}
-          {uploadedFile && (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-800 font-medium">
-                    已上传文件：{uploadedFile.name}
-                  </p>
-                  <p className="text-blue-600 text-sm">
-                    文件大小：{(uploadedFile.size / 1024).toFixed(1)} KB
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setUploadedFile(null);
-                    clearResult();
-                  }}
-                  className="text-blue-600 hover:text-blue-800 text-sm underline"
-                >
-                  重新上传
-                </button>
+        {/* 主要内容 */}
+        <div className="py-8">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                文件验证
+              </h2>
+              <p className="text-gray-700">
+                上传您的 Excel 文件，选择对应任务进行自动审核
+              </p>
+              <div className="mt-2 text-xs text-gray-500">
+                前端验证：更快、更安全、无需上传文件
               </div>
             </div>
-          )}
 
-          {/* 验证选项 */}
-          {/* {uploadedFile && (
+            <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <TaskSelector
+                    tasks={availableTasks}
+                    selectedTask={selectedTask}
+                    onTaskChange={(task) => {
+                      setSelectedTask(task);
+                      // 切换任务类型时清除之前的验证结果
+                      clearResult();
+                    }}
+                  />
+                </div>
+                <div>
+                  <FileUpload
+                    onFileUpload={handleFileUpload}
+                    uploadedFile={uploadedFile}
+                    isLoading={isValidating}
+                  />
+                </div>
+              </div>
+
+              {/* 文件上传状态显示 */}
+              {uploadedFile && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-blue-800 font-medium">
+                        已上传文件：{uploadedFile.name}
+                      </p>
+                      <p className="text-blue-600 text-sm">
+                        文件大小：{(uploadedFile.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setUploadedFile(null);
+                        clearResult();
+                      }}
+                      className="text-blue-600 hover:text-blue-800 text-sm underline"
+                    >
+                      重新上传
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 验证选项 */}
+              {/* {uploadedFile && (
             <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
               <h3 className="text-sm font-medium text-gray-900 mb-3">
                 验证选项
@@ -309,130 +328,134 @@ export default function Home() {
             </div>
           )} */}
 
-          {/* 审核按钮 */}
-          {uploadedFile && (
-            <div className="mt-6 text-center">
-              <button
-                onClick={() => handleValidate()}
-                disabled={!selectedTask || isValidating}
-                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isValidating ? (
-                  <>
-                    <svg
-                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    验证中...
-                  </>
-                ) : (
-                  "开始审核"
-                )}
-              </button>
+              {/* 审核按钮 */}
+              {uploadedFile && (
+                <div className="mt-6 text-center">
+                  <button
+                    onClick={() => handleValidate()}
+                    disabled={!selectedTask || isValidating}
+                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isValidating ? (
+                      <>
+                        <svg
+                          className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        验证中...
+                      </>
+                    ) : (
+                      "开始审核"
+                    )}
+                  </button>
 
-              {isValidating && (
-                <button
-                  onClick={cancelValidation}
-                  className="ml-4 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                >
-                  取消
-                </button>
+                  {isValidating && (
+                    <button
+                      onClick={cancelValidation}
+                      className="ml-4 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      取消
+                    </button>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
 
-        {/* 进度显示 */}
-        {progress && (
-          <div className="mb-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-blue-900">
-                  {progress.message}
-                </span>
-                <span className="text-sm text-blue-700">
-                  {Math.round(progress.progress)}%
-                </span>
-              </div>
-              <div className="w-full bg-blue-200 rounded-full h-2">
-                <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${progress.progress}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 错误显示 */}
-        {error && (
-          <div className="mb-6">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-center">
-                <svg
-                  className="w-5 h-5 text-red-400 mr-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <div>
-                  <h3 className="text-sm font-medium text-red-800">验证失败</h3>
-                  <p className="text-sm text-red-700 mt-1">{error}</p>
+            {/* 进度显示 */}
+            {progress && (
+              <div className="mb-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-blue-900">
+                      {progress.message}
+                    </span>
+                    <span className="text-sm text-blue-700">
+                      {Math.round(progress.progress)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${progress.progress}%` }}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* 错误显示 */}
+            {error && (
+              <div className="mb-6">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <svg
+                      className="w-5 h-5 text-red-400 mr-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <div>
+                      <h3 className="text-sm font-medium text-red-800">
+                        验证失败
+                      </h3>
+                      <p className="text-sm text-red-700 mt-1">{error}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 验证要求显示 */}
+            {selectedTask && (
+              <ValidationRequirements
+                taskName={selectedTask}
+                validationResult={convertedValidationResult}
+              />
+            )}
+
+            {/* 验证结果显示 */}
+            {convertedValidationResult && (
+              <ValidationResults
+                result={convertedValidationResult}
+                onExportErrors={handleExportErrors}
+                isExporting={isExporting}
+              />
+            )}
+
+            {/* 工作表选择器 */}
+            {showSheetSelector && result?.availableSheets && (
+              <FrontendSheetSelector
+                availableSheets={result.availableSheets}
+                onSheetSelect={handleSheetSelect}
+                onCancel={handleSheetSelectorCancel}
+              />
+            )}
           </div>
-        )}
-
-        {/* 验证要求显示 */}
-        {selectedTask && (
-          <ValidationRequirements
-            taskName={selectedTask}
-            validationResult={convertedValidationResult}
-          />
-        )}
-
-        {/* 验证结果显示 */}
-        {convertedValidationResult && (
-          <ValidationResults
-            result={convertedValidationResult}
-            onExportErrors={handleExportErrors}
-            isExporting={isExporting}
-          />
-        )}
-
-        {/* 工作表选择器 */}
-        {showSheetSelector && result?.availableSheets && (
-          <FrontendSheetSelector
-            availableSheets={result.availableSheets}
-            onSheetSelect={handleSheetSelect}
-            onCancel={handleSheetSelectorCancel}
-          />
-        )}
+        </div>
       </div>
-    </div>
+    </AuthGuard>
   );
 }
