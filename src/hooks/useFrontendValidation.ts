@@ -77,6 +77,26 @@ const MESSAGE_TYPES = {
   ERROR: "ERROR",
 };
 
+function toFriendlyError(message: string): string {
+  const msg = message || "";
+  if (/unexpected signature|Corrupted zip/i.test(msg)) {
+    return "图片无法解析：该文件可能是 .xls，请另存为 .xlsx 后重试。";
+  }
+  if (/Invalid array length/i.test(msg)) {
+    return "Excel 文件结构较复杂，请减少数据量或简化工作表后重试。";
+  }
+  if (/Worker error/i.test(msg)) {
+    return msg.replace(/Worker error:?\s*/i, "验证进程发生错误：");
+  }
+  if (/Failed to fetch|NetworkError/i.test(msg)) {
+    return "网络请求失败，请检查网络连接后重试。";
+  }
+  if (/Unknown message type/i.test(msg)) {
+    return "系统内部错误，请刷新页面后重试。";
+  }
+  return msg || "验证失败，请检查文件格式与内容后重试。";
+}
+
 export function useFrontendValidation(): UseFrontendValidationReturn {
   const [isValidating, setIsValidating] = useState(false);
   const [progress, setProgress] = useState<ValidationProgress | null>(null);
@@ -143,7 +163,7 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
               cleanupWorker();
               break;
             case MESSAGE_TYPES.ERROR:
-              setError(data.message);
+              setError(toFriendlyError(data.message));
               setIsValidating(false);
               setProgress(null);
               cleanupWorker();
@@ -152,7 +172,8 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
         };
 
         worker.onerror = (error) => {
-          setError(`Worker error: ${error.message}`);
+          const msg = error instanceof Error ? error.message : String(error);
+          setError(toFriendlyError(msg));
           setIsValidating(false);
           setProgress(null);
           cleanupWorker();
@@ -220,7 +241,7 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
             cleanupWorker();
             break;
           case MESSAGE_TYPES.ERROR:
-            setError(data.message);
+            setError(toFriendlyError(data.message));
             setIsValidating(false);
             setProgress(null);
             cleanupWorker();
@@ -228,7 +249,8 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
         }
       };
       worker.onerror = (error) => {
-        setError(error instanceof Error ? error.message : "图片验证失败");
+        const msg = error instanceof Error ? error.message : String(error);
+        setError(toFriendlyError(msg));
         setIsValidating(false);
         setProgress(null);
         cleanupWorker();

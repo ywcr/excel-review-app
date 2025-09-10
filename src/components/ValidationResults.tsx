@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { ImagePreview, ImageModal, LazyImagePreview } from "./ImagePreview";
 
 interface ValidationError {
@@ -40,6 +40,7 @@ interface ValidationResult {
       mimeType?: string;
       size?: number;
     }>;
+    warning?: string; // 图片解析警告（例如 .xls 不支持）
   };
 }
 
@@ -70,6 +71,22 @@ export default function ValidationResults({
     id: string;
     position?: string;
   } | null>(null);
+
+  // 行高亮定位：为图片问题行建立ref映射
+  const imageRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+  const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
+  const scrollToImageRow = (rowId: string) => {
+    const el = imageRowRefs.current[rowId];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedRowId(rowId);
+      // 2秒后取消高亮
+      window.setTimeout(
+        () => setHighlightedRowId((id) => (id === rowId ? null : id)),
+        2000
+      );
+    }
+  };
 
   const { validation, fileName, taskName } = result;
   const { errors, summary } = validation;
@@ -183,38 +200,60 @@ export default function ValidationResults({
 
         {/* 图片验证摘要 */}
         {validation.imageValidation && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h4 className="text-sm font-semibold text-blue-800 mb-3">
-              图片验证摘要
-            </h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="text-center">
-                <p className="text-lg font-bold text-gray-900">
-                  {validation.imageValidation.totalImages}
-                </p>
-                <p className="text-xs text-gray-700">总图片数</p>
+          <div className="mb-6">
+            {validation.imageValidation.warning && (
+              <div className="mb-3 p-4 rounded-lg border border-yellow-300 bg-yellow-50 flex">
+                <svg
+                  className="w-5 h-5 text-yellow-600 mr-2 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01M4.93 19.07A10 10 0 1119.07 4.93 10 10 0 014.93 19.07z"
+                  />
+                </svg>
+                <div className="text-sm text-yellow-800">
+                  {validation.imageValidation.warning}
+                </div>
               </div>
-              <div className="text-center">
-                <p className="text-lg font-bold text-red-600">
-                  {validation.imageValidation.blurryImages}
-                </p>
-                <p className="text-xs text-gray-700">模糊图片</p>
-              </div>
-              <div className="text-center">
-                <p className="text-lg font-bold text-orange-600">
-                  {validation.imageValidation.duplicateGroups}
-                </p>
-                <p className="text-xs text-gray-700">重复组</p>
-              </div>
-              <div className="text-center">
-                <p className="text-lg font-bold text-green-600">
-                  {(validation.imageValidation?.totalImages ?? 0) -
-                    (validation.imageValidation?.blurryImages ?? 0) -
-                    (validation.imageValidation?.results ?? []).filter(
-                      (r) => (r.duplicates?.length ?? 0) > 0
-                    ).length}
-                </p>
-                <p className="text-xs text-gray-700">正常图片</p>
+            )}
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h4 className="text-sm font-semibold text-blue-800 mb-3">
+                图片验证摘要
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="text-center">
+                  <p className="text-lg font-bold text-gray-900">
+                    {validation.imageValidation.totalImages}
+                  </p>
+                  <p className="text-xs text-gray-700">总图片数</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-red-600">
+                    {validation.imageValidation.blurryImages}
+                  </p>
+                  <p className="text-xs text-gray-700">模糊图片</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-orange-600">
+                    {validation.imageValidation.duplicateGroups}
+                  </p>
+                  <p className="text-xs text-gray-700">重复组</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-green-600">
+                    {(validation.imageValidation?.totalImages ?? 0) -
+                      (validation.imageValidation?.blurryImages ?? 0) -
+                      (validation.imageValidation?.results ?? []).filter(
+                        (r) => (r.duplicates?.length ?? 0) > 0
+                      ).length}
+                  </p>
+                  <p className="text-xs text-gray-700">正常图片</p>
+                </div>
               </div>
             </div>
           </div>
@@ -444,7 +483,17 @@ export default function ValidationResults({
                       result.isBlurry || (result.duplicates?.length ?? 0) > 0
                   )
                   .map((result) => (
-                    <tr key={result.id} className="hover:bg-gray-50">
+                    <tr
+                      key={result.id}
+                      ref={(el) => {
+                        imageRowRefs.current[result.id] = el;
+                      }}
+                      className={`hover:bg-gray-50 ${
+                        highlightedRowId === result.id
+                          ? "ring-2 ring-yellow-400"
+                          : ""
+                      }`}
+                    >
                       <td className="px-6 py-4 whitespace-nowrap">
                         {result.imageData ? (
                           <div className="flex items-center space-x-2">
@@ -515,50 +564,50 @@ export default function ValidationResults({
                       <td className="px-6 py-4 text-sm text-gray-700">
                         {(result.duplicates?.length ?? 0) > 0 ? (
                           <div className="max-w-xs">
-                            <span className="text-xs text-gray-500">
-                              共{result.duplicates.length}张重复图片
-                            </span>
+                            <div className="text-xs text-gray-500">
+                              共{result.duplicates.length}处重复
+                            </div>
                             <div className="text-xs text-gray-600 mt-1 space-y-1">
-                              {result.duplicates
-                                .slice(0, 3)
-                                .map((duplicate, idx) => {
-                                  // 调试信息：查看duplicate的结构
-                                  console.log(
-                                    "Duplicate item:",
-                                    duplicate,
-                                    "Type:",
-                                    typeof duplicate
-                                  );
-
-                                  // 兼容性处理：支持旧格式(string)和新格式(object)
-                                  if (typeof duplicate === "string") {
+                              {/* 主位置 */}
+                              <div>
+                                <span className="text-gray-700">主位置：</span>
+                                <span className="text-gray-800">
+                                  {result.position ||
+                                    (result.column && result.row
+                                      ? `列${result.column} 行${result.row}`
+                                      : result.id)}
+                                </span>
+                              </div>
+                              {/* 重复位置列表（全部展示） */}
+                              <ol className="list-decimal list-inside space-y-1">
+                                {result.duplicates.map(
+                                  (duplicate: any, idx: number) => {
+                                    const renderPosText = () => {
+                                      if (typeof duplicate === "string")
+                                        return duplicate;
+                                      if (duplicate?.position)
+                                        return duplicate.position;
+                                      if (duplicate?.column && duplicate?.row)
+                                        return `列${duplicate.column} 行${duplicate.row}`;
+                                      return duplicate?.id || "未知位置";
+                                    };
                                     return (
-                                      <div key={idx} className="flex flex-col">
-                                        <span>{duplicate}</span>
-                                      </div>
+                                      <li key={idx}>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            scrollToImageRow(result.id)
+                                          }
+                                          className="text-blue-600 hover:text-blue-800 hover:underline focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-0.5"
+                                          title="点击定位到该图片行"
+                                        >
+                                          {renderPosText()}
+                                        </button>
+                                      </li>
                                     );
                                   }
-
-                                  return (
-                                    <div key={idx} className="flex flex-col">
-                                      <span>{duplicate.id}</span>
-                                      {duplicate.column && duplicate.row ? (
-                                        <span className="text-xs text-gray-400">
-                                          列{duplicate.column} 行{duplicate.row}
-                                        </span>
-                                      ) : duplicate.position ? (
-                                        <span className="text-xs text-gray-400">
-                                          位置: {duplicate.position}
-                                        </span>
-                                      ) : null}
-                                    </div>
-                                  );
-                                })}
-                              {result.duplicates.length > 3 && (
-                                <div className="text-xs text-gray-400">
-                                  ...还有{result.duplicates.length - 3}张
-                                </div>
-                              )}
+                                )}
+                              </ol>
                             </div>
                           </div>
                         ) : (
@@ -613,7 +662,7 @@ export default function ValidationResults({
           <ul className="text-sm text-yellow-700 space-y-1">
             <li>
               • <strong>医疗类型格式错误：</strong>
-              必须填写具体级别，如：一级、二级、三级，或完整格式：一级甲等、二级甲等等
+              请填写正确的医疗机构类别：等级、基层、民营
             </li>
             <li>
               • <strong>拜访时长不足：</strong>所有医院拜访类型要求≥100分钟

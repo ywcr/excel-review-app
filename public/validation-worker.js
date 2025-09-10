@@ -772,7 +772,7 @@ function validateFrequency(rule, rows, fieldMapping) {
   return errors;
 }
 
-// 日期间隔验证 - 与服务端逻辑保持一致，按实施人分组
+// 日期间隔验证（不区分实施人）：同一目标（含地址）在设定天数内不能重复拜访
 function validateDateInterval(rule, rows, fieldMapping) {
   const errors = [];
   const { params = {} } = rule;
@@ -781,13 +781,12 @@ function validateDateInterval(rule, rows, fieldMapping) {
 
   if (columnIndex === undefined) return errors;
 
-  // 按实施人+分组字段分组，包含地址信息以识别唯一组合
+  // 按 目标(groupBy) + 地址 分组（不区分实施人）
   const groups = new Map();
 
   for (const { data, rowNumber } of rows) {
     const groupValue = data[groupBy];
-    const implementer = data["implementer"] || data["实施人"] || "";
-    if (!groupValue || !implementer) continue;
+    if (!groupValue) continue;
 
     const address = data["channelAddress"] || data["渠道地址"] || "";
 
@@ -806,9 +805,8 @@ function validateDateInterval(rule, rows, fieldMapping) {
     const date = parseDate(dateValue);
     if (!date) continue;
 
-    // 创建唯一键，结合实施人+分组值+地址
-    // 这确保不同实施人可以拜访同一目标
-    const uniqueKey = `${implementer}|${groupValue}|${address}`;
+    // 创建唯一键，使用 目标+地址（不区分实施人）
+    const uniqueKey = `${groupValue}|${address}`;
 
     if (!groups.has(uniqueKey)) {
       groups.set(uniqueKey, []);
@@ -818,12 +816,11 @@ function validateDateInterval(rule, rows, fieldMapping) {
       date,
       rowNumber,
       address,
-      implementer,
       target: groupValue,
     });
   }
 
-  // 检查每个分组内的日期间隔（同一实施人+同一目标）
+  // 检查每个分组内的日期间隔（同一目标）
   for (const [uniqueKey, visits] of groups) {
     // 按日期排序
     visits.sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -838,10 +835,9 @@ function validateDateInterval(rule, rows, fieldMapping) {
       );
 
       if (daysDiff < days) {
-        // 从uniqueKey中提取信息 (format: "implementer|target|address")
+        // 从uniqueKey中提取信息 (format: "target|address")
         const parts = uniqueKey.split("|");
-        const implementer = parts[0];
-        const target = parts[1];
+        const target = parts[0];
         const address = current.address;
 
         errors.push({
@@ -851,9 +847,7 @@ function validateDateInterval(rule, rows, fieldMapping) {
           value: target,
           message: `${rule.message}（与第${
             previous.rowNumber
-          }行冲突，实施人：${implementer}，目标：${target}${
-            address ? ` - ${address}` : ""
-          }）`,
+          }行冲突，目标：${target}${address ? ` - ${address}` : ""}）`,
           errorType: rule.type,
         });
       }
@@ -1236,7 +1230,40 @@ async function validateExcel(data) {
       sendResult(baseResult);
     } catch (imageError) {
       console.warn("图片验证失败:", imageError);
-      // 即使图片验证失败，也返回Excel验证结果
+
+      // 针对 .xls（非ZIP容器）给出显眼提示，但不阻断整体验证
+      try {
+        const u8 = new Uint8Array(fileBuffer.slice(0, 4));
+        const isZip =
+          u8.length === 4 &&
+          u8[0] === 0x50 &&
+          u8[1] === 0x4b &&
+          u8[2] === 0x03 &&
+          u8[3] === 0x04;
+        const msg =
+          !isZip ||
+          (imageError &&
+            imageError.message &&
+            imageError.message.includes("unexpected signature"))
+            ? "检测到该文件不是标准的 .xlsx（ZIP）格式，图片无法解析（可能是 .xls）。图片验证仅支持 .xlsx，请将文件另存为 .xlsx 后重试。"
+            : `图片验证失败：${
+                imageError instanceof Error
+                  ? imageError.message
+                  : String(imageError)
+              }`;
+
+        baseResult.imageValidation = {
+          totalImages: 0,
+          blurryImages: 0,
+          duplicateGroups: 0,
+          results: [],
+          warning: msg,
+        };
+      } catch (_) {
+        // 兜底：不添加图片结果，仅返回Excel结果
+      }
+
+      // 即使图片验证失败，也返回Excel验证结果及警告
       sendResult(baseResult);
     }
   } else {
@@ -2960,11 +2987,17 @@ async function extractFromCellImagesWorker(
       }
 
       const list = imagePositions.get(mediaKey) || [];
-      list.push({
-        position: positionInfo.position,
-        row: positionInfo.row,
-        column: positionInfo.column,
-      });
+      // 将主位置与重复位置一并记录到映射中，确保前端能显示所有重复位置
+      const pushUnique = (pos) => {
+        if (!pos || !pos.position) return;
+        if (!list.some((p) => p.position === pos.position)) {
+          list.push({ position: pos.position, row: pos.row, column: pos.column });
+        }
+      };
+      pushUnique(positionInfo);
+      if (Array.isArray(positionInfo.duplicates)) {
+        positionInfo.duplicates.forEach((dupPos) => pushUnique(dupPos));
+      }
       imagePositions.set(mediaKey, list);
 
       console.log(

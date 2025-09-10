@@ -844,7 +844,7 @@ export class FrontendImageValidator {
       let positionInfo = null;
 
       if (dispimgId) {
-        positionInfo = await this.getPositionFromDISPIMG(dispimgId, zip);
+        positionInfo = await this.getPositionFromDISPIMG(dispimgId, zipContent);
 
         // 检查是否有重复图片
         if (positionInfo && positionInfo.isDuplicate) {
@@ -862,13 +862,15 @@ export class FrontendImageValidator {
       }
 
       // 如果DISPIMG方法失败，回退到智能位置估算
+      let method: "dispimg_formula" | "index_estimation";
+      let confidence: "high" | "low";
       if (!positionInfo) {
         positionInfo = this.calculateImagePosition(i, tableStructure);
-        positionInfo.method = "index_estimation";
-        positionInfo.confidence = "low";
+        method = "index_estimation";
+        confidence = "low";
       } else {
-        positionInfo.method = "dispimg_formula";
-        positionInfo.confidence = "high";
+        method = "dispimg_formula";
+        confidence = "high";
       }
 
       imagePositions.set(mediaKey, {
@@ -879,10 +881,10 @@ export class FrontendImageValidator {
 
       console.log(
         `🎯 WPS 图片位置${
-          positionInfo.method === "dispimg_formula" ? "(DISPIMG公式)" : "(估算)"
+          method === "dispimg_formula" ? "(DISPIMG公式)" : "(估算)"
         }: ${mediaKey} -> ${positionInfo.position} (${
-          positionInfo.type || positionInfo.method
-        })`
+          positionInfo.type || method
+        }) [${confidence}]`
       );
     }
 

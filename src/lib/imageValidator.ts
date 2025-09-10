@@ -616,8 +616,8 @@ export class ImageValidator {
           position: formulaPosition.position,
           row: formulaPosition.row,
           column: formulaPosition.column,
-          method: "formula",
-          confidence: "high",
+          method: "formula" as const,
+          confidence: "high" as const,
         };
 
         // 检查是否有重复图片
@@ -642,8 +642,8 @@ export class ImageValidator {
           position: xmlPosition.position,
           row: xmlPosition.row,
           column: xmlPosition.column,
-          method: "xml_anchor",
-          confidence: "medium",
+          method: "xml_anchor" as const,
+          confidence: "medium" as const,
         };
       }
 
@@ -653,8 +653,8 @@ export class ImageValidator {
         position: estimatedPos.position,
         row: estimatedPos.row,
         column: estimatedPos.column,
-        method: "index_estimation",
-        confidence: "low",
+        method: "index_estimation" as const,
+        confidence: "low" as const,
       };
     } catch (error) {
       console.warn(`获取图片位置失败 (${imageId}):`, error);
@@ -665,8 +665,8 @@ export class ImageValidator {
         position: estimatedPos.position,
         row: estimatedPos.row,
         column: estimatedPos.column,
-        method: "index_estimation",
-        confidence: "low",
+        method: "index_estimation" as const,
+        confidence: "low" as const,
       };
     }
   }
