@@ -46,6 +46,11 @@ next-env.d.ts
 *.jpg
 *.jpeg
 *.gif
+*.zip
 test_*.xlsx
 *测试*.xlsx
 *测试*.png
+
+# Data directories
+public/data/
+scripts/image_mapping.json

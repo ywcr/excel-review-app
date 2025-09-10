@@ -64,6 +64,11 @@ export class FrontendExcelValidator {
     this.workbook = XLSX.read(buffer, { type: "array" });
   }
 
+  // 直接加载workbook对象（用于测试）
+  loadWorkbook(workbook: XLSX.WorkBook): void {
+    this.workbook = workbook;
+  }
+
   // 获取所有工作表信息
   getSheetInfo(): SheetInfo[] {
     if (!this.workbook) return [];

@@ -12,6 +12,8 @@ export interface ImageInfo {
   position?: string; // Excel位置，如 "A4"
   row?: number; // Excel行号
   column?: string; // Excel列号
+  imageId?: string; // DISPIMG公式中的图片ID
+  extractionMethod?: "formula" | "zip" | "fallback"; // 提取方法
 }
 
 export interface DuplicateInfo {
@@ -57,8 +59,79 @@ export class FrontendImageValidator {
     }
   }
 
-  // 从Excel文件中提取图片
+  // 从Excel文件中提取图片 - 增强版多方法提取
   async extractImages(file: File): Promise<ImageInfo[]> {
+    console.log("开始前端多方法图片提取...");
+
+    try {
+      // 方法1: 优先使用DISPIMG公式提取（最准确）
+      const formulaImages = await this.extractFromFormulas(file);
+      console.log(`公式方法提取到 ${formulaImages.length} 个图片`);
+
+      // 方法2: 使用ZIP解析作为补充
+      const zipImages = await this.extractFromZip(file);
+      console.log(`ZIP方法提取到 ${zipImages.length} 个图片`);
+
+      // 合并结果，优先使用公式方法
+      const allImages = this.mergeAndDeduplicateImages([
+        ...formulaImages,
+        ...zipImages,
+      ]);
+
+      console.log(`最终合并得到 ${allImages.length} 个图片`);
+      return allImages;
+    } catch (error) {
+      console.error("增强提取失败，回退到原始方法:", error);
+      return this.extractFromZipFallback(file);
+    }
+  }
+
+  // 方法1: 从DISPIMG公式提取图片（最准确的方法）
+  private async extractFromFormulas(file: File): Promise<ImageInfo[]> {
+    const images: ImageInfo[] = [];
+
+    try {
+      const zip = new JSZip();
+      const zipContent = await zip.loadAsync(file);
+
+      // 查找工作表文件
+      const worksheetFiles: string[] = [];
+      zipContent.forEach((relativePath, file) => {
+        if (
+          relativePath.startsWith("xl/worksheets/") &&
+          relativePath.endsWith(".xml") &&
+          !file.dir
+        ) {
+          worksheetFiles.push(relativePath);
+        }
+      });
+
+      // 建立图片ID到物理文件的映射
+      const imageIdToFile = await this.buildImageIdToFileMap(zipContent);
+
+      // 解析每个工作表中的DISPIMG公式
+      for (const worksheetPath of worksheetFiles) {
+        const worksheetFile = zipContent.file(worksheetPath);
+        if (worksheetFile) {
+          const worksheetXml = await worksheetFile.async("text");
+          const formulaImages = await this.extractFormulasFromWorksheet(
+            worksheetXml,
+            worksheetPath,
+            imageIdToFile,
+            zipContent
+          );
+          images.push(...formulaImages);
+        }
+      }
+    } catch (error) {
+      console.warn("公式提取失败:", error);
+    }
+
+    return images;
+  }
+
+  // 方法2: 使用ZIP解析提取图片
+  private async extractFromZip(file: File): Promise<ImageInfo[]> {
     const zip = new JSZip();
     const zipContent = await zip.loadAsync(file);
     const images: ImageInfo[] = [];
@@ -111,6 +184,191 @@ export class FrontendImageValidator {
               position: positionInfo?.position || "未知位置",
               row: positionInfo?.row,
               column: positionInfo?.column,
+              extractionMethod: "zip",
+            });
+          } catch (error) {
+            console.warn(`Failed to process image ${relativePath}:`, error);
+          }
+        });
+        imagePromises.push(promise);
+      }
+    });
+
+    await Promise.all(imagePromises);
+    return images;
+  }
+
+  // 建立图片ID到物理文件的映射
+  private async buildImageIdToFileMap(
+    zipContent: JSZip
+  ): Promise<Map<string, string>> {
+    const imageIdToFile = new Map<string, string>();
+
+    try {
+      // 检查 WPS cellimages.xml 关系
+      const cellImagesRelsFile = zipContent.file(
+        "xl/_rels/cellimages.xml.rels"
+      );
+      if (cellImagesRelsFile) {
+        const relsText = await cellImagesRelsFile.async("text");
+
+        // 简单的XML解析，提取关系映射
+        const relationshipRegex =
+          /<Relationship[^>]*Id="([^"]*)"[^>]*Target="([^"]*)"/g;
+        let match;
+
+        while ((match = relationshipRegex.exec(relsText)) !== null) {
+          const id = match[1];
+          const target = match[2];
+          if (id && target) {
+            const basename = target.replace(/^.*\//, "");
+            imageIdToFile.set(id, basename);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("建立图片ID映射失败:", error);
+    }
+
+    return imageIdToFile;
+  }
+
+  // 从工作表XML中提取DISPIMG公式
+  private async extractFormulasFromWorksheet(
+    worksheetXml: string,
+    worksheetPath: string,
+    imageIdToFile: Map<string, string>,
+    zipContent: JSZip
+  ): Promise<ImageInfo[]> {
+    const images: ImageInfo[] = [];
+
+    try {
+      // 简单的XML解析，查找包含DISPIMG的单元格
+      const cellRegex =
+        /<c[^>]*r="([^"]*)"[^>]*>.*?<f[^>]*>(.*?DISPIMG.*?)<\/f>.*?<\/c>/gs;
+      let match;
+
+      while ((match = cellRegex.exec(worksheetXml)) !== null) {
+        const cellRef = match[1];
+        const formula = match[2];
+
+        // 提取图片ID
+        const imageIdMatch = formula.match(/DISPIMG\("([^"]+)"/);
+        const imageId = imageIdMatch ? imageIdMatch[1] : null;
+
+        if (imageId && cellRef) {
+          // 尝试获取对应的物理文件
+          const fileName = imageIdToFile.get(imageId);
+          let imageData: Uint8Array | null = null;
+
+          if (fileName) {
+            const mediaFile = zipContent.file(`xl/media/${fileName}`);
+            if (mediaFile) {
+              imageData = await mediaFile.async("uint8array");
+            }
+          }
+
+          if (imageData) {
+            const dimensions = await this.getImageDimensions(imageData);
+            const { row, column } = this.parseCellReference(cellRef);
+
+            images.push({
+              id: `formula_${cellRef}_${imageId}`,
+              name: fileName || `${imageId}.jpg`,
+              size: imageData.length,
+              width: dimensions.width,
+              height: dimensions.height,
+              mimeType: this.getMimeType(fileName || "image.jpg"),
+              data: imageData,
+              position: cellRef,
+              row: row,
+              column: column,
+              imageId: imageId,
+              extractionMethod: "formula",
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`从工作表 ${worksheetPath} 提取公式失败:`, error);
+    }
+
+    return images;
+  }
+
+  // 解析单元格引用（如 "M93" -> {row: 93, column: "M"}）
+  private parseCellReference(cellRef: string): { row: number; column: string } {
+    const match = cellRef.match(/^([A-Z]+)(\d+)$/);
+    if (match) {
+      return {
+        column: match[1],
+        row: parseInt(match[2], 10),
+      };
+    }
+    return { column: "A", row: 1 };
+  }
+
+  // 合并并去重图片数组
+  private mergeAndDeduplicateImages(imageArrays: ImageInfo[]): ImageInfo[] {
+    const seen = new Set<string>();
+    const merged: ImageInfo[] = [];
+
+    // 按提取方法优先级排序：formula > zip > fallback
+    const priorityOrder = ["formula", "zip", "fallback"];
+    const sortedImages = imageArrays.sort((a, b) => {
+      const aPriority = priorityOrder.indexOf(a.extractionMethod || "fallback");
+      const bPriority = priorityOrder.indexOf(b.extractionMethod || "fallback");
+      return aPriority - bPriority;
+    });
+
+    for (const image of sortedImages) {
+      const key = `${image.position}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(image);
+      }
+    }
+
+    return merged;
+  }
+
+  // 回退方法：使用原始ZIP方法
+  private async extractFromZipFallback(file: File): Promise<ImageInfo[]> {
+    const zip = new JSZip();
+    const zipContent = await zip.loadAsync(file);
+    const images: ImageInfo[] = [];
+
+    // 简化的图片提取，不依赖位置信息
+    const mediaFolder = zipContent.folder("xl/media");
+    if (!mediaFolder) {
+      return images;
+    }
+
+    const imagePromises: Promise<void>[] = [];
+
+    mediaFolder.forEach((relativePath, file) => {
+      if (file.dir) return;
+
+      const fileName = file.name.toLowerCase();
+      if (
+        fileName.endsWith(".png") ||
+        fileName.endsWith(".jpg") ||
+        fileName.endsWith(".jpeg")
+      ) {
+        const promise = file.async("uint8array").then(async (data) => {
+          try {
+            const dimensions = await this.getImageDimensions(data);
+
+            images.push({
+              id: relativePath,
+              name: relativePath,
+              size: data.length,
+              width: dimensions.width,
+              height: dimensions.height,
+              mimeType: this.getMimeType(fileName),
+              data,
+              position: "未知位置",
+              extractionMethod: "fallback",
             });
           } catch (error) {
             console.warn(`Failed to process image ${relativePath}:`, error);
@@ -581,8 +839,37 @@ export class FrontendImageValidator {
       const mediaKey = embedRelMap.get(embedId);
       if (!mediaKey) continue;
 
-      // 使用智能位置估算
-      const positionInfo = this.calculateImagePosition(i, tableStructure);
+      // 尝试从DISPIMG公式获取精确位置
+      const dispimgId = cellImage.getAttribute("name");
+      let positionInfo = null;
+
+      if (dispimgId) {
+        positionInfo = await this.getPositionFromDISPIMG(dispimgId, zip);
+
+        // 检查是否有重复图片
+        if (positionInfo && positionInfo.isDuplicate) {
+          console.warn(`🚨 前端检测到重复图片: ${dispimgId}`);
+          console.warn(`   主位置: ${positionInfo.position}`);
+          if (positionInfo.duplicates) {
+            positionInfo.duplicates.forEach((dup, index) => {
+              console.warn(`   重复位置 ${index + 1}: ${dup.position}`);
+            });
+          }
+
+          // 可以在这里添加重复图片的处理逻辑
+          // 例如：记录到验证结果中，或者抛出警告
+        }
+      }
+
+      // 如果DISPIMG方法失败，回退到智能位置估算
+      if (!positionInfo) {
+        positionInfo = this.calculateImagePosition(i, tableStructure);
+        positionInfo.method = "index_estimation";
+        positionInfo.confidence = "low";
+      } else {
+        positionInfo.method = "dispimg_formula";
+        positionInfo.confidence = "high";
+      }
 
       imagePositions.set(mediaKey, {
         position: positionInfo.position,
@@ -591,7 +878,11 @@ export class FrontendImageValidator {
       });
 
       console.log(
-        `🎯 WPS 图片位置估算: ${mediaKey} -> ${positionInfo.position} (${positionInfo.type})`
+        `🎯 WPS 图片位置${
+          positionInfo.method === "dispimg_formula" ? "(DISPIMG公式)" : "(估算)"
+        }: ${mediaKey} -> ${positionInfo.position} (${
+          positionInfo.type || positionInfo.method
+        })`
       );
     }
 
@@ -693,6 +984,113 @@ export class FrontendImageValidator {
         imagesPerRecord: 2,
         dataStartRow: 4,
       };
+    }
+  }
+
+  // 从DISPIMG公式获取精确位置 - 支持检测重复图片
+  private async getPositionFromDISPIMG(
+    dispimgId: string,
+    zip: any
+  ): Promise<{
+    position: string;
+    row: number;
+    column: string;
+    type: string;
+    duplicates?: Array<{
+      position: string;
+      row: number;
+      column: string;
+      type: string;
+    }>;
+    isDuplicate?: boolean;
+  } | null> {
+    try {
+      console.log(`🔍 前端查找DISPIMG公式中的图片ID: ${dispimgId}`);
+
+      // 查找工作表文件
+      const worksheetFiles = Object.keys(zip.files).filter(
+        (name: string) =>
+          name.startsWith("xl/worksheets/") && name.endsWith(".xml")
+      );
+
+      const allPositions: Array<{
+        position: string;
+        row: number;
+        column: string;
+        type: string;
+      }> = [];
+
+      for (const worksheetFile of worksheetFiles) {
+        const worksheetXml = await zip.file(worksheetFile)?.async("text");
+        if (!worksheetXml) continue;
+
+        // 查找包含目标dispimgId的DISPIMG公式
+        // 修复：使用更精确的正则表达式来匹配XML结构
+        const cellRegex = /<c[^>]*r="([^"]*)"[^>]*>([\s\S]*?)<\/c>/g;
+        let match;
+
+        while ((match = cellRegex.exec(worksheetXml)) !== null) {
+          const cellRef = match[1];
+          const cellContent = match[2];
+
+          // 在单元格内容中查找DISPIMG公式
+          const formulaMatch = cellContent.match(
+            /<f[^>]*>(.*?DISPIMG.*?)<\/f>/
+          );
+          if (formulaMatch) {
+            const formula = formulaMatch[1];
+
+            // 提取DISPIMG中的图片ID - 处理HTML实体编码
+            const idMatch = formula.match(/DISPIMG\(&quot;([^&]*?)&quot;,/);
+            if (idMatch && idMatch[1] === dispimgId) {
+              // 解析单元格引用
+              const cellMatch = cellRef.match(/^([A-Z]+)(\d+)$/);
+              if (cellMatch) {
+                const column = cellMatch[1];
+                const row = parseInt(cellMatch[2]);
+
+                allPositions.push({
+                  position: cellRef,
+                  row: row,
+                  column: column,
+                  type:
+                    column === "M" ? "门头" : column === "N" ? "内部" : "图片",
+                });
+              }
+            }
+          }
+        }
+      }
+
+      if (allPositions.length === 0) {
+        console.log(`❌ 前端未找到DISPIMG公式中的图片ID: ${dispimgId}`);
+        return null;
+      }
+
+      // 检测重复图片
+      if (allPositions.length > 1) {
+        console.warn(
+          `⚠️ 前端检测到重复图片ID: ${dispimgId}，出现在 ${allPositions.length} 个位置:`
+        );
+        allPositions.forEach((pos, index) => {
+          console.warn(`   ${index + 1}. ${pos.position}`);
+        });
+
+        // 返回第一个位置，并标记为重复
+        return {
+          ...allPositions[0],
+          duplicates: allPositions.slice(1),
+          isDuplicate: true,
+        };
+      }
+
+      console.log(
+        `✅ 前端找到DISPIMG公式位置: ${dispimgId} -> ${allPositions[0].position}`
+      );
+      return allPositions[0];
+    } catch (error) {
+      console.warn("前端从DISPIMG公式获取位置失败:", error);
+      return null;
     }
   }
 

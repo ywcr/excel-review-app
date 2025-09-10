@@ -22,7 +22,9 @@ try {
 } catch (error) {
   console.warn("blockhash-core.js 加载失败，图片验证功能将被禁用:", error);
   // 提供一个空的 blockhash 函数作为后备
-  self.blockhash = function() { return null; };
+  self.blockhash = function () {
+    return null;
+  };
   blockHashAvailable = false;
 }
 
@@ -1403,7 +1405,7 @@ async function validateImagesInternal(fileBuffer) {
         const result = {
           id: image.id,
           sharpness,
-          isBlurry: sharpness < 40, // Laplacian 方差阈值：< 30 判为模糊（宽松）
+          isBlurry: sharpness < 60, // Laplacian 方差阈值：< 30 判为模糊（宽松）
           hash,
           duplicates: [],
           position: image.position,
@@ -2922,8 +2924,40 @@ async function extractFromCellImagesWorker(
       const mediaKey = embedRelMap.get(embedId);
       if (!mediaKey) continue;
 
-      // 使用智能位置估算
-      const positionInfo = calculateImagePositionWorker(i, tableStructure);
+      // 尝试从DISPIMG公式获取精确位置
+      const dispimgId = cellImage.getAttribute("name");
+      let positionInfo = null;
+
+      if (dispimgId) {
+        positionInfo = await getPositionFromDISPIMGWorker(
+          dispimgId,
+          zipContent
+        );
+
+        // 检查是否有重复图片
+        if (positionInfo && positionInfo.isDuplicate) {
+          console.warn(`🚨 Worker检测到重复图片: ${dispimgId}`);
+          console.warn(`   主位置: ${positionInfo.position}`);
+          if (positionInfo.duplicates) {
+            positionInfo.duplicates.forEach((dup, index) => {
+              console.warn(`   重复位置 ${index + 1}: ${dup.position}`);
+            });
+          }
+
+          // 可以在这里添加重复图片的处理逻辑
+          // 例如：记录到验证结果中，或者抛出警告
+        }
+      }
+
+      // 如果DISPIMG方法失败，回退到智能位置估算
+      if (!positionInfo) {
+        positionInfo = calculateImagePositionWorker(i, tableStructure);
+        positionInfo.method = "index_estimation";
+        positionInfo.confidence = "low";
+      } else {
+        positionInfo.method = "dispimg_formula";
+        positionInfo.confidence = "high";
+      }
 
       const list = imagePositions.get(mediaKey) || [];
       list.push({
@@ -2934,7 +2968,11 @@ async function extractFromCellImagesWorker(
       imagePositions.set(mediaKey, list);
 
       console.log(
-        `🎯 Worker WPS 图片位置估算: ${mediaKey} -> ${positionInfo.position} (${positionInfo.type})`
+        `🎯 Worker WPS 图片位置${
+          positionInfo.method === "dispimg_formula" ? "(DISPIMG公式)" : "(估算)"
+        }: ${mediaKey} -> ${positionInfo.position} (${
+          positionInfo.type || positionInfo.method
+        })`
       );
     }
 
@@ -3027,6 +3065,90 @@ async function analyzeTableStructureWorker(
       imagesPerRecord: 2,
       dataStartRow: 4,
     };
+  }
+}
+
+// 从DISPIMG公式获取精确位置 (Worker版本) - 支持检测重复图片
+async function getPositionFromDISPIMGWorker(dispimgId, zipContent) {
+  try {
+    console.log(`🔍 Worker查找DISPIMG公式中的图片ID: ${dispimgId}`);
+
+    // 查找工作表文件
+    const worksheetFiles = Object.keys(zipContent.files).filter(
+      (name) => name.startsWith("xl/worksheets/") && name.endsWith(".xml")
+    );
+
+    const allPositions = [];
+
+    for (const worksheetFile of worksheetFiles) {
+      const worksheetXml = await zipContent.file(worksheetFile)?.async("text");
+      if (!worksheetXml) continue;
+
+      // 查找包含目标dispimgId的DISPIMG公式
+      // 修复：使用更精确的正则表达式来匹配XML结构
+      const cellRegex = /<c[^>]*r="([^"]*)"[^>]*>([\s\S]*?)<\/c>/g;
+      let match;
+
+      while ((match = cellRegex.exec(worksheetXml)) !== null) {
+        const cellRef = match[1];
+        const cellContent = match[2];
+
+        // 在单元格内容中查找DISPIMG公式
+        const formulaMatch = cellContent.match(/<f[^>]*>(.*?DISPIMG.*?)<\/f>/);
+        if (formulaMatch) {
+          const formula = formulaMatch[1];
+
+          // 提取DISPIMG中的图片ID - 处理HTML实体编码
+          const idMatch = formula.match(/DISPIMG\(&quot;([^&]*?)&quot;,/);
+          if (idMatch && idMatch[1] === dispimgId) {
+            // 解析单元格引用
+            const cellMatch = cellRef.match(/^([A-Z]+)(\d+)$/);
+            if (cellMatch) {
+              const column = cellMatch[1];
+              const row = parseInt(cellMatch[2]);
+
+              allPositions.push({
+                position: cellRef,
+                row: row,
+                column: column,
+                type:
+                  column === "M" ? "门头" : column === "N" ? "内部" : "图片",
+              });
+            }
+          }
+        }
+      }
+    }
+
+    if (allPositions.length === 0) {
+      console.log(`❌ Worker未找到DISPIMG公式中的图片ID: ${dispimgId}`);
+      return null;
+    }
+
+    // 检测重复图片
+    if (allPositions.length > 1) {
+      console.warn(
+        `⚠️ Worker检测到重复图片ID: ${dispimgId}，出现在 ${allPositions.length} 个位置:`
+      );
+      allPositions.forEach((pos, index) => {
+        console.warn(`   ${index + 1}. ${pos.position}`);
+      });
+
+      // 返回第一个位置，并标记为重复
+      return {
+        ...allPositions[0],
+        duplicates: allPositions.slice(1),
+        isDuplicate: true,
+      };
+    }
+
+    console.log(
+      `✅ Worker找到DISPIMG公式位置: ${dispimgId} -> ${allPositions[0].position}`
+    );
+    return allPositions[0];
+  } catch (error) {
+    console.warn("Worker从DISPIMG公式获取位置失败:", error);
+    return null;
   }
 }
 

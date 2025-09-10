@@ -21,7 +21,7 @@ export function ImagePreview({
 
   useEffect(() => {
     try {
-      const blob = new Blob([imageData], { type: mimeType });
+      const blob = new Blob([new Uint8Array(imageData)], { type: mimeType });
       const url = URL.createObjectURL(blob);
       setImageUrl(url);
       setLoading(false);

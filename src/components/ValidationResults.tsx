@@ -508,7 +508,7 @@ export default function ValidationResults({
                         {result.sharpness.toFixed(1)}
                         {result.isBlurry && (
                           <span className="ml-2 text-red-500">
-                            (低于100阈值)
+                            (低于60阈值)
                           </span>
                         )}
                       </td>
