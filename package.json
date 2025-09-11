@@ -11,20 +11,14 @@
     "type-check": "npx tsc --noEmit"
   },
   "dependencies": {
-    "@types/formidable": "^3.4.5",
     "blockhash-core": "^0.1.0",
-    "exceljs": "^4.4.0",
-    "formidable": "^3.5.4",
     "jimp": "^1.6.0",
     "jszip": "^3.10.1",
     "next": "15.5.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "sharp": "^0.34.3",
-    "tesseract.js": "^6.0.1",
     "xlsx": "^0.18.5",
-    "xlsx-js-style": "^1.2.0",
-    "xmldom": "^0.6.0"
+    "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

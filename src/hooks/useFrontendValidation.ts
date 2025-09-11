@@ -69,6 +69,16 @@ export interface UseFrontendValidationReturn {
   clearResult: () => void;
 }
 
+/**
+ * 🚀 前端验证Hook - 当前主流程
+ *
+ * 此Hook使用Web Worker进行前端Excel验证，包括：
+ * - 纯前端解析，无需上传文件到服务器
+ * - 支持工作表选择和过滤
+ * - 图片验证（清晰度检测、重复检测）
+ * - 实时进度反馈
+ */
+
 const MESSAGE_TYPES = {
   VALIDATE_EXCEL: "VALIDATE_EXCEL",
   VALIDATE_IMAGES: "VALIDATE_IMAGES",

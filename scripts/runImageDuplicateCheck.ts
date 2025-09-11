@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { ImageValidator } from "../src/lib/imageValidator";
+import { ImageProcessor } from "../src/lib/imageProcessor";
 
 async function main() {
   const excelPath =
@@ -13,37 +13,14 @@ async function main() {
 
   console.log(`读取 Excel: ${excelPath}`);
 
-  const buffer = fs.readFileSync(excelPath);
-  const validator = new ImageValidator();
+  // 注意：ImageProcessor 需要 File 对象，但这是 Node.js 环境
+  // 这个脚本需要在浏览器环境中运行，或者需要适配 Node.js
+  console.log("⚠️ 此脚本需要在浏览器环境中运行");
+  console.log("ImageProcessor 设计为前端使用，需要 File 对象和 Canvas API");
+  console.log("请在浏览器中使用图片验证功能");
 
-  console.log("提取图片...");
-  const images = await validator.extractImagesFromExcel(buffer.buffer);
-  console.log(`找到图片 ${images.length} 张`);
-
-  if (images.length === 0) {
-    console.log("Excel中未找到嵌入图片");
-    process.exit(0);
-  }
-
-  console.log("计算感知哈希并检测重复...");
-  const duplicates = await validator.validateDuplicates(images);
-
-  if (!duplicates || duplicates.length === 0) {
-    console.log("没有发现重复图片组");
-    process.exit(0);
-  }
-
-  console.log(`发现重复组 ${duplicates.length} 组:`);
-  for (const group of duplicates) {
-    console.log(
-      `- 组 ${group.groupId} 相似度: ${(group.similarity * 100).toFixed(1)}%`
-    );
-    for (const img of group.images) {
-      console.log(
-        `   · ${img.imageId} @ ${img.position} hash=${img.hash.slice(0, 8)}...`
-      );
-    }
-  }
+  // 如果需要在 Node.js 中运行图片验证，请使用其他工具
+  process.exit(1);
 }
 
 main().catch((err) => {

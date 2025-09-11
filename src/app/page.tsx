@@ -232,13 +232,18 @@ export default function Home() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Excel 审核系统
+            Excel 审核系统 - 前端解析版
           </h1>
           <p className="text-gray-700">
             上传您的 Excel 文件，选择对应任务进行自动审核
           </p>
-          <div className="mt-2 text-xs text-gray-500">
-            前端验证：更快、更安全、无需上传文件
+          <div className="mt-2 space-y-1">
+            <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+              🚀 当前使用：前端解析流程
+            </div>
+            <div className="text-xs text-gray-500">
+              更快、更安全、无需上传文件到服务器
+            </div>
           </div>
         </div>
 

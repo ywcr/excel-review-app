@@ -449,9 +449,17 @@ export default function ValidationResults({
       {/* 图片问题详情 */}
       {(validation.imageValidation?.results?.length ?? 0) > 0 && (
         <div className="mt-8">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            图片问题详情
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">
+              图片问题详情
+            </h3>
+            <div className="text-sm text-gray-500">
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 mr-2">
+                重复图片优先
+              </span>
+              按位置排序
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -482,6 +490,24 @@ export default function ValidationResults({
                     (result) =>
                       result.isBlurry || (result.duplicates?.length ?? 0) > 0
                   )
+                  .sort((a, b) => {
+                    // 优先级排序：重复图片 > 模糊图片
+                    const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
+                    const bHasDuplicates = (b.duplicates?.length ?? 0) > 0;
+
+                    // 1. 重复图片优先显示
+                    if (aHasDuplicates && !bHasDuplicates) return -1;
+                    if (!aHasDuplicates && bHasDuplicates) return 1;
+
+                    // 2. 同类型内按位置排序（行号优先，然后列号）
+                    const aRow = a.row ?? 999999;
+                    const bRow = b.row ?? 999999;
+                    if (aRow !== bRow) return aRow - bRow;
+
+                    const aCol = a.column ?? "ZZ";
+                    const bCol = b.column ?? "ZZ";
+                    return aCol.localeCompare(bCol);
+                  })
                   .map((result) => (
                     <tr
                       key={result.id}
@@ -564,22 +590,17 @@ export default function ValidationResults({
                       <td className="px-6 py-4 text-sm text-gray-700">
                         {(result.duplicates?.length ?? 0) > 0 ? (
                           <div className="max-w-xs">
-                            <div className="text-xs text-gray-500">
-                              共{result.duplicates.length}处重复
+                            <div className="flex items-center space-x-2 mb-2">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                重复 {result.duplicates.length}处
+                              </span>
                             </div>
-                            <div className="text-xs text-gray-600 mt-1 space-y-1">
-                              {/* 主位置 */}
-                              <div>
-                                <span className="text-gray-700">主位置：</span>
-                                <span className="text-gray-800">
-                                  {result.position ||
-                                    (result.column && result.row
-                                      ? `列${result.column} 行${result.row}`
-                                      : result.id)}
-                                </span>
+                            <div className="text-xs text-gray-600 space-y-1">
+                              {/* 重复位置列表 */}
+                              <div className="text-gray-500 mb-1">
+                                与以下图片重复：
                               </div>
-                              {/* 重复位置列表（全部展示） */}
-                              <ol className="list-decimal list-inside space-y-1">
+                              <div className="space-y-1 max-h-20 overflow-y-auto">
                                 {result.duplicates.map(
                                   (duplicate: any, idx: number) => {
                                     const renderPosText = () => {
@@ -588,26 +609,38 @@ export default function ValidationResults({
                                       if (duplicate?.position)
                                         return duplicate.position;
                                       if (duplicate?.column && duplicate?.row)
-                                        return `列${duplicate.column} 行${duplicate.row}`;
+                                        return `${duplicate.column}${duplicate.row}`;
                                       return duplicate?.id || "未知位置";
                                     };
+
+                                    const duplicateId =
+                                      typeof duplicate === "string"
+                                        ? duplicate
+                                        : duplicate?.id;
+
                                     return (
-                                      <li key={idx}>
+                                      <div
+                                        key={idx}
+                                        className="flex items-center space-x-1"
+                                      >
+                                        <span className="text-gray-400">•</span>
                                         <button
                                           type="button"
-                                          onClick={() =>
-                                            scrollToImageRow(result.id)
-                                          }
+                                          onClick={() => {
+                                            if (duplicateId) {
+                                              scrollToImageRow(duplicateId);
+                                            }
+                                          }}
                                           className="text-blue-600 hover:text-blue-800 hover:underline focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-0.5"
-                                          title="点击定位到该图片行"
+                                          title={`点击定位到图片 ${duplicateId}`}
                                         >
                                           {renderPosText()}
                                         </button>
-                                      </li>
+                                      </div>
                                     );
                                   }
                                 )}
-                              </ol>
+                              </div>
                             </div>
                           </div>
                         ) : (

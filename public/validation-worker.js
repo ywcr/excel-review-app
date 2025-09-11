@@ -1,5 +1,10 @@
-// Web Worker for Excel validation
-// This file will be loaded from public directory
+// 🚀 Excel Validation Worker - 前端解析主流程
+//
+// 此Worker负责纯前端Excel验证，包括：
+// - Excel文件解析和数据验证
+// - WPS Excel图片按工作表过滤
+// - 图片清晰度和重复性检测
+// - 无需上传文件到服务器，保护数据安全
 
 importScripts("https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js");
 importScripts("https://unpkg.com/jszip@3.10.1/dist/jszip.min.js");
@@ -1029,7 +1034,7 @@ async function validateExcel(data) {
     templateFromMainThread = template;
   }
 
-  sendProgress("正在解析Excel文件...", 10);
+  sendProgress("🚀 前端解析：正在解析Excel文件...", 10);
 
   // 首先只解析工作表名称
   let workbook;
@@ -1053,7 +1058,7 @@ async function validateExcel(data) {
 
   const sheetNames = workbook.SheetNames || [];
 
-  sendProgress("正在分析工作表...", 20);
+  sendProgress("🚀 前端解析：正在分析工作表...", 20);
 
   // Get template (must be provided from main thread)
   const validationTemplate = templateFromMainThread;
@@ -1222,8 +1227,11 @@ async function validateExcel(data) {
   // 如果启用图片验证，则进行图片验证并合并结果
   if (includeImages) {
     try {
-      sendProgress("正在验证图片...", 85);
-      const imageValidationResult = await validateImagesInternal(fileBuffer);
+      sendProgress("🚀 前端解析：正在验证图片...", 85);
+      const imageValidationResult = await validateImagesInternal(
+        fileBuffer,
+        targetSheet
+      );
 
       // 合并图片验证结果
       baseResult.imageValidation = imageValidationResult;
@@ -1272,7 +1280,7 @@ async function validateExcel(data) {
 }
 
 // Internal image validation function (shared logic)
-async function validateImagesInternal(fileBuffer) {
+async function validateImagesInternal(fileBuffer, selectedSheet = null) {
   // 如果 blockhash 不可用，返回空结果
   if (
     !blockHashAvailable ||
@@ -1301,7 +1309,10 @@ async function validateImagesInternal(fileBuffer) {
     const mediaFolder = zipContent.folder("xl/media");
 
     // Try to get drawing relationships to map images to positions
-    const imagePositions = await extractImagePositions(zipContent);
+    const imagePositions = await extractImagePositions(
+      zipContent,
+      selectedSheet
+    );
     console.log("图片位置映射结果:", imagePositions);
     console.log("图片位置映射数量:", imagePositions.size);
 
@@ -1365,18 +1376,20 @@ async function validateImagesInternal(fileBuffer) {
               });
             } else {
               console.warn(
-                `⚠️ 未找到位置映射: ${relativePath}, 将使用估算位置`
+                `⚠️ 未找到位置映射: ${relativePath}, 跳过该条图片处理`
               );
-              const positionInfo = extractPositionFromPath(relativePath, index);
-              images.push({
-                id: positionInfo.position || relativePath,
-                name: relativePath,
-                size: data.length,
-                data: data,
-                position: positionInfo.position,
-                row: positionInfo.row,
-                column: positionInfo.column,
-              });
+              // 未找到位置映射，跳过该条图片处理，不使用位置估算
+
+              // const positionInfo = extractPositionFromPath(relativePath, index);
+              // images.push({
+              //   id: positionInfo.position || relativePath,
+              //   name: relativePath,
+              //   size: data.length,
+              //   data: data,
+              //   position: positionInfo.position,
+              //   row: positionInfo.row,
+              //   column: positionInfo.column,
+              // });
             }
           })
         );
@@ -2392,7 +2405,7 @@ function countDuplicateGroups(results) {
 }
 
 // Extract image positions by parsing Excel drawings XML accurately
-async function extractImagePositions(zipContent) {
+async function extractImagePositions(zipContent, selectedSheet = null) {
   const imagePositions = new Map(); // key: 'xl/media/imageN.ext' -> Array<{ position, row, column }>
 
   try {
@@ -2497,12 +2510,54 @@ async function extractImagePositions(zipContent) {
       return result;
     };
 
+    // Helper function to get sheet file name from sheet name
+    const getSheetFileName = async (sheetName) => {
+      if (!sheetName) return null;
+
+      try {
+        const workbookXmlText = await readTextIfExists("xl/workbook.xml");
+        if (!workbookXmlText) return null;
+
+        const workbookXml = parseXml(workbookXmlText);
+        const sheets = workbookXml.getElementsByTagName("sheet");
+
+        for (let i = 0; i < sheets.length; i++) {
+          const sheet = sheets[i];
+          const name = sheet.getAttribute("name");
+          const rId = sheet.getAttribute("r:id");
+
+          if (name === sheetName && rId) {
+            // 通过workbook.xml.rels找到实际的文件名
+            const workbookRelsText = await readTextIfExists(
+              "xl/_rels/workbook.xml.rels"
+            );
+            if (workbookRelsText) {
+              const relRegex = new RegExp(
+                `<Relationship[^>]*Id="${rId}"[^>]*Target="([^"]*)"`,
+                "g"
+              );
+              const relMatch = relRegex.exec(workbookRelsText);
+              if (relMatch) {
+                const relTarget = relMatch[1]; // 例如: "worksheets/sheet1.xml"
+                return relTarget.split("/").pop(); // 提取文件名: "sheet1.xml"
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to get sheet file name:", error);
+      }
+
+      return null;
+    };
+
     // 首先尝试处理 WPS 的 cellimages.xml 结构
     const cellimagesResult = await extractFromCellImagesWorker(
       zipContent,
       readTextIfExists,
       parseXml,
-      columnIndexToLetter
+      columnIndexToLetter,
+      selectedSheet
     );
     if (cellimagesResult.size > 0) {
       console.log(
@@ -2524,7 +2579,25 @@ async function extractImagePositions(zipContent) {
       }
     });
 
-    for (const sheetFile of sheetFiles.sort()) {
+    // Filter by selected sheet if specified
+    let targetSheetFiles = sheetFiles.sort();
+    if (selectedSheet) {
+      const targetSheetFile = await getSheetFileName(selectedSheet);
+      if (targetSheetFile) {
+        targetSheetFiles = sheetFiles.filter(
+          (file) => file === targetSheetFile
+        );
+        console.log(
+          `🎯 过滤到目标工作表: ${selectedSheet} -> ${targetSheetFile}`
+        );
+      } else {
+        console.warn(
+          `⚠️ 无法找到工作表 "${selectedSheet}" 对应的文件，将处理所有工作表`
+        );
+      }
+    }
+
+    for (const sheetFile of targetSheetFiles) {
       const sheetPath = `xl/worksheets/${sheetFile}`;
       console.log(`处理工作表: ${sheetFile}`);
       const sheetXmlText = await readTextIfExists(sheetPath);
@@ -2879,7 +2952,8 @@ async function extractFromCellImagesWorker(
   zipContent,
   readTextIfExists,
   parseXml,
-  columnIndexToLetter
+  columnIndexToLetter,
+  selectedSheet = null
 ) {
   const imagePositions = new Map();
 
@@ -2958,7 +3032,8 @@ async function extractFromCellImagesWorker(
       if (dispimgId) {
         positionInfo = await getPositionFromDISPIMGWorker(
           dispimgId,
-          zipContent
+          zipContent,
+          selectedSheet
         );
 
         // 检查是否有重复图片
@@ -2980,10 +3055,29 @@ async function extractFromCellImagesWorker(
       if (!positionInfo) {
         positionInfo = calculateImagePositionWorker(i, tableStructure);
         positionInfo.method = "index_estimation";
-        positionInfo.confidence = "low";
+        positionInfo.confidence = "medium";
+        console.log(
+          `📍 Worker使用位置估算: ${mediaKey} -> ${positionInfo.position} (第${
+            i + 1
+          }张图片)`
+        );
       } else {
         positionInfo.method = "dispimg_formula";
         positionInfo.confidence = "high";
+      }
+
+      // 如果指定了selectedSheet，检查估算位置是否在合理范围内
+      if (selectedSheet && positionInfo.method === "index_estimation") {
+        // 对于药店拜访模式，图片应该在M、N列，第4行开始
+        const isValidPosition =
+          (positionInfo.column === "M" || positionInfo.column === "N") &&
+          positionInfo.row >= 4;
+        if (!isValidPosition) {
+          console.log(
+            `⏭️ Worker跳过位置不合理的图片: ${mediaKey} (估算位置: ${positionInfo.position})`
+          );
+          continue;
+        }
       }
 
       const list = imagePositions.get(mediaKey) || [];
@@ -2991,7 +3085,11 @@ async function extractFromCellImagesWorker(
       const pushUnique = (pos) => {
         if (!pos || !pos.position) return;
         if (!list.some((p) => p.position === pos.position)) {
-          list.push({ position: pos.position, row: pos.row, column: pos.column });
+          list.push({
+            position: pos.position,
+            row: pos.row,
+            column: pos.column,
+          });
         }
       };
       pushUnique(positionInfo);
@@ -3102,14 +3200,77 @@ async function analyzeTableStructureWorker(
 }
 
 // 从DISPIMG公式获取精确位置 (Worker版本) - 支持检测重复图片
-async function getPositionFromDISPIMGWorker(dispimgId, zipContent) {
+async function getPositionFromDISPIMGWorker(
+  dispimgId,
+  zipContent,
+  selectedSheet = null
+) {
   try {
     console.log(`🔍 Worker查找DISPIMG公式中的图片ID: ${dispimgId}`);
+    if (selectedSheet) {
+      console.log(`🎯 Worker只在工作表 "${selectedSheet}" 中查找`);
+    }
 
     // 查找工作表文件
-    const worksheetFiles = Object.keys(zipContent.files).filter(
+    let worksheetFiles = Object.keys(zipContent.files).filter(
       (name) => name.startsWith("xl/worksheets/") && name.endsWith(".xml")
     );
+
+    // 如果指定了selectedSheet，获取对应的工作表文件
+    if (selectedSheet) {
+      try {
+        const workbookXml = await zipContent
+          .file("xl/workbook.xml")
+          ?.async("text");
+        if (workbookXml) {
+          const sheetRegex =
+            /<sheet[^>]*name="([^"]*)"[^>]*sheetId="([^"]*)"[^>]*r:id="([^"]*)"/g;
+          let match;
+          let targetSheetFile = null;
+
+          while ((match = sheetRegex.exec(workbookXml)) !== null) {
+            const sheetName = match[1];
+            const sheetId = match[2];
+            const rId = match[3];
+
+            if (sheetName === selectedSheet) {
+              // 通过workbook.xml.rels找到实际的文件名
+              const workbookRelsXml = await zipContent
+                .file("xl/_rels/workbook.xml.rels")
+                ?.async("text");
+              if (workbookRelsXml) {
+                const relRegex = new RegExp(
+                  `<Relationship[^>]*Id="${rId}"[^>]*Target="([^"]*)"`,
+                  "g"
+                );
+                const relMatch = relRegex.exec(workbookRelsXml);
+                if (relMatch) {
+                  const relTarget = relMatch[1]; // 例如: "worksheets/sheet1.xml"
+                  targetSheetFile = relTarget.split("/").pop(); // 提取文件名: "sheet1.xml"
+                  console.log(
+                    `🔍 Worker找到工作表映射: ${sheetName} (${rId}) -> ${targetSheetFile}`
+                  );
+                  break;
+                }
+              }
+            }
+          }
+
+          if (targetSheetFile) {
+            worksheetFiles = worksheetFiles.filter((file) =>
+              file.endsWith(targetSheetFile)
+            );
+            console.log(`🎯 Worker过滤到目标工作表文件: ${targetSheetFile}`);
+          } else {
+            console.warn(
+              `⚠️ Worker无法找到工作表 "${selectedSheet}" 对应的文件`
+            );
+          }
+        }
+      } catch (error) {
+        console.warn("Worker获取工作表文件名失败:", error);
+      }
+    }
 
     const allPositions = [];
 
@@ -3131,8 +3292,11 @@ async function getPositionFromDISPIMGWorker(dispimgId, zipContent) {
         if (formulaMatch) {
           const formula = formulaMatch[1];
 
-          // 提取DISPIMG中的图片ID - 处理HTML实体编码
-          const idMatch = formula.match(/DISPIMG\(&quot;([^&]*?)&quot;,/);
+          // 提取DISPIMG中的图片ID - 支持两种格式：直接双引号和HTML实体编码
+          let idMatch = formula.match(/DISPIMG\(&quot;([^&]*?)&quot;,/); // HTML实体编码格式
+          if (!idMatch) {
+            idMatch = formula.match(/DISPIMG\("([^"]*?)",/); // 直接双引号格式
+          }
           if (idMatch && idMatch[1] === dispimgId) {
             // 解析单元格引用
             const cellMatch = cellRef.match(/^([A-Z]+)(\d+)$/);
