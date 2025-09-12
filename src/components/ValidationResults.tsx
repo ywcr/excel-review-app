@@ -142,6 +142,73 @@ export default function ValidationResults({
     return colors[type] || "bg-gray-100 text-gray-800";
   };
 
+  // 图片结果去重函数：将重复图片分组，每组只显示一个代表
+  const deduplicateImageResults = (results: any[]) => {
+    const processedResults: any[] = [];
+    const processedIds = new Set<string>();
+
+    for (const result of results) {
+      // 如果已经处理过这个图片，跳过
+      if (processedIds.has(result.id)) {
+        continue;
+      }
+
+      // 如果这个图片有重复项
+      if ((result.duplicates?.length ?? 0) > 0) {
+        // 收集所有重复图片的ID（包括当前图片）
+        const duplicateIds = [
+          result.id,
+          ...(result.duplicates
+            ?.map((d: any) => (typeof d === "string" ? d : d?.id))
+            .filter(Boolean) || []),
+        ];
+
+        // 从原始结果中找到所有重复图片的完整信息
+        const duplicateResults = results.filter((r) =>
+          duplicateIds.includes(r.id)
+        );
+
+        // 选择位置最靠前的作为代表（按行号和列号排序）
+        const representative = duplicateResults.sort((a, b) => {
+          const aRow = a.row ?? 999999;
+          const bRow = b.row ?? 999999;
+          if (aRow !== bRow) return aRow - bRow;
+
+          const aCol = a.column ?? "ZZ";
+          const bCol = b.column ?? "ZZ";
+          return aCol.localeCompare(bCol);
+        })[0];
+
+        // 构建合并后的重复信息，包含所有重复图片的位置信息
+        const allDuplicates = duplicateResults
+          .filter((r) => r.id !== representative.id)
+          .map((r) => ({
+            id: r.id,
+            position: r.position,
+            row: r.row,
+            column: r.column,
+          }));
+
+        // 创建代表图片的副本，更新其重复信息
+        const representativeResult = {
+          ...representative,
+          duplicates: allDuplicates,
+        };
+
+        processedResults.push(representativeResult);
+
+        // 标记所有相关图片为已处理
+        duplicateIds.forEach((id) => processedIds.add(id));
+      } else {
+        // 非重复图片直接添加
+        processedResults.push(result);
+        processedIds.add(result.id);
+      }
+    }
+
+    return processedResults;
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <div className="mb-6">
@@ -455,7 +522,10 @@ export default function ValidationResults({
             </h3>
             <div className="text-sm text-gray-500">
               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 mr-2">
-                重复图片优先
+                重复图片已分组
+              </span>
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2">
+                每组显示一条
               </span>
               按位置排序
             </div>
@@ -485,11 +555,12 @@ export default function ValidationResults({
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {(validation.imageValidation?.results ?? [])
-                  .filter(
+                {deduplicateImageResults(
+                  (validation.imageValidation?.results ?? []).filter(
                     (result) =>
                       result.isBlurry || (result.duplicates?.length ?? 0) > 0
                   )
+                )
                   .sort((a, b) => {
                     // 优先级排序：重复图片 > 模糊图片
                     const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
@@ -592,13 +663,19 @@ export default function ValidationResults({
                           <div className="max-w-xs">
                             <div className="flex items-center space-x-2 mb-2">
                               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                重复 {result.duplicates.length}处
+                                重复组 ({result.duplicates.length + 1}张)
                               </span>
                             </div>
                             <div className="text-xs text-gray-600 space-y-1">
+                              {/* 当前图片位置 */}
+                              <div className="text-gray-700 mb-1 font-medium">
+                                当前位置:{" "}
+                                {result.position ||
+                                  `${result.column}${result.row}`}
+                              </div>
                               {/* 重复位置列表 */}
                               <div className="text-gray-500 mb-1">
-                                与以下图片重复：
+                                其他重复位置：
                               </div>
                               <div className="space-y-1 max-h-20 overflow-y-auto">
                                 {result.duplicates.map(
@@ -613,29 +690,15 @@ export default function ValidationResults({
                                       return duplicate?.id || "未知位置";
                                     };
 
-                                    const duplicateId =
-                                      typeof duplicate === "string"
-                                        ? duplicate
-                                        : duplicate?.id;
-
                                     return (
                                       <div
                                         key={idx}
                                         className="flex items-center space-x-1"
                                       >
                                         <span className="text-gray-400">•</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            if (duplicateId) {
-                                              scrollToImageRow(duplicateId);
-                                            }
-                                          }}
-                                          className="text-blue-600 hover:text-blue-800 hover:underline focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-0.5"
-                                          title={`点击定位到图片 ${duplicateId}`}
-                                        >
+                                        <span className="text-gray-600">
                                           {renderPosText()}
-                                        </button>
+                                        </span>
                                       </div>
                                     );
                                   }

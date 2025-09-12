@@ -10,10 +10,10 @@ interface AtmosphereSettings {
 }
 
 const defaultSettings: AtmosphereSettings = {
-  enableAnimations: true,
-  enableParticles: true,
-  enableSounds: true,
-  theme: "cute",
+  enableAnimations: false, // 🔧 默认关闭动画以提升性能
+  enableParticles: false, // 🔧 默认关闭粒子效果以提升性能
+  enableSounds: false, // 🔧 默认关闭音效以避免干扰
+  theme: "professional", // 🔧 使用专业主题作为默认
 };
 
 export function useAtmosphereSettings() {
@@ -167,7 +167,9 @@ export default function AtmosphereSettings({
 
           {/* 说明文字 */}
           <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
-            💡 这些设置会让您的使用体验更加愉悦！可以随时调整。
+            💡
+            为了确保最佳性能，特别是处理大量图片时，建议保持动画和粒子效果关闭。
+            <br />⚡ 如需更愉悦的体验，可以在处理完成后开启这些效果。
           </div>
         </div>
       </div>
