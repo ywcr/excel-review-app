@@ -8,6 +8,11 @@ import ValidationResults from "@/components/ValidationResults";
 import FrontendSheetSelector from "@/components/FrontendSheetSelector";
 import { useFrontendValidation } from "@/hooks/useFrontendValidation";
 import { getAvailableTasks } from "@/lib/validationRules";
+import AtmosphereSettings, {
+  useAtmosphereSettings,
+} from "@/components/AtmosphereSettings";
+import ParticleEffect from "@/components/ParticleEffect";
+// 移除音效导入避免音频上下文错误
 
 export default function Home() {
   const availableTasks = getAvailableTasks();
@@ -18,6 +23,11 @@ export default function Home() {
   const [showSheetSelector, setShowSheetSelector] = useState(false);
   const [includeImageValidation, setIncludeImageValidation] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showAtmosphereSettings, setShowAtmosphereSettings] = useState(false);
+
+  // 氛围功能
+  const { settings } = useAtmosphereSettings();
+  // 移除音效功能避免音频上下文错误
 
   const {
     isValidating,
@@ -56,6 +66,9 @@ export default function Home() {
         undefined,
         includeImageValidation
       );
+
+      // 验证完成后添加到历史记录
+      // 注意：这里需要等待result更新，所以我们在useEffect中处理
     } catch (err) {
       console.error("Validation failed:", err);
     }
@@ -228,11 +241,53 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Excel 审核系统 - 前端解析版
+    <div
+      className={`min-h-screen py-8 transition-all duration-500 ${
+        settings.theme === "romantic"
+          ? "bg-gradient-to-br from-pink-50 to-purple-50"
+          : settings.theme === "cute"
+          ? "bg-gradient-to-br from-blue-50 to-pink-50"
+          : settings.theme === "professional"
+          ? "bg-gradient-to-br from-gray-50 to-blue-50"
+          : "bg-gray-50"
+      }`}
+    >
+      {/* 粒子效果 */}
+      <ParticleEffect />
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20">
+        <div className="text-center mb-8 relative">
+          {/* 功能按钮组 */}
+          <div className="absolute top-0 right-0 flex gap-1">
+            {/* 氛围设置按钮 */}
+            <button
+              onClick={() => setShowAtmosphereSettings(true)}
+              className="p-2 text-gray-500 hover:text-pink-500 transition-colors"
+              title="氛围设置"
+            >
+              ✨
+            </button>
+          </div>
+
+          <h1
+            className={`text-3xl font-bold mb-2 transition-all duration-500 ${
+              settings.theme === "romantic"
+                ? "text-pink-800"
+                : settings.theme === "cute"
+                ? "text-purple-800"
+                : settings.theme === "professional"
+                ? "text-blue-800"
+                : "text-gray-900"
+            }`}
+          >
+            Excel 审核系统 - 前端解析版{" "}
+            {settings.theme === "romantic"
+              ? "💕"
+              : settings.theme === "cute"
+              ? "🌸"
+              : settings.theme === "professional"
+              ? "⚡"
+              : ""}
           </h1>
           <p className="text-gray-700">
             上传您的 Excel 文件，选择对应任务进行自动审核
@@ -437,6 +492,12 @@ export default function Home() {
             onCancel={handleSheetSelectorCancel}
           />
         )}
+
+        {/* 氛围设置 */}
+        <AtmosphereSettings
+          isOpen={showAtmosphereSettings}
+          onClose={() => setShowAtmosphereSettings(false)}
+        />
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from "react";
+import { useAtmosphereSettings } from "./AtmosphereSettings";
 
 interface FileUploadProps {
   onFileUpload: (file: File) => void | Promise<void>;
@@ -15,6 +16,7 @@ export default function FileUpload({
 }: FileUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
+  const { settings } = useAtmosphereSettings();
 
   // Reset file input when uploadedFile becomes null
   useEffect(() => {
@@ -90,12 +92,25 @@ export default function FileUpload({
       </label>
       <div
         className={`
-          relative border-2 border-dashed rounded-lg p-6 text-center transition-colors
+          relative border-2 border-dashed rounded-lg p-6 text-center transition-all duration-300
+          ${settings.enableAnimations ? "transform hover:scale-105" : ""}
           ${
             disabled || isLoading
               ? "border-gray-200 bg-gray-50 cursor-not-allowed"
               : dragActive
-              ? "border-blue-500 bg-blue-50 cursor-pointer"
+              ? settings.theme === "romantic"
+                ? "border-pink-500 bg-pink-50 cursor-pointer"
+                : settings.theme === "cute"
+                ? "border-purple-500 bg-purple-50 cursor-pointer"
+                : settings.theme === "professional"
+                ? "border-blue-500 bg-blue-50 cursor-pointer"
+                : "border-blue-500 bg-blue-50 cursor-pointer"
+              : settings.theme === "romantic"
+              ? "border-pink-300 hover:border-pink-400 hover:bg-pink-50 cursor-pointer"
+              : settings.theme === "cute"
+              ? "border-purple-300 hover:border-purple-400 hover:bg-purple-50 cursor-pointer"
+              : settings.theme === "professional"
+              ? "border-blue-300 hover:border-blue-400 hover:bg-blue-50 cursor-pointer"
               : "border-gray-300 hover:border-blue-400 hover:bg-gray-50 cursor-pointer"
           }
         `}
