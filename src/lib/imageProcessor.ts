@@ -125,7 +125,11 @@ export class ImageProcessor {
     console.log(`🚀 开始验证 ${images.length} 张图片...`);
 
     const results: ImageValidationResult[] = [];
-    const concurrency = 3; // 并发处理数量
+    const cores =
+      (typeof navigator !== "undefined" &&
+        (navigator as any).hardwareConcurrency) ||
+      4;
+    const concurrency = Math.max(2, Math.min(6, cores)); // 根据硬件并发自适应，范围 2-6
 
     // 分批处理图片
     for (let i = 0; i < images.length; i += concurrency) {

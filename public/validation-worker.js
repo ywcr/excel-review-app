@@ -6,8 +6,8 @@
 // - 图片清晰度和重复性检测
 // - 无需上传文件到服务器，保护数据安全
 
-importScripts("https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js");
-importScripts("https://unpkg.com/jszip@3.10.1/dist/jszip.min.js");
+importScripts("/vendor/xlsx.full.min.js");
+importScripts("/vendor/jszip.min.js");
 
 // 尝试加载 blockhash-core.js，如果失败则跳过图片验证
 let blockHashAvailable = false;

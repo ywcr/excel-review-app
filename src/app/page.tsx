@@ -252,8 +252,8 @@ export default function Home() {
           : "bg-gray-50"
       }`}
     >
-      {/* 粒子效果 */}
-      <ParticleEffect />
+      {/* 粒子效果：验证进行中关闭以避免渲染开销 */}
+      {!isValidating && <ParticleEffect />}
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20">
         <div className="text-center mb-8 relative">

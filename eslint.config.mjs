@@ -18,6 +18,10 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      "scripts/**", // 忽略 Node 脚本，避免 strict-check 因 require 失败
+      "public/**", // 忽略静态资源（包含 vendored JS）
+      "create-test-excel.js",
+      "test-sheet-selection-fix.js",
     ],
   },
   {
