@@ -1001,6 +1001,70 @@ function createFieldMapping(headerRow, template) {
   return mapping;
 }
 
+// 基于工作表的分块行级验证（减少单次内存峰值）
+async function validateRowsChunked(sheet, template, headerRowIndex) {
+  const errors = [];
+  // 解析表范围
+  const ref = sheet["!ref"];
+  if (!ref) return errors;
+  const range = XLSX.utils.decode_range(ref);
+  const totalRows = Math.max(0, range.e.r - (headerRowIndex + 1) + 1);
+  if (totalRows <= 0) return errors;
+
+  // 构建字段映射
+  const headerOnly = XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
+    range: {
+      s: { r: headerRowIndex, c: 0 },
+      e: { r: headerRowIndex, c: range.e.c },
+    },
+  });
+  const headerRow = headerOnly[0] || [];
+  const fieldMapping = createFieldMapping(headerRow, template);
+
+  // 从数据起始行开始按块读取
+  const startRow = headerRowIndex + 1;
+  const chunkSize = PERFORMANCE_CONFIG.CHUNK_SIZE;
+
+  for (let r = startRow; r <= range.e.r; r += chunkSize) {
+    if (isValidationCancelled) break;
+    const end = Math.min(r + chunkSize - 1, range.e.r);
+    const rows = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      defval: "",
+      raw: false,
+      dateNF: "yyyy-mm-dd",
+      range: { s: { r, c: 0 }, e: { r: end, c: range.e.c } },
+    });
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.every((cell) => !cell)) continue;
+      for (const rule of template.validationRules || []) {
+        const colIndex = fieldMapping.get(rule.field);
+        if (colIndex === undefined) continue;
+        const value = row[colIndex];
+        const rowNumber = r + i + 1; // 工作表实际行号
+        const error = validateField(
+          value,
+          rule,
+          rowNumber,
+          colIndex,
+          undefined
+        );
+        if (error) errors.push(error);
+      }
+    }
+
+    const processed = Math.min(end, range.e.r) - startRow + 1;
+    const progress = 60 + Math.floor((processed / totalRows) * 20);
+    sendProgress(`验证数据行 ${processed}/${totalRows}...`, progress);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  return errors;
+}
+
 // Main message handler
 self.onmessage = async function (e) {
   const { type, data } = e.data;
@@ -1165,7 +1229,8 @@ async function validateExcel(data) {
   sendProgress("正在验证数据行...", 60);
 
   // Validate data rows using detected header row index
-  const errors = validateRows(
+  // 使用分块策略降低内存峰值
+  const errors = await validateRowsChunked(
     targetWorksheet,
     validationTemplate,
     headerValidation.headerRowIndex
@@ -1432,54 +1497,62 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
     // Validate images with real algorithms
     const results = [];
 
-    for (let i = 0; i < images.length; i++) {
-      const image = images[i];
+    // 并发自适应处理图片分析
+    const cores = (self.navigator && self.navigator.hardwareConcurrency) || 4;
+    const concurrency = Math.max(2, Math.min(6, cores));
 
-      try {
-        // 计算图片清晰度（简化的拉普拉斯方差）
-        const sharpness = await calculateImageSharpness(image.data);
+    let completed = 0;
+    for (let i = 0; i < images.length; i += concurrency) {
+      const batch = images.slice(i, i + concurrency);
+      await Promise.all(
+        batch.map(async (image) => {
+          try {
+            const sharpness = await calculateImageSharpness(image.data);
+            const hash = await calculateImageHash(image.data);
 
-        // 计算图片感知哈希（基于blockhash算法）
-        const hash = await calculateImageHash(image.data);
-
-        const result = {
-          id: image.id,
-          sharpness,
-          isBlurry: sharpness < 60, // Laplacian 方差阈值：< 30 判为模糊（宽松）
-          hash,
-          duplicates: [],
-          position: image.position,
-          row: image.row,
-          column: image.column,
-          // 添加图片数据用于展示（使用普通数组，兼容现有前端判断与类型）
-          imageData: Array.from(image.data),
-          mimeType: image.name.toLowerCase().endsWith(".png")
-            ? "image/png"
-            : image.name.toLowerCase().endsWith(".jpg") ||
-              image.name.toLowerCase().endsWith(".jpeg")
-            ? "image/jpeg"
-            : "image/png", // 默认PNG
-          size: image.data.length,
-        };
-
-        results.push(result);
-      } catch (error) {
-        console.warn(`Failed to analyze image ${image.id}:`, error);
-        // 如果图片分析失败，标记为模糊
-        results.push({
-          id: image.id,
-          sharpness: 0,
-          isBlurry: true,
-          hash: "",
-          duplicates: [],
-          position: image.position,
-          row: image.row,
-          column: image.column,
-        });
-      }
-
-      const progress = 30 + (i / images.length) * 60;
-      sendProgress(`正在分析图片 ${i + 1}/${images.length}...`, progress);
+            const result = {
+              id: image.id,
+              sharpness,
+              isBlurry: sharpness < 60,
+              hash,
+              duplicates: [],
+              position: image.position,
+              row: image.row,
+              column: image.column,
+              imageData: Array.from(image.data),
+              mimeType: image.name.toLowerCase().endsWith(".png")
+                ? "image/png"
+                : image.name.toLowerCase().endsWith(".jpg") ||
+                  image.name.toLowerCase().endsWith(".jpeg")
+                ? "image/jpeg"
+                : "image/png",
+              size: image.data.length,
+            };
+            results.push(result);
+          } catch (error) {
+            console.warn(`Failed to analyze image ${image.id}:`, error);
+            results.push({
+              id: image.id,
+              sharpness: 0,
+              isBlurry: true,
+              hash: "",
+              duplicates: [],
+              position: image.position,
+              row: image.row,
+              column: image.column,
+            });
+          } finally {
+            completed++;
+            const progress = 30 + (completed / images.length) * 60;
+            sendProgress(
+              `正在分析图片 ${completed}/${images.length}...`,
+              progress
+            );
+          }
+        })
+      );
+      // 让出控制权，提升响应
+      await new Promise((r) => setTimeout(r, 0));
     }
 
     sendProgress("正在检测重复图片...", 95);
