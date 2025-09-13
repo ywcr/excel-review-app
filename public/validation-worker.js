@@ -6,8 +6,8 @@
 // - 图片清晰度和重复性检测
 // - 无需上传文件到服务器，保护数据安全
 
-importScripts("https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js");
-importScripts("https://unpkg.com/jszip@3.10.1/dist/jszip.min.js");
+importScripts("/vendor/xlsx.full.min.js");
+importScripts("/vendor/jszip.min.js");
 
 // 尝试加载 blockhash-core.js，如果失败则跳过图片验证
 let blockHashAvailable = false;
@@ -23,7 +23,6 @@ try {
     }
   }
   blockHashAvailable = true;
-  console.log("blockhash-core.js 加载成功");
 } catch (error) {
   console.warn("blockhash-core.js 加载失败，图片验证功能将被禁用:", error);
   // 提供一个空的 blockhash 函数作为后备
@@ -638,13 +637,7 @@ function validateFrequency(rule, rows, fieldMapping) {
   const { maxPerDay, groupBy, countBy } = params;
   const columnIndex = fieldMapping.get(rule.field);
 
-  console.log(
-    `🔍 频次验证开始: ${rule.field}, maxPerDay: ${maxPerDay}, groupBy: ${groupBy}`
-  );
-  console.log(`字段映射:`, Array.from(fieldMapping.keys()).slice(0, 10));
-
   if (columnIndex === undefined) {
-    console.log(`❌ 未找到字段 ${rule.field} 的列索引`);
     return errors;
   }
 
@@ -660,10 +653,6 @@ function validateFrequency(rule, rows, fieldMapping) {
     const implementer = data[groupBy]; // 实施人
 
     if (processedRows <= 5) {
-      console.log(
-        `行${rowNumber}: groupBy="${groupBy}", implementer="${implementer}"`
-      );
-      console.log(`数据键:`, Object.keys(data).slice(0, 10));
     }
 
     if (!implementer) continue;
@@ -687,7 +676,6 @@ function validateFrequency(rule, rows, fieldMapping) {
       data["填写时间"];
 
     if (processedRows <= 5) {
-      console.log(`行${rowNumber}: dateValue="${dateValue}"`);
     }
 
     if (!dateValue) continue;
@@ -695,11 +683,6 @@ function validateFrequency(rule, rows, fieldMapping) {
 
     const date = parseDate(dateValue);
     if (processedRows <= 5) {
-      console.log(
-        `行${rowNumber}: 解析日期 "${dateValue}" -> ${
-          date ? date.toISOString().split("T")[0] : "null"
-        }`
-      );
     }
     if (!date) continue;
 
@@ -767,11 +750,7 @@ function validateFrequency(rule, rows, fieldMapping) {
     }
   }
 
-  console.log(
-    `📊 频次验证总结: 处理${processedRows}行, 有效${validRows}行, 发现${errors.length}个错误`
-  );
   if (errors.length > 0) {
-    console.log(`频次验证错误:`, errors.slice(0, 3));
   }
 
   return errors;
@@ -900,7 +879,6 @@ function parseDate(value) {
 
     // 调试信息
     if (originalStr.includes("2025.8.1")) {
-      console.log(`🔧 parseDate调试: "${originalStr}" -> "${str}"`);
     }
 
     // Handle Excel date numbers (days since 1900-01-01)
@@ -999,6 +977,70 @@ function createFieldMapping(headerRow, template) {
   });
 
   return mapping;
+}
+
+// 基于工作表的分块行级验证（减少单次内存峰值）
+async function validateRowsChunked(sheet, template, headerRowIndex) {
+  const errors = [];
+  // 解析表范围
+  const ref = sheet["!ref"];
+  if (!ref) return errors;
+  const range = XLSX.utils.decode_range(ref);
+  const totalRows = Math.max(0, range.e.r - (headerRowIndex + 1) + 1);
+  if (totalRows <= 0) return errors;
+
+  // 构建字段映射
+  const headerOnly = XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
+    range: {
+      s: { r: headerRowIndex, c: 0 },
+      e: { r: headerRowIndex, c: range.e.c },
+    },
+  });
+  const headerRow = headerOnly[0] || [];
+  const fieldMapping = createFieldMapping(headerRow, template);
+
+  // 从数据起始行开始按块读取
+  const startRow = headerRowIndex + 1;
+  const chunkSize = PERFORMANCE_CONFIG.CHUNK_SIZE;
+
+  for (let r = startRow; r <= range.e.r; r += chunkSize) {
+    if (isValidationCancelled) break;
+    const end = Math.min(r + chunkSize - 1, range.e.r);
+    const rows = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      defval: "",
+      raw: false,
+      dateNF: "yyyy-mm-dd",
+      range: { s: { r, c: 0 }, e: { r: end, c: range.e.c } },
+    });
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.every((cell) => !cell)) continue;
+      for (const rule of template.validationRules || []) {
+        const colIndex = fieldMapping.get(rule.field);
+        if (colIndex === undefined) continue;
+        const value = row[colIndex];
+        const rowNumber = r + i + 1; // 工作表实际行号
+        const error = validateField(
+          value,
+          rule,
+          rowNumber,
+          colIndex,
+          undefined
+        );
+        if (error) errors.push(error);
+      }
+    }
+
+    const processed = Math.min(end, range.e.r) - startRow + 1;
+    const progress = 60 + Math.floor((processed / totalRows) * 20);
+    sendProgress(`验证数据行 ${processed}/${totalRows}...`, progress);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  return errors;
 }
 
 // Main message handler
@@ -1165,7 +1207,8 @@ async function validateExcel(data) {
   sendProgress("正在验证数据行...", 60);
 
   // Validate data rows using detected header row index
-  const errors = validateRows(
+  // 使用分块策略降低内存峰值
+  const errors = await validateRowsChunked(
     targetWorksheet,
     validationTemplate,
     headerValidation.headerRowIndex
@@ -1313,8 +1356,6 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
       zipContent,
       selectedSheet
     );
-    console.log("图片位置映射结果:", imagePositions);
-    console.log("图片位置映射数量:", imagePositions.size);
 
     if (mediaFolder) {
       const imagePromises = [];
@@ -1358,9 +1399,6 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
 
             if (Array.isArray(posList) && posList.length > 0) {
               posList.forEach((positionInfo, dupIdx) => {
-                console.log(
-                  `✅ 图片位置信息: ${relativePath} -> 行${positionInfo.row}, 位置${positionInfo.position} (精确解析)`
-                );
                 images.push({
                   id:
                     positionInfo && positionInfo.position
@@ -1399,14 +1437,7 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
       await Promise.all(imagePromises);
     }
 
-    console.log(`图片验证: 找到 ${images.length} 张图片`);
     images.forEach((img, i) => {
-      console.log(
-        `图片 ${i + 1}: ID=${img.id}, 显示位置=${img.position}, 实际行号=${
-          img.row
-        }, 列=${img.column}`
-      );
-
       // 仅记录位置不一致，用于排查；不强制修改，避免覆盖真实锚点
       if (img.position && img.row) {
         const expectedPosition = `${img.column || "N"}${img.row}`;
@@ -1432,60 +1463,73 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
     // Validate images with real algorithms
     const results = [];
 
-    for (let i = 0; i < images.length; i++) {
-      const image = images[i];
+    // 串行处理避免内存溢出（700+张图片时并发会导致崩溃）
+    const concurrency = 1; // 强制串行处理，避免内存问题
 
-      try {
-        // 计算图片清晰度（简化的拉普拉斯方差）
-        const sharpness = await calculateImageSharpness(image.data);
+    let completed = 0;
+    for (let i = 0; i < images.length; i += concurrency) {
+      const batch = images.slice(i, i + concurrency);
+      await Promise.all(
+        batch.map(async (image) => {
+          try {
+            const sharpness = await calculateImageSharpness(image.data);
+            const hash = await calculateImageHash(image.data);
 
-        // 计算图片感知哈希（基于blockhash算法）
-        const hash = await calculateImageHash(image.data);
+            const result = {
+              id: image.id,
+              sharpness,
+              isBlurry: sharpness < 60,
+              hash,
+              duplicates: [],
+              position: image.position,
+              row: image.row,
+              column: image.column,
+              // 移除imageData存储以避免内存溢出（700+张图片时会导致崩溃）
+              mimeType: image.name.toLowerCase().endsWith(".png")
+                ? "image/png"
+                : image.name.toLowerCase().endsWith(".jpg") ||
+                  image.name.toLowerCase().endsWith(".jpeg")
+                ? "image/jpeg"
+                : "image/png",
+              size: image.data.length,
+            };
+            results.push(result);
+          } catch (error) {
+            console.warn(`Failed to analyze image ${image.id}:`, error);
+            results.push({
+              id: image.id,
+              sharpness: 0,
+              isBlurry: true,
+              hash: "",
+              duplicates: [],
+              position: image.position,
+              row: image.row,
+              column: image.column,
+            });
+          } finally {
+            completed++;
+            const progress = 30 + (completed / images.length) * 60;
+            sendProgress(
+              `正在分析图片 ${completed}/${images.length}...`,
+              progress
+            );
+          }
+        })
+      );
 
-        const result = {
-          id: image.id,
-          sharpness,
-          isBlurry: sharpness < 60, // Laplacian 方差阈值：< 30 判为模糊（宽松）
-          hash,
-          duplicates: [],
-          position: image.position,
-          row: image.row,
-          column: image.column,
-          // 添加图片数据用于展示（使用普通数组，兼容现有前端判断与类型）
-          imageData: Array.from(image.data),
-          mimeType: image.name.toLowerCase().endsWith(".png")
-            ? "image/png"
-            : image.name.toLowerCase().endsWith(".jpg") ||
-              image.name.toLowerCase().endsWith(".jpeg")
-            ? "image/jpeg"
-            : "image/png", // 默认PNG
-          size: image.data.length,
-        };
-
-        results.push(result);
-      } catch (error) {
-        console.warn(`Failed to analyze image ${image.id}:`, error);
-        // 如果图片分析失败，标记为模糊
-        results.push({
-          id: image.id,
-          sharpness: 0,
-          isBlurry: true,
-          hash: "",
-          duplicates: [],
-          position: image.position,
-          row: image.row,
-          column: image.column,
-        });
+      // 内存清理和让出控制权（处理大量图片时防止崩溃）
+      if (typeof self.gc === "function") {
+        self.gc(); // 强制垃圾回收（如果可用）
       }
 
-      const progress = 30 + (i / images.length) * 60;
-      sendProgress(`正在分析图片 ${i + 1}/${images.length}...`, progress);
+      // 增加处理间隔，让浏览器有时间回收内存
+      await new Promise((r) => setTimeout(r, 100));
     }
 
     sendProgress("正在检测重复图片...", 95);
 
     // Detect duplicates (simplified)
-    console.log("开始重复检测，图片数量:", results.length);
+
     // 构建图片数据映射用于二次确认
     const imageDataMap = new Map();
     for (const img of images) {
@@ -1495,10 +1539,8 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
 
     // 调试：输出重复检测结果
     const duplicateResults = results.filter((r) => r.duplicates.length > 0);
-    console.log("重复检测完成，发现重复图片:", duplicateResults.length);
-    duplicateResults.forEach((r) => {
-      console.log(`图片 ${r.id} 的重复项:`, r.duplicates);
-    });
+
+    duplicateResults.forEach((r) => {});
 
     const blurryImages = results.filter((r) => r.isBlurry).length;
     const duplicateGroups = countDuplicateGroups(results);
@@ -1645,7 +1687,7 @@ async function calculateImageHash(imageData) {
     if (!ctx) return "";
 
     ctx.drawImage(bitmap, 0, 0);
-    bitmap.close();
+    bitmap.close(); // 立即释放bitmap资源
 
     const imagePixelData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
@@ -1654,6 +1696,11 @@ async function calculateImageHash(imageData) {
       imagePixelData,
       IMAGE_DUP_CONFIG.BLOCKHASH_BITS
     );
+
+    // 清理canvas资源
+    canvas.width = 0;
+    canvas.height = 0;
+
     return hash;
   } catch (error) {
     console.warn("感知哈希计算失败:", error);
@@ -2032,20 +2079,15 @@ function validateField(value, rule, row, column, rowData) {
           : value;
 
       if (row <= 8) {
-        console.log(
-          `🗓️ 日期格式验证 行${row}: 字段="${rule.field}", 值="${originalValue}", allowTimeComponent=${rule.params?.allowTimeComponent}`
-        );
       }
 
       if (originalValue) {
         const hasTimeComponent = checkHasTimeComponent(originalValue);
         if (row <= 8) {
-          console.log(`🗓️ 行${row}: hasTimeComponent=${hasTimeComponent}`);
         }
 
         if (!rule.params?.allowTimeComponent && hasTimeComponent) {
           if (row <= 8) {
-            console.log(`❌ 行${row}: 日期格式错误 - 包含时间组件`);
           }
           return {
             row,
@@ -2224,10 +2266,6 @@ async function detectDuplicates(results, imageDataMap) {
   const nearMargin = IMAGE_DUP_CONFIG.NEAR_THRESHOLD_MARGIN;
   const madThreshold = 10; // MAD阈值（与 64x64 尺寸配套可适当上调或下调）
 
-  console.log(
-    `视觉重复检测开始，blockhash阈值: ${threshold}, MAD阈值: ${madThreshold}, 图片数量: ${results.length}`
-  );
-
   // 过滤掉空哈希的图片（视觉哈希计算失败的）
   const validResults = results.filter((r) => r.hash && r.hash.length > 0);
   const skippedCount = results.length - validResults.length;
@@ -2287,23 +2325,8 @@ async function detectDuplicates(results, imageDataMap) {
             ssim >= IMAGE_DUP_CONFIG.SSIM_GOOD;
 
           if (!(madOk && ssimOk)) {
-            console.log(
-              `[二次/三次确认失败] ${validResults[i].id} vs ${
-                validResults[j].id
-              }: 哈希=${distance}, MAD=${mad.toFixed(1)}, SSIM=${ssim.toFixed(
-                3
-              )}`
-            );
             continue;
           }
-
-          console.log(
-            `✅ 发现视觉重复图片: ${validResults[i].id} 与 ${
-              validResults[j].id
-            }, 哈希距离: ${distance}/${hash1.length * 4}, MAD: ${mad.toFixed(
-              1
-            )}${IMAGE_DUP_CONFIG.USE_SSIM ? `, SSIM: ${ssim.toFixed(3)}` : ""}`
-          );
 
           // 标记为重复，包含位置信息
           const duplicateJ = {
@@ -2337,8 +2360,6 @@ async function detectDuplicates(results, imageDataMap) {
       }
     }
   }
-
-  console.log("视觉重复检测完成");
 }
 
 // 计算汉明距离（用于十六进制哈希字符串）
@@ -2560,9 +2581,6 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
       selectedSheet
     );
     if (cellimagesResult.size > 0) {
-      console.log(
-        `🎯 Worker: 从 cellimages.xml 提取到 ${cellimagesResult.size} 个图片位置`
-      );
       return cellimagesResult;
     }
 
@@ -2587,9 +2605,6 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
         targetSheetFiles = sheetFiles.filter(
           (file) => file === targetSheetFile
         );
-        console.log(
-          `🎯 过滤到目标工作表: ${selectedSheet} -> ${targetSheetFile}`
-        );
       } else {
         console.warn(
           `⚠️ 无法找到工作表 "${selectedSheet}" 对应的文件，将处理所有工作表`
@@ -2599,15 +2614,13 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
 
     for (const sheetFile of targetSheetFiles) {
       const sheetPath = `xl/worksheets/${sheetFile}`;
-      console.log(`处理工作表: ${sheetFile}`);
+
       const sheetXmlText = await readTextIfExists(sheetPath);
       if (!sheetXmlText) {
-        console.log(`工作表 ${sheetFile} 无内容，跳过`);
         continue;
       }
       const sheetXml = parseXml(sheetXmlText);
       if (!sheetXml) {
-        console.log(`工作表 ${sheetFile} XML解析失败，跳过`);
         continue;
       }
 
@@ -2617,7 +2630,6 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
         ? drawingEl.getAttribute("r:id") || drawingEl.getAttribute("rel:id")
         : null;
       if (drawingEl && drawingRelId) {
-        console.log(`工作表 ${sheetFile} 找到drawing ID: ${drawingRelId}`);
       }
 
       // Resolve sheet rels to drawing path（包括 headerFooter 图）
@@ -2739,17 +2751,11 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
             let target = dr.getAttribute("Target") || "";
             if (!id || !target) continue;
             const basename = target.replace(/^.*\//, "");
-            console.log(
-              `[extractImagePositions] Mapping relId '${id}' to target '${target}' (basename: '${basename}')`
-            );
+
             embedRelMap.set(id, basename);
           }
         }
       }
-      console.log(
-        "[extractImagePositions] Populated embedRelMap:",
-        embedRelMap
-      );
 
       // Drawing anchors: support xdr:twoCellAnchor and xdr:oneCellAnchor
       // 尝试不同的命名空间前缀
@@ -2767,7 +2773,7 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
         const elements = drawingXml.getElementsByTagName(selector);
         if (elements.length > 0) {
           anchors = Array.from(elements);
-          console.log(`使用选择器 ${selector} 找到 ${anchors.length} 个锚点`);
+
           break;
         }
       }
@@ -2830,18 +2836,12 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
           blipEls[0].getAttribute("embed");
         if (!embedId) continue;
         const mediaKeyFromRel = embedRelMap.get(embedId);
-        console.log(
-          `[extractImagePositions] Anchor embedId: '${embedId}', found media key: '${mediaKeyFromRel}'`
-        );
+
         if (!mediaKeyFromRel) continue;
 
         const excelRow = rowIdx + 1; // convert to 1-based
         const excelColLetter = columnIndexToLetter(colIdx);
         const position = `${excelColLetter}${excelRow}`;
-
-        console.log(
-          `找到图片位置: ${mediaKeyFromRel} -> ${position} (行${excelRow}, 列${excelColLetter})`
-        );
 
         const list = imagePositions.get(mediaKeyFromRel) || [];
         list.push({ position, row: excelRow, column: excelColLetter });
@@ -2861,10 +2861,6 @@ function extractPositionFromPath(imagePath, index) {
   // 启发式方法：基于图片索引计算位置
   const estimatedRow = 4 + index * 5; // 从第4行开始，每张图片间隔5行
   const column = "A"; // 假设图片在A列
-
-  console.log(
-    `备用位置计算: ${imagePath} (索引${index}) -> ${column}${estimatedRow}`
-  );
 
   return {
     position: `${column}${estimatedRow}`,
@@ -2959,28 +2955,18 @@ async function extractFromCellImagesWorker(
 
   try {
     // 检查是否存在 cellimages.xml
-    console.log("🔍 Worker: 检查 cellimages.xml 文件...");
+
     const cellimagesXmlText = await readTextIfExists("xl/cellimages.xml");
     if (!cellimagesXmlText) {
-      console.log("❌ Worker: 未找到 xl/cellimages.xml");
       return imagePositions;
     }
-    console.log(
-      "✅ Worker: 找到 cellimages.xml，长度:",
-      cellimagesXmlText.length
-    );
 
     const cellimagesRelsText = await readTextIfExists(
       "xl/_rels/cellimages.xml.rels"
     );
     if (!cellimagesRelsText) {
-      console.log("❌ Worker: 未找到 xl/_rels/cellimages.xml.rels");
       return imagePositions;
     }
-    console.log(
-      "✅ Worker: 找到 cellimages.xml.rels，长度:",
-      cellimagesRelsText.length
-    );
 
     const cellimagesRelsXml = parseXmlWorker(cellimagesRelsText);
     if (!cellimagesRelsXml) return imagePositions;
@@ -2996,7 +2982,6 @@ async function extractFromCellImagesWorker(
         // target 格式: "media/image1.jpeg"
         const basename = target.replace(/^.*\//, "");
         embedRelMap.set(id, basename);
-        console.log(`📎 Worker WPS 关系映射: ${id} -> ${basename}`);
       }
     }
 
@@ -3006,7 +2991,6 @@ async function extractFromCellImagesWorker(
       readTextIfExists,
       parseXml
     );
-    console.log(`🔍 Worker 检测到表格结构:`, tableStructure);
 
     // WPS 的 cellimages.xml 包含图片但没有位置信息
     // 我们需要使用智能位置估算
@@ -3056,11 +3040,6 @@ async function extractFromCellImagesWorker(
         positionInfo = calculateImagePositionWorker(i, tableStructure);
         positionInfo.method = "index_estimation";
         positionInfo.confidence = "medium";
-        console.log(
-          `📍 Worker使用位置估算: ${mediaKey} -> ${positionInfo.position} (第${
-            i + 1
-          }张图片)`
-        );
       } else {
         positionInfo.method = "dispimg_formula";
         positionInfo.confidence = "high";
@@ -3073,9 +3052,6 @@ async function extractFromCellImagesWorker(
           (positionInfo.column === "M" || positionInfo.column === "N") &&
           positionInfo.row >= 4;
         if (!isValidPosition) {
-          console.log(
-            `⏭️ Worker跳过位置不合理的图片: ${mediaKey} (估算位置: ${positionInfo.position})`
-          );
           continue;
         }
       }
@@ -3097,14 +3073,6 @@ async function extractFromCellImagesWorker(
         positionInfo.duplicates.forEach((dupPos) => pushUnique(dupPos));
       }
       imagePositions.set(mediaKey, list);
-
-      console.log(
-        `🎯 Worker WPS 图片位置${
-          positionInfo.method === "dispimg_formula" ? "(DISPIMG公式)" : "(估算)"
-        }: ${mediaKey} -> ${positionInfo.position} (${
-          positionInfo.type || positionInfo.method
-        })`
-      );
     }
 
     return imagePositions;
@@ -3151,7 +3119,6 @@ async function analyzeTableStructureWorker(
 
     // 如果无法读取工作表数据，返回默认结构
     if (!sharedStringsText) {
-      console.log("📋 Worker 使用默认表格结构 (药店拜访模式)");
       return structurePatterns["药店拜访"];
     }
 
@@ -3170,22 +3137,18 @@ async function analyzeTableStructureWorker(
 
     // 检测表头中的关键词来判断拜访类型
     const headerText = strings.join(" ").toLowerCase();
-    console.log("📋 Worker 检测到的表头关键词:", headerText.substring(0, 200));
 
     // 根据表头内容判断拜访类型
     if (headerText.includes("医院门头照") && headerText.includes("科室照片")) {
-      console.log("🏥 Worker 检测到医院拜访类模式");
       return structurePatterns["医院拜访类"];
     } else if (headerText.includes("科室") && headerText.includes("内部照片")) {
-      console.log("🏥 Worker 检测到科室拜访模式");
       return structurePatterns["科室拜访"];
     } else if (headerText.includes("门头") && headerText.includes("内部")) {
-      console.log("🏪 Worker 检测到药店拜访模式");
       return structurePatterns["药店拜访"];
     }
 
     // 默认返回药店拜访模式
-    console.log("📋 Worker 使用默认药店拜访模式");
+
     return structurePatterns["药店拜访"];
   } catch (error) {
     console.warn("Worker 表格结构分析失败，使用默认结构:", error);
@@ -3206,9 +3169,7 @@ async function getPositionFromDISPIMGWorker(
   selectedSheet = null
 ) {
   try {
-    console.log(`🔍 Worker查找DISPIMG公式中的图片ID: ${dispimgId}`);
     if (selectedSheet) {
-      console.log(`🎯 Worker只在工作表 "${selectedSheet}" 中查找`);
     }
 
     // 查找工作表文件
@@ -3247,9 +3208,7 @@ async function getPositionFromDISPIMGWorker(
                 if (relMatch) {
                   const relTarget = relMatch[1]; // 例如: "worksheets/sheet1.xml"
                   targetSheetFile = relTarget.split("/").pop(); // 提取文件名: "sheet1.xml"
-                  console.log(
-                    `🔍 Worker找到工作表映射: ${sheetName} (${rId}) -> ${targetSheetFile}`
-                  );
+
                   break;
                 }
               }
@@ -3260,7 +3219,6 @@ async function getPositionFromDISPIMGWorker(
             worksheetFiles = worksheetFiles.filter((file) =>
               file.endsWith(targetSheetFile)
             );
-            console.log(`🎯 Worker过滤到目标工作表文件: ${targetSheetFile}`);
           } else {
             console.warn(
               `⚠️ Worker无法找到工作表 "${selectedSheet}" 对应的文件`
@@ -3318,7 +3276,6 @@ async function getPositionFromDISPIMGWorker(
     }
 
     if (allPositions.length === 0) {
-      console.log(`❌ Worker未找到DISPIMG公式中的图片ID: ${dispimgId}`);
       return null;
     }
 
@@ -3339,9 +3296,6 @@ async function getPositionFromDISPIMGWorker(
       };
     }
 
-    console.log(
-      `✅ Worker找到DISPIMG公式位置: ${dispimgId} -> ${allPositions[0].position}`
-    );
     return allPositions[0];
   } catch (error) {
     console.warn("Worker从DISPIMG公式获取位置失败:", error);

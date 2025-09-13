@@ -6,7 +6,6 @@ export const maxDuration = 10;
 
 export async function GET() {
   try {
-    console.log("Testing template loading...");
 
     const parser = new TemplateParser();
     await parser.loadTemplates();

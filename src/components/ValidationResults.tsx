@@ -660,7 +660,7 @@ export default function ValidationResults({
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
                         {(result.duplicates?.length ?? 0) > 0 ? (
-                          <div className="max-w-xs">
+                          <div>
                             <div className="flex items-center space-x-2 mb-2">
                               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                 重复组 ({result.duplicates.length + 1}张)
@@ -677,7 +677,13 @@ export default function ValidationResults({
                               <div className="text-gray-500 mb-1">
                                 其他重复位置：
                               </div>
-                              <div className="space-y-1 max-h-20 overflow-y-auto">
+                              <div
+                                className={`grid gap-x-4 gap-y-1 ${
+                                  result.duplicates.length > 4
+                                    ? "grid-cols-2"
+                                    : "grid-cols-1"
+                                }`}
+                              >
                                 {result.duplicates.map(
                                   (duplicate: any, idx: number) => {
                                     const renderPosText = () => {

@@ -156,7 +156,7 @@ class TemplateManager {
         }
 
         if (template) {
-          console.info(`Template loaded from fallback source: ${source}`);
+          
           return template;
         }
       } catch (error) {

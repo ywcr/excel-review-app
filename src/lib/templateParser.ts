@@ -63,7 +63,7 @@ export class TemplateParser {
         try {
           if (fs.existsSync(testPath)) {
             this.templatePath = testPath;
-            console.log("Found template file at:", testPath);
+            
             break;
           }
         } catch (pathError) {
@@ -80,12 +80,10 @@ export class TemplateParser {
       );
     }
 
-    console.log("Final template path:", this.templatePath);
   }
 
   async loadTemplates(): Promise<void> {
     try {
-      console.log("Loading templates from:", this.templatePath);
 
       // Check if file exists
       if (!fs.existsSync(this.templatePath)) {
@@ -133,7 +131,6 @@ export class TemplateParser {
   }
 
   private loadEmbeddedTemplates(): void {
-    console.log("Loading embedded templates...");
 
     for (const [name, template] of Object.entries(EMBEDDED_TEMPLATES)) {
       this.templates.set(name, {
@@ -144,10 +141,6 @@ export class TemplateParser {
       });
     }
 
-    console.log(
-      `Loaded ${this.templates.size} embedded templates:`,
-      Array.from(this.templates.keys())
-    );
   }
 
   private async parseExcelTemplate(

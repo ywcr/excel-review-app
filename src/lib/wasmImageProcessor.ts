@@ -30,7 +30,6 @@ class WasmImageProcessor {
       this.wasmModule = this.createMockWasmModule();
       this.isLoaded = true;
 
-      console.log("WASM Image Processor initialized");
     } catch (error) {
       console.error("Failed to initialize WASM module:", error);
       throw error;

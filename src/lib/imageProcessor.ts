@@ -88,19 +88,17 @@ export class ImageProcessor {
     file: File,
     selectedSheet?: string
   ): Promise<ImageInfo[]> {
-    console.log("🚀 开始统一图片提取...");
+    
     if (selectedSheet) {
-      console.log(`🎯 仅提取工作表 "${selectedSheet}" 的图片`);
+      
     }
 
     try {
       // 方法1: 优先使用DISPIMG公式提取（最准确）
       const formulaImages = await this.extractFromFormulas(file, selectedSheet);
-      console.log(`公式方法提取到 ${formulaImages.length} 个图片`);
 
       // 方法2: 使用ZIP解析作为补充
       const zipImages = await this.extractFromZip(file, selectedSheet);
-      console.log(`ZIP方法提取到 ${zipImages.length} 个图片`);
 
       // 合并结果，优先使用公式方法
       const allImages = this.mergeAndDeduplicateImages([
@@ -108,7 +106,6 @@ export class ImageProcessor {
         ...zipImages,
       ]);
 
-      console.log(`最终合并得到 ${allImages.length} 个图片`);
       return allImages;
     } catch (error) {
       console.error("增强提取失败，回退到原始方法:", error);
@@ -122,10 +119,13 @@ export class ImageProcessor {
    * @returns 验证结果汇总
    */
   async validateImages(images: ImageInfo[]): Promise<ImageValidationSummary> {
-    console.log(`🚀 开始验证 ${images.length} 张图片...`);
 
     const results: ImageValidationResult[] = [];
-    const concurrency = 3; // 并发处理数量
+    const cores =
+      (typeof navigator !== "undefined" &&
+        (navigator as any).hardwareConcurrency) ||
+      4;
+    const concurrency = Math.max(2, Math.min(4, cores)); // 根据硬件并发自适应，范围 2-6
 
     // 分批处理图片
     for (let i = 0; i < images.length; i += concurrency) {
@@ -165,7 +165,7 @@ export class ImageProcessor {
 
       // 更新进度
       const progress = Math.round(((i + batch.length) / images.length) * 100);
-      console.log(`图片验证进度: ${progress}%`);
+      
     }
 
     // 检测重复图片

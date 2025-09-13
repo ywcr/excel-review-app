@@ -27,7 +27,7 @@ export default function FrontendSheetSelector({
   };
 
   const handleCancel = () => {
-    console.log("FrontendSheetSelector: 取消按钮被点击");
+    
     onCancel();
   };
 
