@@ -23,6 +23,7 @@ interface ValidationResult {
     totalImages: number;
     blurryImages: number;
     duplicateGroups: number;
+    watermarkedImages?: number; // 新增：包含水印的图片数量
     results: Array<{
       id: string;
       sharpness: number;
@@ -39,6 +40,18 @@ interface ValidationResult {
       imageData?: number[]; // Worker传递的数组格式
       mimeType?: string;
       size?: number;
+      watermark?: {
+        // 新增：水印检测结果
+        hasWatermark: boolean;
+        confidence: number;
+        detectionMethods: string[];
+        details: {
+          transparencyScore: number;
+          edgeDensityScore: number;
+          patternScore: number;
+          colorVarianceScore: number;
+        };
+      };
     }>;
     warning?: string; // 图片解析警告（例如 .xls 不支持）
   };
@@ -312,16 +325,38 @@ export default function ValidationResults({
                   <p className="text-xs text-gray-700">重复组</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-bold text-green-600">
-                    {(validation.imageValidation?.totalImages ?? 0) -
-                      (validation.imageValidation?.blurryImages ?? 0) -
-                      (validation.imageValidation?.results ?? []).filter(
-                        (r) => (r.duplicates?.length ?? 0) > 0
-                      ).length}
+                  <p className="text-lg font-bold text-purple-600">
+                    {validation.imageValidation.watermarkedImages || 0}
                   </p>
-                  <p className="text-xs text-gray-700">正常图片</p>
+                  <p className="text-xs text-gray-700">水印图片</p>
                 </div>
               </div>
+              {/* 水印检测说明 */}
+              {(validation.imageValidation.watermarkedImages || 0) > 0 && (
+                <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                  <div className="flex items-start">
+                    <svg
+                      className="w-4 h-4 text-purple-600 mr-2 mt-0.5 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 9v2m0 4h.01M4.93 19.07A10 10 0 1119.07 4.93 10 10 0 014.93 19.07z"
+                      />
+                    </svg>
+                    <div className="text-sm text-purple-800">
+                      <strong>水印检测警告：</strong>
+                      检测到 {validation.imageValidation.watermarkedImages}{" "}
+                      张图片包含水印。
+                      包含水印的图片可能不符合提交要求，请检查并替换为无水印的原始图片。
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -552,13 +587,18 @@ export default function ValidationResults({
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     重复图片
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    水印检测
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {deduplicateImageResults(
                   (validation.imageValidation?.results ?? []).filter(
                     (result) =>
-                      result.isBlurry || (result.duplicates?.length ?? 0) > 0
+                      result.isBlurry ||
+                      (result.duplicates?.length ?? 0) > 0 ||
+                      result.watermark?.hasWatermark
                   )
                 )
                   .sort((a, b) => {
@@ -714,6 +754,35 @@ export default function ValidationResults({
                           </div>
                         ) : (
                           "-"
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {result.watermark ? (
+                          <div>
+                            <span
+                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                result.watermark.hasWatermark
+                                  ? "bg-purple-100 text-purple-800"
+                                  : "bg-green-100 text-green-800"
+                              }`}
+                            >
+                              {result.watermark.hasWatermark
+                                ? "有水印"
+                                : "无水印"}
+                            </span>
+                            {result.watermark.hasWatermark && (
+                              <div className="mt-1 text-xs text-gray-500">
+                                置信度:{" "}
+                                {(result.watermark.confidence * 100).toFixed(1)}
+                                %
+                                <br />
+                                检测方法:{" "}
+                                {result.watermark.detectionMethods.join(", ")}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-xs">未检测</span>
                         )}
                       </td>
                     </tr>
