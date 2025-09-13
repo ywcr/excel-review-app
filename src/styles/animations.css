@@ -1,0 +1,283 @@
+/* 轻量级动画样式 - 专为您老婆设计的温馨效果 */
+
+/* CSS变量定义 */
+:root {
+  --animation-enabled: 1;
+  --animation-duration: 0.3s;
+  --animation-timing: cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* 温馨色彩变量 */
+  --warm-pink: #ec4899;
+  --warm-orange: #f97316;
+  --warm-purple: #8b5cf6;
+  --warm-blue: #06b6d4;
+  --warm-green: #10b981;
+  
+  /* 渐变背景 */
+  --gentle-gradient: linear-gradient(135deg, #fef7f0 0%, #fdf2f8 25%, #f0f9ff 50%, #f7fee7 75%, #fef7f0 100%);
+}
+
+/* 性能模式下禁用动画 */
+[data-performance-mode="true"] * {
+  animation-duration: 0s !important;
+  transition-duration: 0s !important;
+}
+
+/* 用户偏好：减少动画 */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+}
+
+/* 温馨的卡片悬停效果 */
+.warm-card {
+  transition: all var(--animation-duration) var(--animation-timing);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.warm-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* 温馨的输入框效果 */
+.warm-input {
+  transition: all var(--animation-duration) var(--animation-timing);
+  border-radius: 8px;
+}
+
+.warm-input:focus {
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+  border-color: var(--warm-pink);
+}
+
+/* 温馨的复选框效果 */
+.warm-checkbox {
+  accent-color: var(--warm-pink);
+  transition: all var(--animation-duration) var(--animation-timing);
+}
+
+/* 温馨的文件上传区域 */
+.warm-upload-area {
+  transition: all var(--animation-duration) var(--animation-timing);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fefefe 0%, #fdf2f8 100%);
+}
+
+.warm-upload-area:hover {
+  background: linear-gradient(135deg, #fdf2f8 0%, #f0f9ff 100%);
+  border-color: var(--warm-pink);
+  transform: scale(1.01);
+}
+
+.warm-upload-area.drag-active {
+  background: linear-gradient(135deg, #fdf2f8 0%, #f0f9ff 100%);
+  border-color: var(--warm-pink);
+  box-shadow: 0 0 20px rgba(236, 72, 153, 0.2);
+}
+
+/* 温馨的表格样式 */
+.warm-table {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.warm-table th {
+  background: linear-gradient(135deg, #fdf2f8 0%, #f0f9ff 100%);
+  color: #374151;
+  font-weight: 600;
+}
+
+.warm-table tr:hover {
+  background: linear-gradient(135deg, #fefefe 0%, #fdf2f8 100%);
+  transition: all var(--animation-duration) var(--animation-timing);
+}
+
+/* 温馨的标签效果 */
+.warm-badge {
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all var(--animation-duration) var(--animation-timing);
+}
+
+.warm-badge-success {
+  background: linear-gradient(135deg, var(--warm-green) 0%, #059669 100%);
+  color: white;
+}
+
+.warm-badge-error {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.warm-badge-warning {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+.warm-badge-info {
+  background: linear-gradient(135deg, var(--warm-blue) 0%, #0891b2 100%);
+  color: white;
+}
+
+/* 温馨的加载动画 */
+.warm-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f3f4f6;
+  border-top: 2px solid var(--warm-pink);
+  border-radius: 50%;
+  animation: warmSpin 1s linear infinite;
+}
+
+@keyframes warmSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 温馨的脉冲效果 */
+.warm-pulse {
+  animation: warmPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes warmPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* 温馨的弹跳效果 */
+.warm-bounce {
+  animation: warmBounce 1s infinite;
+}
+
+@keyframes warmBounce {
+  0%, 20%, 53%, 80%, 100% {
+    animation-timing-function: cubic-bezier(0.215, 0.610, 0.355, 1.000);
+    transform: translate3d(0, 0, 0);
+  }
+  40%, 43% {
+    animation-timing-function: cubic-bezier(0.755, 0.050, 0.855, 0.060);
+    transform: translate3d(0, -8px, 0);
+  }
+  70% {
+    animation-timing-function: cubic-bezier(0.755, 0.050, 0.855, 0.060);
+    transform: translate3d(0, -4px, 0);
+  }
+  90% {
+    transform: translate3d(0, -2px, 0);
+  }
+}
+
+/* 温馨的淡入效果 */
+.warm-fade-in {
+  animation: warmFadeIn var(--animation-duration) var(--animation-timing) forwards;
+}
+
+@keyframes warmFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 温馨的滑入效果 */
+.warm-slide-in {
+  animation: warmSlideIn var(--animation-duration) var(--animation-timing) forwards;
+}
+
+@keyframes warmSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 温馨的缩放效果 */
+.warm-scale-in {
+  animation: warmScaleIn var(--animation-duration) var(--animation-timing) forwards;
+}
+
+@keyframes warmScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 温馨的心跳效果（用于重要提示） */
+.warm-heartbeat {
+  animation: warmHeartbeat 1.5s ease-in-out infinite both;
+}
+
+@keyframes warmHeartbeat {
+  from {
+    transform: scale(1);
+    transform-origin: center center;
+    animation-timing-function: ease-out;
+  }
+  10% {
+    transform: scale(0.91);
+    animation-timing-function: ease-in;
+  }
+  17% {
+    transform: scale(0.98);
+    animation-timing-function: ease-out;
+  }
+  33% {
+    transform: scale(0.87);
+    animation-timing-function: ease-in;
+  }
+  45% {
+    transform: scale(1);
+    animation-timing-function: ease-out;
+  }
+}
+
+/* 温馨的闪烁效果（用于成功提示） */
+.warm-twinkle {
+  animation: warmTwinkle 1s ease-in-out infinite alternate;
+}
+
+@keyframes warmTwinkle {
+  from {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+/* 响应式调整 */
+@media (max-width: 640px) {
+  .warm-card:hover {
+    transform: none; /* 移动设备上禁用悬停变换 */
+  }
+  
+  .warm-upload-area:hover {
+    transform: none;
+  }
+}
