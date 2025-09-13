@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from "react";
-// 氛围设置已移除
+import { WarmButton } from "@/components/LightweightAnimations";
 
 interface FileUploadProps {
   onFileUpload: (file: File) => void | Promise<void>;

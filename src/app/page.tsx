@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import FileUpload from "@/components/FileUpload";
 import TaskSelector from "@/components/TaskSelector";
 import ValidationRequirements from "@/components/ValidationRequirements";
@@ -8,9 +8,16 @@ import ValidationResults from "@/components/ValidationResults";
 import FrontendSheetSelector from "@/components/FrontendSheetSelector";
 import { useFrontendValidation } from "@/hooks/useFrontendValidation";
 import { getAvailableTasks } from "@/lib/validationRules";
-// 氛围相关功能已移除
+import {
+  AnimationProvider,
+  GentleGradientBackground,
+  WarmButton,
+  WarmProgressBar,
+  SuccessAnimation,
+} from "@/components/LightweightAnimations";
+import { usePerformanceMode } from "@/hooks/usePerformanceMode";
 
-export default function Home() {
+function HomeContent() {
   const availableTasks = getAvailableTasks();
   const [selectedTask, setSelectedTask] = useState<string>(
     availableTasks[0] || ""
@@ -19,7 +26,10 @@ export default function Home() {
   const [showSheetSelector, setShowSheetSelector] = useState(false);
   const [includeImageValidation, setIncludeImageValidation] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  // 氛围相关状态已移除
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+
+  // 性能监控和动画控制
+  const { updateMetrics, isAnimationEnabled } = usePerformanceMode();
 
   const {
     isValidating,
@@ -30,6 +40,14 @@ export default function Home() {
     cancelValidation,
     clearResult,
   } = useFrontendValidation();
+
+  // 监听验证结果，只有在真正成功时才显示成功动画
+  useEffect(() => {
+    if (result && result.isValid && !isValidating) {
+      // 验证成功完成，显示成功动画
+      setShowSuccessAnimation(true);
+    }
+  }, [result, isValidating]);
 
   const handleFileUpload = (file: File) => {
     // 如果已有上传的文件，先触发重新上传逻辑
@@ -51,6 +69,12 @@ export default function Home() {
     if (!uploadedFile || !selectedTask) return;
 
     try {
+      // 更新性能指标 - 开始处理
+      updateMetrics({
+        isProcessing: true,
+        imageCount: includeImageValidation ? 100 : 0, // 估算值，实际会在Worker中更新
+      });
+
       // 传递图片验证选项到validateExcel
       await validateExcel(
         uploadedFile,
@@ -59,10 +83,14 @@ export default function Home() {
         includeImageValidation
       );
 
+      // 验证完成 - 更新性能指标
+      updateMetrics({ isProcessing: false });
+
       // 验证完成后添加到历史记录
       // 注意：这里需要等待result更新，所以我们在useEffect中处理
     } catch (err) {
       console.error("Validation failed:", err);
+      updateMetrics({ isProcessing: false });
     }
   };
 
@@ -84,16 +112,13 @@ export default function Home() {
   };
 
   const handleSheetSelectorCancel = () => {
-    
     setShowSheetSelector(false);
     // 清理验证状态
     clearResult();
     // 取消任何正在进行的验证
     if (isValidating) {
-      
       cancelValidation();
     }
-    
   };
 
   // 处理需要选择工作表的情况
@@ -233,7 +258,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen py-8 bg-gray-50">
+    <GentleGradientBackground className="min-h-screen py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20">
         <div className="text-center mb-8 relative">
           {/* 功能按钮组 */}
@@ -327,10 +352,11 @@ export default function Home() {
           {/* 审核按钮 */}
           {uploadedFile && (
             <div className="mt-6 text-center">
-              <button
+              <WarmButton
                 onClick={() => handleValidate()}
                 disabled={!selectedTask || isValidating}
-                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                variant="primary"
+                className="inline-flex items-center px-6 py-3 text-base font-medium"
               >
                 {isValidating ? (
                   <>
@@ -357,9 +383,9 @@ export default function Home() {
                     验证中...
                   </>
                 ) : (
-                  "开始审核"
+                  "开始审核 ✨"
                 )}
-              </button>
+              </WarmButton>
 
               {isValidating && (
                 <button
@@ -376,21 +402,11 @@ export default function Home() {
         {/* 进度显示 */}
         {progress && (
           <div className="mb-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-blue-900">
-                  {progress.message}
-                </span>
-                <span className="text-sm text-blue-700">
-                  {Math.round(progress.progress)}%
-                </span>
-              </div>
-              <div className="w-full bg-blue-200 rounded-full h-2">
-                <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${progress.progress}%` }}
-                />
-              </div>
+            <div className="bg-white border border-pink-200 rounded-lg p-6 shadow-sm">
+              <WarmProgressBar
+                progress={progress.progress}
+                message={progress.message}
+              />
             </div>
           </div>
         )}
@@ -448,8 +464,22 @@ export default function Home() {
           />
         )}
 
-        {/* 氛围设置组件已移除 */}
+        {/* 成功动画 */}
+        <SuccessAnimation
+          show={showSuccessAnimation}
+          message="审核完成！✨"
+          onComplete={() => setShowSuccessAnimation(false)}
+        />
       </div>
-    </div>
+    </GentleGradientBackground>
+  );
+}
+
+// 导出包装了动画提供者的主组件
+export default function Home() {
+  return (
+    <AnimationProvider>
+      <HomeContent />
+    </AnimationProvider>
   );
 }
