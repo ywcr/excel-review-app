@@ -6,7 +6,10 @@ import TaskSelector from "@/components/TaskSelector";
 import ValidationRequirements from "@/components/ValidationRequirements";
 import ValidationResults from "@/components/ValidationResults";
 import FrontendSheetSelector from "@/components/FrontendSheetSelector";
+import UserMenu from "@/components/UserMenu";
 import { useFrontendValidation } from "@/hooks/useFrontendValidation";
+import { useAuth } from "@/hooks/useAuth";
+import { useSessionKeepAlive } from "@/hooks/useSessionKeepAlive";
 import { getAvailableTasks } from "@/lib/validationRules";
 import {
   AnimationProvider,
@@ -18,6 +21,7 @@ import {
 import { usePerformanceMode } from "@/hooks/usePerformanceMode";
 
 function HomeContent() {
+  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const availableTasks = getAvailableTasks();
   const [selectedTask, setSelectedTask] = useState<string>(
     availableTasks[0] || ""
@@ -31,6 +35,7 @@ function HomeContent() {
   // 性能监控和动画控制
   const { updateMetrics, isAnimationEnabled } = usePerformanceMode();
 
+  // 前端验证hook - 必须在条件渲染之前调用
   const {
     isValidating,
     progress,
@@ -41,6 +46,14 @@ function HomeContent() {
     clearResult,
   } = useFrontendValidation();
 
+  // 会话保持 - 在验证过程中自动刷新令牌
+  const { startKeepAlive, stopKeepAlive } = useSessionKeepAlive({
+    enabled: isValidating,
+    refreshInterval: 5 * 60 * 1000, // 5分钟刷新一次
+    onTaskStart: () => console.log("Excel验证开始，启动会话保持"),
+    onTaskEnd: () => console.log("Excel验证结束，停止会话保持"),
+  });
+
   // 监听验证结果，只有在真正成功时才显示成功动画
   useEffect(() => {
     if (result && result.isValid && !isValidating) {
@@ -48,6 +61,23 @@ function HomeContent() {
       setShowSuccessAnimation(true);
     }
   }, [result, isValidating]);
+
+  // 如果正在加载认证状态，显示加载界面
+  if (authLoading) {
+    return (
+      <GentleGradientBackground className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">正在验证登录状态...</p>
+        </div>
+      </GentleGradientBackground>
+    );
+  }
+
+  // 如果未认证，这个组件不应该渲染（中间件会重定向）
+  if (!isAuthenticated || !user) {
+    return null;
+  }
 
   const handleFileUpload = (file: File) => {
     // 如果已有上传的文件，先触发重新上传逻辑
@@ -261,9 +291,9 @@ function HomeContent() {
     <GentleGradientBackground className="min-h-screen py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20">
         <div className="text-center mb-8 relative">
-          {/* 功能按钮组 */}
-          <div className="absolute top-0 right-0 flex gap-1">
-            {/* 氛围设置按钮已移除 */}
+          {/* 用户菜单 */}
+          <div className="absolute top-0 right-0">
+            <UserMenu />
           </div>
 
           <h1 className="text-3xl font-bold mb-2 text-gray-900">
@@ -272,6 +302,11 @@ function HomeContent() {
           <p className="text-gray-700">
             上传您的 Excel 文件，选择对应任务进行自动审核
           </p>
+          <div className="mt-2">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              👋 欢迎, {user.username}
+            </span>
+          </div>
           <div className="mt-2 space-y-1">
             <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
               🚀 当前使用：前端解析流程

@@ -1,0 +1,20 @@
+{
+  "users": [
+    {
+      "id": "admin",
+      "username": "admin",
+      "passwordHash": "$2b$10$/JytYerFSGHWqCZYUV/3sOzamNGd5n9JtpzLNbn07uFW2Wmomf6h6",
+      "role": "admin",
+      "createdAt": "2025-09-13T04:06:51.641Z",
+      "lastLogin": null
+    },
+    {
+      "id": "chenrong",
+      "username": "chenrong",
+      "passwordHash": "$2b$10$Y3ogbpUBg6u.Ww6uyHldEerHpAD4ouKZKyHO2VQXG4TI/EzJ5fiqC",
+      "role": "user",
+      "createdAt": "2025-09-13T04:37:21.805Z",
+      "lastLogin": null
+    }
+  ]
+}
