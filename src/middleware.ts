@@ -13,12 +13,49 @@ const protectedPaths = [
 // 公开路径（不需要认证）
 const publicPaths = ["/login", "/api/auth/login", "/api/auth/logout"];
 
+// 强制HTTPS重定向（生产环境）
+function enforceHTTPS(request: NextRequest) {
+  if (
+    process.env.NODE_ENV === "production" &&
+    request.headers.get("x-forwarded-proto") !== "https"
+  ) {
+    return NextResponse.redirect(
+      `https://${request.headers.get("host")}${request.nextUrl.pathname}${request.nextUrl.search}`,
+      301
+    );
+  }
+  return null;
+}
+
+// 添加安全头
+function addSecurityHeaders(response: NextResponse) {
+  // 安全头
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("X-XSS-Protection", "1; mode=block");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+
+  // 在生产环境中强制HTTPS
+  if (process.env.NODE_ENV === "production") {
+    response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+
+  return response;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // 强制HTTPS（生产环境）
+  const httpsRedirect = enforceHTTPS(request);
+  if (httpsRedirect) {
+    return httpsRedirect;
+  }
+
   // 检查是否是公开路径
   if (publicPaths.some((path) => pathname.startsWith(path))) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    return addSecurityHeaders(response);
   }
 
   // 检查是否是需要保护的路径
@@ -71,7 +108,7 @@ export function middleware(request: NextRequest) {
       path: "/",
     });
 
-    return response;
+    return addSecurityHeaders(response);
   }
 
   // 在请求头中添加用户信息，供API使用
@@ -80,11 +117,13 @@ export function middleware(request: NextRequest) {
   requestHeaders.set("x-user-username", user.username);
   requestHeaders.set("x-user-role", user.role);
 
-  return NextResponse.next({
+  const response = NextResponse.next({
     request: {
       headers: requestHeaders,
     },
   });
+
+  return addSecurityHeaders(response);
 }
 
 export const config = {
