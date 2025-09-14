@@ -1474,7 +1474,6 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
           try {
             const sharpness = await calculateImageSharpness(image.data);
             const hash = await calculateImageHash(image.data);
-            const watermark = await detectImageWatermark(image.data);
 
             const result = {
               id: image.id,
@@ -1485,7 +1484,6 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
               position: image.position,
               row: image.row,
               column: image.column,
-              watermark,
               // 移除imageData存储以避免内存溢出（700+张图片时会导致崩溃）
               mimeType: image.name.toLowerCase().endsWith(".png")
                 ? "image/png"
@@ -1507,17 +1505,6 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
               position: image.position,
               row: image.row,
               column: image.column,
-              watermark: {
-                hasWatermark: false,
-                confidence: 0,
-                detectionMethods: [],
-                details: {
-                  transparencyScore: 0,
-                  edgeDensityScore: 0,
-                  patternScore: 0,
-                  colorVarianceScore: 0,
-                },
-              },
             });
           } finally {
             completed++;
@@ -1557,15 +1544,11 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
 
     const blurryImages = results.filter((r) => r.isBlurry).length;
     const duplicateGroups = countDuplicateGroups(results);
-    const watermarkedImages = results.filter(
-      (r) => r.watermark?.hasWatermark
-    ).length;
 
     return {
       totalImages: images.length,
       blurryImages,
       duplicateGroups,
-      watermarkedImages,
       results,
     };
   } catch (error) {
@@ -3417,314 +3400,4 @@ function sendError(message) {
     type: MESSAGE_TYPES.ERROR,
     data: { message },
   });
-}
-
-// 水印检测配置
-const WATERMARK_CONFIG = {
-  TRANSPARENCY_THRESHOLD: 0.15,
-  EDGE_DENSITY_THRESHOLD: 0.3,
-  PATTERN_REPETITION_THRESHOLD: 0.7,
-  COLOR_VARIANCE_THRESHOLD: 0.2,
-  ANALYSIS_SIZE: 128,
-};
-
-// 水印检测主函数
-async function detectImageWatermark(imageData) {
-  return new Promise((resolve, reject) => {
-    try {
-      if (typeof OffscreenCanvas === "undefined") {
-        // 降级处理：如果不支持OffscreenCanvas，返回默认结果
-        resolve({
-          hasWatermark: false,
-          confidence: 0,
-          detectionMethods: [],
-          details: {
-            transparencyScore: 0,
-            edgeDensityScore: 0,
-            patternScore: 0,
-            colorVarianceScore: 0,
-          },
-        });
-        return;
-      }
-
-      const blob = new Blob([imageData]);
-      const url = URL.createObjectURL(blob);
-      const img = new Image();
-
-      img.onload = () => {
-        try {
-          const canvas = new OffscreenCanvas(
-            WATERMARK_CONFIG.ANALYSIS_SIZE,
-            WATERMARK_CONFIG.ANALYSIS_SIZE
-          );
-          const ctx = canvas.getContext("2d");
-
-          ctx.drawImage(
-            img,
-            0,
-            0,
-            WATERMARK_CONFIG.ANALYSIS_SIZE,
-            WATERMARK_CONFIG.ANALYSIS_SIZE
-          );
-          const imgData = ctx.getImageData(
-            0,
-            0,
-            WATERMARK_CONFIG.ANALYSIS_SIZE,
-            WATERMARK_CONFIG.ANALYSIS_SIZE
-          );
-          const data = imgData.data;
-
-          // 执行各种水印检测算法
-          const transparencyScore = analyzeTransparency(
-            data,
-            WATERMARK_CONFIG.ANALYSIS_SIZE
-          );
-          const edgeDensityScore = analyzeEdgeDensity(
-            data,
-            WATERMARK_CONFIG.ANALYSIS_SIZE
-          );
-          const patternScore = analyzePatternRepetition(
-            data,
-            WATERMARK_CONFIG.ANALYSIS_SIZE
-          );
-          const colorVarianceScore = analyzeColorVariance(
-            data,
-            WATERMARK_CONFIG.ANALYSIS_SIZE
-          );
-
-          // 判断检测方法
-          const detectionMethods = [];
-          if (transparencyScore > WATERMARK_CONFIG.TRANSPARENCY_THRESHOLD) {
-            detectionMethods.push("transparency");
-          }
-          if (edgeDensityScore > WATERMARK_CONFIG.EDGE_DENSITY_THRESHOLD) {
-            detectionMethods.push("edge_density");
-          }
-          if (patternScore > WATERMARK_CONFIG.PATTERN_REPETITION_THRESHOLD) {
-            detectionMethods.push("pattern_repetition");
-          }
-          if (colorVarianceScore < WATERMARK_CONFIG.COLOR_VARIANCE_THRESHOLD) {
-            detectionMethods.push("color_variance");
-          }
-
-          // 计算综合置信度
-          const confidence = calculateWatermarkConfidence({
-            transparencyScore,
-            edgeDensityScore,
-            patternScore,
-            colorVarianceScore,
-          });
-
-          const hasWatermark = detectionMethods.length >= 2 || confidence > 0.7;
-
-          URL.revokeObjectURL(url);
-          resolve({
-            hasWatermark,
-            confidence,
-            detectionMethods,
-            details: {
-              transparencyScore,
-              edgeDensityScore,
-              patternScore,
-              colorVarianceScore,
-            },
-          });
-        } catch (error) {
-          URL.revokeObjectURL(url);
-          reject(error);
-        }
-      };
-
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error("图片加载失败"));
-      };
-
-      img.src = url;
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-// 透明度分析
-function analyzeTransparency(data, size) {
-  let transparentPixels = 0;
-  let semiTransparentPixels = 0;
-  const totalPixels = size * size;
-
-  for (let i = 0; i < data.length; i += 4) {
-    const alpha = data[i + 3];
-    if (alpha === 0) {
-      transparentPixels++;
-    } else if (alpha < 200) {
-      semiTransparentPixels++;
-    }
-  }
-
-  return semiTransparentPixels / totalPixels;
-}
-
-// 边缘密度分析
-function analyzeEdgeDensity(data, size) {
-  const gray = new Array(size * size);
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    gray[i / 4] = 0.299 * r + 0.587 * g + 0.114 * b;
-  }
-
-  let edgePixels = 0;
-  for (let y = 1; y < size - 1; y++) {
-    for (let x = 1; x < size - 1; x++) {
-      const idx = y * size + x;
-
-      const gx =
-        -gray[idx - size - 1] +
-        gray[idx - size + 1] +
-        -2 * gray[idx - 1] +
-        2 * gray[idx + 1] +
-        -gray[idx + size - 1] +
-        gray[idx + size + 1];
-
-      const gy =
-        -gray[idx - size - 1] -
-        2 * gray[idx - size] -
-        gray[idx - size + 1] +
-        gray[idx + size - 1] +
-        2 * gray[idx + size] +
-        gray[idx + size + 1];
-
-      const magnitude = Math.sqrt(gx * gx + gy * gy);
-      if (magnitude > 30) {
-        edgePixels++;
-      }
-    }
-  }
-
-  return edgePixels / ((size - 2) * (size - 2));
-}
-
-// 模式重复分析
-function analyzePatternRepetition(data, size) {
-  const blockSize = 16;
-  const blocks = [];
-
-  for (let y = 0; y < size - blockSize; y += blockSize) {
-    for (let x = 0; x < size - blockSize; x += blockSize) {
-      const block = [];
-      for (let by = 0; by < blockSize; by++) {
-        for (let bx = 0; bx < blockSize; bx++) {
-          const idx = ((y + by) * size + (x + bx)) * 4;
-          const gray =
-            0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-          block.push(gray);
-        }
-      }
-      blocks.push(block);
-    }
-  }
-
-  let similarPairs = 0;
-  let totalPairs = 0;
-
-  for (let i = 0; i < blocks.length; i++) {
-    for (let j = i + 1; j < blocks.length; j++) {
-      const similarity = calculateBlockSimilarity(blocks[i], blocks[j]);
-      if (similarity > 0.8) {
-        similarPairs++;
-      }
-      totalPairs++;
-    }
-  }
-
-  return totalPairs > 0 ? similarPairs / totalPairs : 0;
-}
-
-// 颜色方差分析
-function analyzeColorVariance(data, size) {
-  const colors = [];
-
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const alpha = data[i + 3];
-
-    if (alpha > 50) {
-      colors.push(r, g, b);
-    }
-  }
-
-  if (colors.length === 0) return 0;
-
-  const mean = colors.reduce((sum, val) => sum + val, 0) / colors.length;
-  const variance =
-    colors.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) /
-    colors.length;
-
-  return Math.sqrt(variance) / 255;
-}
-
-// 计算块相似性
-function calculateBlockSimilarity(block1, block2) {
-  if (block1.length !== block2.length) return 0;
-
-  let sum1 = 0,
-    sum2 = 0,
-    sum1Sq = 0,
-    sum2Sq = 0,
-    pSum = 0;
-
-  for (let i = 0; i < block1.length; i++) {
-    sum1 += block1[i];
-    sum2 += block2[i];
-    sum1Sq += block1[i] * block1[i];
-    sum2Sq += block2[i] * block2[i];
-    pSum += block1[i] * block2[i];
-  }
-
-  const n = block1.length;
-  const num = pSum - (sum1 * sum2) / n;
-  const den = Math.sqrt(
-    (sum1Sq - (sum1 * sum1) / n) * (sum2Sq - (sum2 * sum2) / n)
-  );
-
-  return den === 0 ? 0 : num / den;
-}
-
-// 计算水印置信度
-function calculateWatermarkConfidence(scores) {
-  const weights = {
-    transparency: 0.3,
-    edgeDensity: 0.25,
-    pattern: 0.25,
-    colorVariance: 0.2,
-  };
-
-  const transparencyConf = Math.min(
-    scores.transparencyScore / WATERMARK_CONFIG.TRANSPARENCY_THRESHOLD,
-    1
-  );
-  const edgeConf = Math.min(
-    scores.edgeDensityScore / WATERMARK_CONFIG.EDGE_DENSITY_THRESHOLD,
-    1
-  );
-  const patternConf = Math.min(
-    scores.patternScore / WATERMARK_CONFIG.PATTERN_REPETITION_THRESHOLD,
-    1
-  );
-  const colorConf = Math.max(
-    0,
-    1 - scores.colorVarianceScore / WATERMARK_CONFIG.COLOR_VARIANCE_THRESHOLD
-  );
-
-  return (
-    transparencyConf * weights.transparency +
-    edgeConf * weights.edgeDensity +
-    patternConf * weights.pattern +
-    colorConf * weights.colorVariance
-  );
 }
