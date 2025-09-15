@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PostMessage Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>PostMessage修复测试</h1>
+    
+    <button onclick="testWorker()">测试Worker</button>
+    <button onclick="clearLog()">清除日志</button>
+    
+    <pre id="log"></pre>
+    
+    <script>
+        const logEl = document.getElementById('log');
+        
+        function log(msg, type = '') {
+            const time = new Date().toLocaleTimeString();
+            const className = type ? ` class="${type}"` : '';
+            logEl.innerHTML += `<span${className}>[${time}] ${msg}</span>\n`;
+            console.log(msg);
+        }
+        
+        function clearLog() {
+            logEl.innerHTML = '';
+        }
+        
+        async function testWorker() {
+            log('开始测试Worker...');
+            
+            try {
+                const worker = new Worker('/validation-worker.js?' + Date.now());
+                
+                worker.onmessage = (e) => {
+                    log('✅ Worker消息: ' + JSON.stringify(e.data), 'success');
+                };
+                
+                worker.onerror = (error) => {
+                    log('❌ Worker错误: ' + error.message, 'error');
+                };
+                
+                // 等待Worker初始化
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // 获取李燕文件进行测试
+                log('获取测试文件...');
+                const response = await fetch('/data/李燕拜访.xlsx');
+                const arrayBuffer = await response.arrayBuffer();
+                
+                log(`文件大小: ${(arrayBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`);
+                
+                // 发送验证请求
+                log('发送验证请求...');
+                worker.postMessage({
+                    type: 'VALIDATE_EXCEL',
+                    data: {
+                        fileBuffer: arrayBuffer,
+                        taskName: '药店拜访',
+                        selectedSheet: 'Sheet1',
+                        template: {
+                            requiredFields: ['序号', '任务标题'],
+                            validationRules: [],
+                            fieldMappings: {}
+                        },
+                        includeImages: false
+                    }
+                });
+                
+                // 设置超时
+                setTimeout(() => {
+                    worker.terminate();
+                    log('⏱️ 测试超时，Worker已终止');
+                }, 30000);
+                
+            } catch (error) {
+                log('❌ 测试失败: ' + error.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

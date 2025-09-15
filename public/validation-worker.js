@@ -8,6 +8,7 @@
 
 importScripts("/vendor/xlsx.full.min.js");
 importScripts("/vendor/jszip.min.js");
+// // importScripts("/large-file-handler.js"); // 暂时禁用 // 暂时禁用
 
 // 尝试加载 blockhash-core.js，如果失败则跳过图片验证
 let blockHashAvailable = false;
@@ -46,8 +47,10 @@ const MESSAGE_TYPES = {
 const PERFORMANCE_CONFIG = {
   CHUNK_SIZE: 1000, // 每次处理的行数
   PROGRESS_INTERVAL: 100, // 进度更新间隔（毫秒）
-  MEMORY_THRESHOLD: 100 * 1024 * 1024, // 100MB内存阈值
-  MAX_ROWS_IN_MEMORY: 10000, // 内存中最大行数
+  MEMORY_THRESHOLD: 500 * 1024 * 1024, // 500MB内存阈值（支持大文件）
+  MAX_ROWS_IN_MEMORY: 50000, // 内存中最大行数（提高到5万行）
+  MAX_FILE_SIZE: 1024 * 1024 * 1024, // 1GB文件大小限制
+  IMAGE_PROCESS_BATCH: 10, // 图片批处理数量
 };
 
 // Image duplicate detection configuration
@@ -68,16 +71,158 @@ let templateFromMainThread = null;
 // Worker现在完全依赖从主线程传入的模板，不再维护内置模板
 // 这确保了UI和Worker使用完全相同的模板定义
 
+console.log('Validation Worker 初始化成功');
+
+// 详细进度更新函数
+function updateDetailedProgress(current, total, type) {
+  const percentage = Math.round((current / total) * 100);
+  sendProgress(`正在${type} (${current}/${total}) - ${percentage}%`, percentage);
+}
+
+// 内存使用率检查函数
+const MEMORY_CHECK_INTERVAL = 10000; // 每10秒检查一次
+let lastMemoryCheck = 0;
+
+async function checkMemoryUsage() {
+  const now = Date.now();
+  if (now - lastMemoryCheck < MEMORY_CHECK_INTERVAL) {
+    return false;
+  }
+  lastMemoryCheck = now;
+
+  if (performance && performance.memory) {
+    const used = performance.memory.usedJSHeapSize;
+    const limit = performance.memory.jsHeapSizeLimit;
+    const usage = (used / limit) * 100;
+    
+    if (usage > 80) {
+      console.warn(`内存使用率高: ${usage.toFixed(2)}%`);
+      sendProgress(`⚠️ 内存使用率较高 (${usage.toFixed(0)}%)，处理速度可能变慢...`, null);
+      // 触发垃圾回收或减少处理批次大小
+      return true;
+    }
+  }
+  return false;
+}
+
+// WPS新格式图片提取方法
+async function extractImagesFromWPSNew(zip, selectedSheet) {
+  const images = [];
+  
+  try {
+    // 1. 检查xl/drawings目录
+    const drawingFiles = Object.keys(zip.files).filter(f => 
+      f.startsWith('xl/drawings/') && f.endsWith('.xml')
+    );
+    
+    // 2. 检查xl/worksheets/_rels目录
+    const sheetRels = Object.keys(zip.files).filter(f => 
+      f.includes('worksheets/_rels') && f.endsWith('.rels')
+    );
+    
+    // 3. 解析drawing关系
+    for (const relFile of sheetRels) {
+      const content = await zip.file(relFile).async('string');
+      // 解析关系文件，找到图片引用
+      const drawingRegex = /<Relationship[^>]*Type="[^"]*\/drawing"[^>]*Target="([^"]*)"[^>]*\/>/g;
+      let match;
+      while ((match = drawingRegex.exec(content)) !== null) {
+        const drawingPath = match[1].replace('../', 'xl/');
+        
+        // 解析drawing文件
+        const drawingFile = zip.file(drawingPath);
+        if (drawingFile) {
+          const drawingContent = await drawingFile.async('string');
+          // 提取图片位置信息
+          const imageRegex = /<xdr:pic[^>]*>([\s\S]*?)<\/xdr:pic>/g;
+          let imgMatch;
+          while ((imgMatch = imageRegex.exec(drawingContent)) !== null) {
+            // 提取图片ID和位置
+            const picContent = imgMatch[1];
+            const embedRegex = /r:embed="([^"]*)"/;
+            const embedMatch = picContent.match(embedRegex);
+            if (embedMatch) {
+              images.push({
+                embedId: embedMatch[1],
+                rawXml: picContent
+              });
+            }
+          }
+        }
+      }
+    }
+    
+    return images;
+  } catch (error) {
+    console.warn('WPS新格式图片提取失败:', error);
+    return [];
+  }
+}
+
+// 基于图片文件名和顺序推断位置
+function inferImagePositions(imageFiles, dataRows) {
+  const positions = [];
+  const imagesPerRow = Math.ceil(imageFiles.length / dataRows.length);
+  
+  imageFiles.forEach((file, index) => {
+    const row = Math.floor(index / imagesPerRow) + 1;
+    const col = (index % imagesPerRow) === 0 ? 'M' : 'N'; // 门头/内部
+    
+    positions.push({
+      file: file,
+      position: `${col}${row}`,
+      row: row,
+      column: col
+    });
+  });
+  
+  return positions;
+}
+
 // Streaming validation function
 async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
   isValidationCancelled = false;
 
   try {
+    // 检查文件大小并发出警告
+    const fileSizeMB = fileBuffer.byteLength / 1024 / 1024;
+    console.log(`开始处理Excel文件: ${fileSizeMB.toFixed(2)}MB`);
+    
+    // 对于超大文件（>600MB），使用专门的大文件处理器
+    if (false) { // 暂时禁用大文件特殊处理
+      console.log('文件超过600MB，启用大文件处理模式...');
+      sendProgress(`⚠️ 超大文件（${fileSizeMB.toFixed(0)}MB），正在使用特殊处理模式...`, 5);
+      
+      try {
+        const result = await handleLargeExcelFile(fileBuffer, selectedSheet || 'Sheet1');
+        // 转换结果格式
+        return {
+          isValid: result.report.summary.errorCount === 0,
+          headerValidation: { isValid: true },
+          errors: result.validation.errors || [],
+          summary: {
+            totalRows: result.report.summary.totalRows,
+            validRows: result.report.summary.totalRows - result.report.summary.errorCount,
+            errorCount: result.report.summary.errorCount
+          }
+        };
+      } catch (error) {
+        console.error('大文件处理失败:', error);
+        throw new Error(`大文件处理失败: ${error.message}`);
+      }
+    }
+    
+    if (fileBuffer.byteLength > 500 * 1024 * 1024) {
+      sendProgress(`⚠️ 文件较大（${fileSizeMB.toFixed(0)}MB），处理可能需要较长时间...`, 5);
+      
+      // 对于超大文件，清理一些内存
+      if (typeof self !== 'undefined' && self.gc) {
+        self.gc();
+      }
+    }
+
     // 解析Excel文件
-    postMessage({
-      type: MESSAGE_TYPES.PROGRESS,
-      data: { progress: 10, message: "解析Excel文件..." },
-    });
+    sendProgress("解析Excel文件...", 10);
 
     let workbook;
     try {
@@ -114,39 +259,99 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
 
     // 按需解析目标工作表，使用优化选项
     let worksheet;
+    let targetWorkbook; // 在try块外声明，以便错误处理代码可以访问
     try {
-      // 重新解析文件，但只加载目标工作表
-      const targetWorkbook = XLSX.read(fileBuffer, {
+      // 对于大文件，使用更保守的解析策略
+      const parseOptions = {
         type: "array",
         cellDates: true,
-        cellNF: false,
-        cellText: false,
+        // 不要同时设置 cellNF: false 和 cellText: false，会导致工作表内容不被加载
+        // cellNF: false,
+        // cellText: false,
         dense: false, // 使用稀疏数组格式，节省内存
         sheetStubs: false, // 不包含空单元格
         bookVBA: false,
-        bookSheets: false,
+        // 不要设置 bookSheets: false，否则不会加载工作表内容
         bookProps: false,
         bookFiles: false,
         bookDeps: false,
         raw: false,
-        sheets: [sheetName], // 只解析目标工作表
-      });
+      };
+      
+      // 对于超大文件（>300MB），不使用sheets选项，避免内存问题
+      if (fileBuffer.byteLength < 300 * 1024 * 1024) {
+        parseOptions.sheets = [sheetName]; // 只解析目标工作表
+      }
+      
+      // QINKAI_FIX: 特殊处理秦凯文件
+      console.log('开始解析工作表，选项:', JSON.stringify(parseOptions));
+      targetWorkbook = XLSX.read(fileBuffer, parseOptions);
+      console.log('解析完成，工作表名:', targetWorkbook.SheetNames);
+      console.log('Sheets对象:', targetWorkbook.Sheets ? '存在' : '不存在');
+      if (targetWorkbook.Sheets) {
+        console.log('可用工作表:', Object.keys(targetWorkbook.Sheets));
+      }
       worksheet = targetWorkbook.Sheets[sheetName];
+      
+      // 如果worksheet为undefined，尝试不同的方法
+      if (!worksheet) {
+        console.log('第一次尝试失败，使用备用方法...');
+        
+        // 方法1：尝试不带sheets选项重新读取
+        const fallbackWorkbook = XLSX.read(fileBuffer, {
+          type: "array",
+        cellDates: true,
+        // 不要同时设置 cellNF: false 和 cellText: false，会导致工作表内容不被加载
+        // cellNF: false,
+        // cellText: false,
+        dense: false,
+        sheetStubs: false,
+        });
+        
+        if (fallbackWorkbook.Sheets && fallbackWorkbook.Sheets[sheetName]) {
+          worksheet = fallbackWorkbook.Sheets[sheetName];
+          console.log('备用方法成功');
+        }
+      }
+      
+      // 如果worksheet仍为空，尝试不同的方式
+      if (!worksheet && targetWorkbook.Sheets) {
+        // 尝试找到第一个可用的工作表
+        const availableSheets = Object.keys(targetWorkbook.Sheets);
+        if (availableSheets.length > 0) {
+          console.warn(`无法找到工作表 "${sheetName}"，使用第一个可用工作表: ${availableSheets[0]}`);
+          worksheet = targetWorkbook.Sheets[availableSheets[0]];
+        }
+      }
     } catch (error) {
+      console.error('解析工作表错误:', error);
       if (error.message && error.message.includes("Invalid array length")) {
         throw new Error("工作表数据过大，请尝试减少数据行数或简化内容");
+      }
+      // 对于大文件，提供更详细的错误信息
+      if (fileBuffer.byteLength > 300 * 1024 * 1024) {
+        throw new Error(`文件过大(${(fileBuffer.byteLength / 1024 / 1024).toFixed(0)}MB)，${error.message}。建议将文件拆分成更小的部分。`);
       }
       throw new Error(`解析工作表 "${sheetName}" 失败: ${error.message}`);
     }
 
     if (!worksheet) {
-      throw new Error(`无法加载工作表 "${sheetName}"`);
+      // 提供更详细的错误信息
+      const availableSheets = workbook.SheetNames ? workbook.SheetNames.join(', ') : '无';
+      
+      // QINKAI_DEBUG: 添加调试信息
+      if (!worksheet) {
+        console.error('工作表加载失败的详细信息:');
+        console.error('- 目标工作表名:', sheetName);
+        console.error('- 文件大小:', (fileBuffer.byteLength / 1024 / 1024).toFixed(2), 'MB');
+        if (targetWorkbook && targetWorkbook.Sheets) {
+          console.error('- 实际工作表列表:', Object.keys(targetWorkbook.Sheets));
+        }
+      }
+      throw new Error(`无法加载工作表 "${sheetName}"。可用的工作表: ${availableSheets}`);
     }
 
-    postMessage({
-      type: MESSAGE_TYPES.PROGRESS,
-      data: { progress: 20, message: "分析工作表结构..." },
-    });
+    sendProgress("分析工作表结构...", 20);
 
     // 转换为数组格式进行流式处理
     let data;
@@ -189,11 +394,8 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
       throw new Error(`任务模板格式错误: ${taskName}，缺少必需字段定义`);
     }
 
-    // 智能查找表头行（扫描前5行）
-    postMessage({
-      type: MESSAGE_TYPES.PROGRESS,
-      data: { progress: 25, message: "查找表头行..." },
-    });
+    // 智能查找表头行（扫描前10行）
+    sendProgress("查找表头行...", 25);
 
     const { headerRow, headerRowIndex } = findHeaderRow(data, template);
 
@@ -202,10 +404,7 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
     }
 
     // 验证表头
-    postMessage({
-      type: MESSAGE_TYPES.PROGRESS,
-      data: { progress: 30, message: "验证表头..." },
-    });
+    sendProgress("验证表头...", 30);
 
     const headerValidation = validateHeaders(headerRow, template);
 
@@ -232,10 +431,7 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
     if (isValidationCancelled) return;
 
     // 执行跨行验证（unique、frequency、dateInterval）
-    postMessage({
-      type: MESSAGE_TYPES.PROGRESS,
-      data: { progress: 80, message: "执行跨行验证..." },
-    });
+    sendProgress("执行跨行验证...", 80);
 
     const crossRowErrors = await validateCrossRows(
       dataRows,
@@ -271,8 +467,8 @@ function findHeaderRow(data, template) {
   const requiredFields = template.requiredFields || [];
   let bestMatch = { row: null, index: 0, score: 0 };
 
-  // 扫描前5行，寻找最匹配的表头行
-  for (let i = 0; i < Math.min(5, data.length); i++) {
+  // 扫描前10行，寻找最匹配的表头行（增加扫描范围）
+  for (let i = 0; i < Math.min(10, data.length); i++) {
     const row = data[i];
     if (!row || row.length === 0) continue;
 
@@ -280,8 +476,8 @@ function findHeaderRow(data, template) {
     const cleanHeaders = row.map((h) =>
       String(h || "")
         .trim()
-        .replace(/\n/g, "")
-        .replace(/\s+/g, "")
+        .replace(/[\n\r]+/g, "") // 移除所有换行符（包括\r）
+        .replace(/\s+/g, "") // 移除多余空格
     );
 
     // 计算匹配分数
@@ -404,16 +600,13 @@ async function validateRowsStreaming(
 
     // 更新进度
     const progress = 40 + Math.floor(((i + chunk.length) / totalRows) * 40);
-    postMessage({
-      type: MESSAGE_TYPES.PROGRESS,
-      data: {
-        progress,
-        message: `验证数据行 ${i + chunk.length}/${totalRows}...`,
-      },
-    });
+    sendProgress(`验证数据行 ${i + chunk.length}/${totalRows}...`, progress);
 
-    // 让出控制权，避免阻塞
-    await new Promise((resolve) => setTimeout(resolve, 1));
+    // 检查内存使用情况
+    const highMemory = await checkMemoryUsage();
+    
+    // 让出控制权，避免阻塞（如果内存使用率高，增加延迟）
+    await new Promise((resolve) => setTimeout(resolve, highMemory ? 50 : 1));
   }
 
   return errors;
@@ -462,12 +655,41 @@ async function validateCrossRows(
 function formatDateForValidation(value) {
   if (!value) return value;
 
-  const str = value.toString().trim();
+  let str = value.toString().trim();
+  
+  // If the value contains a newline, extract just the date part
+  if (str.includes("\n")) {
+    str = str.split("\n")[0].trim();
+  }
 
   // Extract date part from formats like "2025.8.1\n08：00"
   const dateMatch = str.match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})/);
   if (dateMatch) {
     const [, year, month, day] = dateMatch;
+    const formatted = `${year}-${month.padStart(2, "0")}-${day.padStart(
+      2,
+      "0"
+    )}`;
+    return formatted;
+  }
+  
+  // Handle M/D/YYYY format first (e.g., "9/8/2025")
+  const mdyyyyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (mdyyyyMatch) {
+    const [, month, day, year] = mdyyyyMatch;
+    const formatted = `${year}-${month.padStart(2, "0")}-${day.padStart(
+      2,
+      "0"
+    )}`;
+    return formatted;
+  }
+  
+  // Handle M/D/YY format (e.g., "9/8/25" for September 8, 2025)
+  const mdyyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})/);
+  if (mdyyMatch) {
+    const [, month, day, yearShort] = mdyyMatch;
+    // Convert 2-digit year to 4-digit (assuming 20xx for years 00-99)
+    const year = `20${yearShort}`;
     const formatted = `${year}-${month.padStart(2, "0")}-${day.padStart(
       2,
       "0"
@@ -910,6 +1132,18 @@ function parseDate(value) {
       const [year, month, day] = str.split(".").map(Number);
       date = new Date(year, month - 1, day); // month is 0-indexed
     }
+    // Try M/D/YYYY format first (e.g., "9/8/2025")
+    else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
+      const [month, day, year] = str.split("/").map(Number);
+      date = new Date(year, month - 1, day); // month is 0-indexed
+    }
+    // Try M/D/YY format (e.g., "9/8/25" for September 8, 2025)
+    else if (/^\d{1,2}\/\d{1,2}\/\d{2}$/.test(str)) {
+      const [month, day, yearShort] = str.split("/").map(Number);
+      // Convert 2-digit year to 4-digit (assuming 20xx for years 00-99)
+      const year = 2000 + yearShort;
+      date = new Date(year, month - 1, day); // month is 0-indexed
+    }
     // Try other common formats
     else {
       date = new Date(str);
@@ -1045,24 +1279,30 @@ async function validateRowsChunked(sheet, template, headerRowIndex) {
 
 // Main message handler
 self.onmessage = async function (e) {
+  console.log('Worker收到消息:', e.data.type);
   const { type, data } = e.data;
 
   try {
     switch (type) {
       case MESSAGE_TYPES.CANCEL:
+        console.log('取消验证');
         isValidationCancelled = true;
         break;
 
       case MESSAGE_TYPES.VALIDATE_EXCEL:
+        console.log('开始验证Excel');
         await validateExcel(data);
         break;
       case MESSAGE_TYPES.VALIDATE_IMAGES:
+        console.log('开始验证图片');
         await validateImages(data);
         break;
       default:
+        console.error('未知消息类型:', type);
         sendError(`Unknown message type: ${type}`);
     }
   } catch (error) {
+    console.error('Worker处理错误:', error);
     sendError(error.message);
   }
 };
@@ -1070,259 +1310,49 @@ self.onmessage = async function (e) {
 // Excel validation function
 async function validateExcel(data) {
   const { fileBuffer, taskName, selectedSheet, template, includeImages } = data;
-
+  
+  console.log('validateExcel调用，参数:', {
+    taskName,
+    selectedSheet,
+    templateProvided: !!template,
+    includeImages,
+    fileSizeMB: (fileBuffer.byteLength / 1024 / 1024).toFixed(2)
+  });
+  
   // 接收从主线程传递的完整模板
   if (template) {
     templateFromMainThread = template;
   }
-
-  sendProgress("🚀 前端解析：正在解析Excel文件...", 10);
-
-  // 首先只解析工作表名称
-  let workbook;
+  
   try {
-    workbook = XLSX.read(fileBuffer, {
-      type: "array",
-      bookSheets: true, // 只解析工作表信息
-      bookVBA: false,
-      bookProps: false,
-      bookFiles: false,
-      bookDeps: false,
-    });
-  } catch (error) {
-    if (error.message && error.message.includes("Invalid array length")) {
-      sendError("Excel 文件格式复杂，请尝试减少数据行数或简化工作表内容");
-    } else {
-      sendError(`解析 Excel 文件失败: ${error.message}`);
-    }
-    return;
-  }
-
-  const sheetNames = workbook.SheetNames || [];
-
-  sendProgress("🚀 前端解析：正在分析工作表...", 20);
-
-  // Get template (must be provided from main thread)
-  const validationTemplate = templateFromMainThread;
-  if (!validationTemplate) {
-    sendError(`未找到任务模板: ${taskName}，请确保从主线程传入了完整的模板`);
-    return;
-  }
-
-  // 验证模板的必需字段
-  if (
-    !validationTemplate.requiredFields ||
-    !Array.isArray(validationTemplate.requiredFields)
-  ) {
-    sendError(`任务模板格式错误: ${taskName}，缺少必需字段定义`);
-    return;
-  }
-
-  // Select sheet
-  let targetSheet = selectedSheet;
-  let isAutoMatched = false;
-
-  if (!targetSheet || !sheetNames.includes(targetSheet)) {
-    // Try to find a matching sheet based on template preferences
-    const matchedSheet = findMatchingSheet(
-      sheetNames,
-      validationTemplate.sheetNames
-    );
-    if (matchedSheet) {
-      targetSheet = matchedSheet;
-      isAutoMatched = true;
-    }
-  } else {
-    // User explicitly selected a sheet
-    isAutoMatched = true;
-  }
-
-  // If no sheet was auto-matched, ask user to choose
-  if (!isAutoMatched) {
-    sendResult({
-      needSheetSelection: true,
-      availableSheets: sheetNames.map((name) => ({
-        name,
-        hasData: true, // 假设所有工作表都有数据，避免预加载检查
-      })),
-    });
-    return;
-  }
-
-  // Final check: if still no target sheet, return error
-  if (!targetSheet) {
-    sendError("无法确定目标工作表");
-    return;
-  }
-
-  // 按需加载目标工作表
-  let targetWorksheet;
-  try {
-    sendProgress("正在加载目标工作表...", 25);
-    const targetWorkbook = XLSX.read(fileBuffer, {
-      type: "array",
-      cellDates: true,
-      cellNF: false,
-      cellText: false,
-      dense: false,
-      sheetStubs: false,
-      bookVBA: false,
-      bookSheets: false,
-      bookProps: false,
-      bookFiles: false,
-      bookDeps: false,
-      raw: false,
-      sheets: [targetSheet], // 只解析目标工作表
-    });
-    targetWorksheet = targetWorkbook.Sheets[targetSheet];
-  } catch (error) {
-    if (error.message && error.message.includes("Invalid array length")) {
-      sendError("工作表数据过大，请尝试减少数据行数或简化内容");
-    } else {
-      sendError(`加载工作表 "${targetSheet}" 失败: ${error.message}`);
-    }
-    return;
-  }
-
-  if (!targetWorksheet) {
-    sendError(`无法加载工作表 "${targetSheet}"`);
-    return;
-  }
-
-  sendProgress("正在验证表头...", 40);
-
-  // Validate headers (auto-detect header row inside)
-  const headerValidation = validateHeaders(targetWorksheet, validationTemplate);
-
-  if (!headerValidation.isValid) {
-    sendResult({
-      isValid: false,
-      headerValidation,
-      errors: [],
-      summary: { totalRows: 0, validRows: 0, errorCount: 0 },
-    });
-    return;
-  }
-
-  sendProgress("正在验证数据行...", 60);
-
-  // Validate data rows using detected header row index
-  // 使用分块策略降低内存峰值
-  const errors = await validateRowsChunked(
-    targetWorksheet,
-    validationTemplate,
-    headerValidation.headerRowIndex
-  );
-
-  sendProgress("正在执行跨行验证...", 80);
-
-  // 执行跨行验证（unique、frequency、dateInterval）
-  let sheetData;
-  try {
-    sheetData = XLSX.utils.sheet_to_json(targetWorksheet, {
-      header: 1,
-      defval: "",
-      raw: false,
-      dateNF: "yyyy-mm-dd",
-    });
-  } catch (error) {
-    if (error.message && error.message.includes("Invalid array length")) {
-      sendError("工作表数据过大，请减少数据行数");
-      return;
-    }
-    sendError(`处理工作表数据失败: ${error.message}`);
-    return;
-  }
-
-  const headerRow = sheetData[headerValidation.headerRowIndex];
-  const dataRows = sheetData.slice(headerValidation.headerRowIndex + 1);
-
-  const crossRowErrors = await validateCrossRows(
-    dataRows,
-    validationTemplate,
-    headerRow,
-    headerValidation.headerRowIndex
-  );
-  errors.push(...crossRowErrors);
-
-  sendProgress("正在生成验证报告...", 90);
-
-  // Calculate summary based on detected header row index
-  const totalRows = Math.max(
-    0,
-    sheetData.length - (headerValidation.headerRowIndex + 1)
-  );
-  const errorCount = errors.length;
-  const validRows = totalRows - new Set(errors.map((e) => e.row)).size;
-
-  // 准备基本验证结果
-  const baseResult = {
-    isValid: errorCount === 0,
-    headerValidation,
-    errors,
-    summary: {
-      totalRows,
-      validRows,
-      errorCount,
-    },
-  };
-
-  // 如果启用图片验证，则进行图片验证并合并结果
-  if (includeImages) {
-    try {
-      sendProgress("🚀 前端解析：正在验证图片...", 85);
-      const imageValidationResult = await validateImagesInternal(
-        fileBuffer,
-        targetSheet
-      );
-
-      // 合并图片验证结果
-      baseResult.imageValidation = imageValidationResult;
-      sendResult(baseResult);
-    } catch (imageError) {
-      console.warn("图片验证失败:", imageError);
-
-      // 针对 .xls（非ZIP容器）给出显眼提示，但不阻断整体验证
+    // 直接调用validateExcelStreaming
+    const result = await validateExcelStreaming(fileBuffer, taskName, selectedSheet);
+    
+    // 如果需要包含图片验证
+    if (includeImages && result) {
       try {
-        const u8 = new Uint8Array(fileBuffer.slice(0, 4));
-        const isZip =
-          u8.length === 4 &&
-          u8[0] === 0x50 &&
-          u8[1] === 0x4b &&
-          u8[2] === 0x03 &&
-          u8[3] === 0x04;
-        const msg =
-          !isZip ||
-          (imageError &&
-            imageError.message &&
-            imageError.message.includes("unexpected signature"))
-            ? "检测到该文件不是标准的 .xlsx（ZIP）格式，图片无法解析（可能是 .xls）。图片验证仅支持 .xlsx，请将文件另存为 .xlsx 后重试。"
-            : `图片验证失败：${
-                imageError instanceof Error
-                  ? imageError.message
-                  : String(imageError)
-              }`;
-
-        baseResult.imageValidation = {
+        sendProgress("🚀 前端解析：正在验证图片...", 85);
+        const imageValidationResult = await validateImagesInternal(fileBuffer, selectedSheet);
+        result.imageValidation = imageValidationResult;
+      } catch (imageError) {
+        console.warn('图片验证失败:', imageError);
+        result.imageValidation = {
           totalImages: 0,
           blurryImages: 0,
           duplicateGroups: 0,
           results: [],
-          warning: msg,
+          warning: '图片验证失败: ' + imageError.message
         };
-      } catch (_) {
-        // 兜底：不添加图片结果，仅返回Excel结果
       }
-
-      // 即使图片验证失败，也返回Excel验证结果及警告
-      sendResult(baseResult);
     }
-  } else {
-    sendResult(baseResult);
+    
+    sendResult(result);
+  } catch (error) {
+    console.error('validateExcel错误:', error);
+    sendError(error.message);
   }
 }
 
-// Internal image validation function (shared logic)
 async function validateImagesInternal(fileBuffer, selectedSheet = null) {
   // 如果 blockhash 不可用，返回空结果
   if (
@@ -3329,13 +3359,22 @@ function calculateImagePositionWorker(imageIndex, tableStructure) {
 
 // Communication functions
 function sendProgress(message, progress) {
-  self.postMessage({
-    type: MESSAGE_TYPES.PROGRESS,
-    data: { message, progress },
-  });
+  if (typeof self !== 'undefined' && self.postMessage) {
+    self.postMessage({
+      type: MESSAGE_TYPES.PROGRESS,
+      data: { message, progress },
+    });
+  } else {
+    console.log('Progress:', message, progress);
+  }
 }
 
 function sendResult(result) {
+  if (typeof self === 'undefined' || !self.postMessage) {
+    console.log('Result:', result);
+    return;
+  }
+  
   // 使用 Transferable Objects 传递二进制，避免大数据结构克隆导致内存爆
   const transferList = [];
   try {
@@ -3396,8 +3435,12 @@ function sendResult(result) {
 }
 
 function sendError(message) {
-  self.postMessage({
-    type: MESSAGE_TYPES.ERROR,
-    data: { message },
-  });
+  if (typeof self !== 'undefined' && self.postMessage) {
+    self.postMessage({
+      type: MESSAGE_TYPES.ERROR,
+      data: { message },
+    });
+  } else {
+    console.error('Error:', message);
+  }
 }

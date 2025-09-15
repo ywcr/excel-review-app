@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Worker Memory Test</title>
+</head>
+<body>
+    <h1>Worker内存测试 - 秦凯拜访.xlsx</h1>
+    <button id="testBtn">开始测试</button>
+    <pre id="output"></pre>
+    
+    <script>
+        const output = document.getElementById('output');
+        const log = (msg) => {
+            output.textContent += msg + '\n';
+            console.log(msg);
+        };
+        
+        document.getElementById('testBtn').addEventListener('click', async () => {
+            log('开始测试...');
+            
+            try {
+                // 获取文件
+                const response = await fetch('/data/秦凯拜访.xlsx');
+                const arrayBuffer = await response.arrayBuffer();
+                log(`文件大小: ${(arrayBuffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
+                
+                // 创建Worker
+                const worker = new Worker('/test-worker.js');
+                
+                worker.onmessage = (e) => {
+                    if (e.data.type === 'log') {
+                        log(e.data.message);
+                    } else if (e.data.type === 'result') {
+                        log('\n结果: ' + JSON.stringify(e.data.result, null, 2));
+                    } else if (e.data.type === 'error') {
+                        log('❌ 错误: ' + e.data.error);
+                    }
+                };
+                
+                worker.onerror = (error) => {
+                    log('❌ Worker错误: ' + error.message);
+                };
+                
+                // 发送文件到Worker
+                worker.postMessage({
+                    type: 'TEST_FILE',
+                    arrayBuffer: arrayBuffer
+                }, [arrayBuffer]);
+                
+            } catch (error) {
+                log('❌ 主线程错误: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>
