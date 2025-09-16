@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>测试于源文件验证</title>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <h1>测试于源文件验证</h1>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <div id="result"></div>
+
+    <script>
+        // 创建一个简化的Worker来测试
+        const workerCode = `
+            importScripts('https://unpkg.com/xlsx/dist/xlsx.full.min.js');
+            
+            self.onmessage = function(e) {
+                console.log('Worker收到消息');
+                const { fileData } = e.data;
+                
+                try {
+                    console.log('开始解析，文件大小:', fileData.byteLength);
+                    
+                    const workbook = XLSX.read(fileData, {
+                        type: "array",
+                        cellDates: true,
+                        dense: false,
+                        sheetStubs: false,
+                        bookVBA: false,
+                        bookProps: false,
+                        bookFiles: false,
+                        bookDeps: false,
+                        raw: false
+                    });
+                    
+                    console.log('解析成功，工作表:', workbook.SheetNames);
+                    
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    console.log('工作表对象:', worksheet ? '存在' : '不存在');
+                    console.log('工作表范围:', worksheet?.['!ref']);
+                    
+                    const data = XLSX.utils.sheet_to_json(worksheet, {
+                        header: 1,
+                        defval: "",
+                        raw: false,
+                        dateNF: "yyyy-mm-dd"
+                    });
+                    
+                    console.log('总行数:', data.length);
+                    
+                    self.postMessage({
+                        success: true,
+                        sheetNames: workbook.SheetNames,
+                        rowCount: data.length,
+                        firstRow: data[0] || []
+                    });
+                    
+                } catch (error) {
+                    console.error('Worker解析错误:', error);
+                    self.postMessage({
+                        success: false,
+                        error: error.message
+                    });
+                }
+            };
+        `;
+        
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const workerUrl = URL.createObjectURL(blob);
+        
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            console.log('选择的文件:', file.name, '大小:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>正在读取文件...</p>';
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                console.log('文件读取完成，ArrayBuffer大小:', arrayBuffer.byteLength);
+                
+                const worker = new Worker(workerUrl);
+                
+                worker.onmessage = (e) => {
+                    console.log('主线程收到Worker响应:', e.data);
+                    
+                    if (e.data.success) {
+                        resultDiv.innerHTML = `
+                            <h2>解析成功</h2>
+                            <p>工作表: ${e.data.sheetNames.join(', ')}</p>
+                            <p>总行数: ${e.data.rowCount}</p>
+                            <p>第一行: ${JSON.stringify(e.data.firstRow)}</p>
+                        `;
+                    } else {
+                        resultDiv.innerHTML = `
+                            <h2>解析失败</h2>
+                            <p>错误: ${e.data.error}</p>
+                        `;
+                    }
+                    
+                    worker.terminate();
+                };
+                
+                worker.onerror = (error) => {
+                    console.error('Worker错误:', error);
+                    resultDiv.innerHTML = `<p style="color: red;">Worker错误: ${error.message}</p>`;
+                };
+                
+                console.log('发送数据到Worker');
+                worker.postMessage({ fileData: arrayBuffer });
+                
+            } catch (error) {
+                console.error('文件处理错误:', error);
+                resultDiv.innerHTML = `<p style="color: red;">错误: ${error.message}</p>`;
+            }
+        });
+    </script>
+</body>
+</html>
