@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import FileUpload from "@/components/FileUpload";
 import TaskSelector from "@/components/TaskSelector";
 import ValidationRequirements from "@/components/ValidationRequirements";
 import ValidationResults from "@/components/ValidationResults";
 import FrontendSheetSelector from "@/components/FrontendSheetSelector";
+import FileOptimizationTips from "@/components/FileOptimizationTips";
 import UserMenu from "@/components/UserMenu";
 import { useFrontendValidation } from "@/hooks/useFrontendValidation";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,6 +24,7 @@ import { usePerformanceMode } from "@/hooks/usePerformanceMode";
 
 function HomeContent() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const router = useRouter();
   const availableTasks = getAvailableTasks();
   const [selectedTask, setSelectedTask] = useState<string>(
     availableTasks[0] || ""
@@ -54,6 +57,13 @@ function HomeContent() {
     onTaskEnd: () => console.log("Excel验证结束，停止会话保持"),
   });
 
+  // 处理未认证用户的重定向
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [authLoading, isAuthenticated, router]);
+
   // 监听验证结果，只有在真正成功时才显示成功动画
   useEffect(() => {
     if (result && result.isValid && !isValidating) {
@@ -74,9 +84,16 @@ function HomeContent() {
     );
   }
 
-  // 如果未认证，这个组件不应该渲染（中间件会重定向）
+  // 如果未认证，显示重定向状态而不是黑屏
   if (!isAuthenticated || !user) {
-    return null;
+    return (
+      <GentleGradientBackground className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">正在跳转到登录页面...</p>
+        </div>
+      </GentleGradientBackground>
+    );
   }
 
   const handleFileUpload = (file: File) => {
@@ -363,6 +380,13 @@ function HomeContent() {
               </div>
             </div>
           )}
+
+          {/* 文件优化建议 */}
+          <FileOptimizationTips
+            fileName={uploadedFile?.name}
+            fileSize={uploadedFile?.size}
+            error={error}
+          />
 
           {/* 验证选项 */}
           {uploadedFile && (

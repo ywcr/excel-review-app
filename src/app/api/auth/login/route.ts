@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateUser, generateToken } from '@/lib/auth';
+import {
+  authenticateUser,
+  generateToken,
+  clearUserSession,
+  setUserSession,
+  generateSessionId,
+  hashToken,
+  getDeviceInfo,
+  type ActiveSession,
+} from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,14 +30,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "用户名或密码错误" }, { status: 401 });
     }
 
-    // 生成JWT令牌
-    const token = generateToken(user);
+    // 🆕 检查是否已有活跃会话，如果有则清除（实现互踢）
+    if (user.activeSession) {
+      console.log(`用户 ${username} 在其他设备登录，清除之前的会话`);
+      clearUserSession(user.id);
+    }
 
-    // 创建响应（减少敏感信息）
+    // 🆕 创建新的会话信息
+    const sessionId = generateSessionId();
+    const deviceInfo = getDeviceInfo(request);
+
+    // 生成JWT令牌（包含会话ID）
+    const token = generateToken(user, sessionId);
+    const tokenHash = hashToken(token);
+
+    const newSession: ActiveSession = {
+      sessionId,
+      tokenHash,
+      deviceInfo,
+      loginTime: new Date().toISOString(),
+      lastActivity: new Date().toISOString(),
+    };
+
+    // 🆕 保存会话信息
+    setUserSession(user.id, newSession);
+
+    // 创建响应（不返回敏感信息）
     const response = NextResponse.json({
       success: true,
       message: "登录成功",
-      // 不在响应中包含用户信息，通过cookie和后续API获取
     });
 
     // 设置HTTP-only cookie（增强安全性）
@@ -42,10 +72,7 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error('登录API错误:', error);
-    return NextResponse.json(
-      { error: '服务器内部错误' },
-      { status: 500 }
-    );
+    console.error("登录API错误:", error);
+    return NextResponse.json({ error: "服务器内部错误" }, { status: 500 });
   }
 }

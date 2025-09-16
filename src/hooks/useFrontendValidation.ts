@@ -148,6 +148,20 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
         return;
       }
 
+      // Check file size (warn for very large files, but don't reject)
+      const fileSizeMB = file.size / 1024 / 1024;
+      if (fileSizeMB > 1000) {
+        console.warn(
+          `超大文件警告: ${fileSizeMB.toFixed(1)}MB，处理可能需要较长时间`
+        );
+      } else if (fileSizeMB > 500) {
+        console.warn(`大文件警告: ${fileSizeMB.toFixed(1)}MB，处理可能较慢`);
+      } else if (fileSizeMB > 300) {
+        console.warn(
+          `中等大小文件: ${fileSizeMB.toFixed(1)}MB，建议关注数据密度`
+        );
+      }
+
       try {
         setIsValidating(true);
         cleanupWorker(); // Clean up any previous worker
@@ -159,6 +173,11 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
         );
         const worker = new Worker(workerUrl);
         workerRef.current = worker;
+
+        // 确保Worker创建成功
+        if (!workerRef.current) {
+          throw new Error("Worker创建失败");
+        }
 
         worker.onmessage = (e) => {
           const { type, data } = e.data;
@@ -200,7 +219,21 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
         const template = getTaskTemplate(taskName);
 
         // Send validation request to worker
-        workerRef.current!.postMessage({
+        // 保存Worker引用，防止在异步操作期间被清理
+        const currentWorker = workerRef.current;
+        if (!currentWorker) {
+          throw new Error("Worker未正确初始化");
+        }
+
+        // 添加小延迟确保Worker完全初始化
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        // 再次检查Worker是否仍然存在
+        if (!workerRef.current || workerRef.current !== currentWorker) {
+          throw new Error("Worker在验证过程中被清理");
+        }
+
+        currentWorker.postMessage({
           type: MESSAGE_TYPES.VALIDATE_EXCEL,
           data: {
             fileBuffer,
@@ -238,6 +271,11 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
       const worker = new Worker(workerUrl);
       workerRef.current = worker;
 
+      // 确保Worker创建成功
+      if (!workerRef.current) {
+        throw new Error("图片验证Worker创建失败");
+      }
+
       worker.onmessage = (e) => {
         const { type, data } = e.data;
         switch (type) {
@@ -270,7 +308,13 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
       const fileBuffer = await file.arrayBuffer();
 
       // Send image validation request to worker
-      workerRef.current!.postMessage({
+      // 保存Worker引用，防止在异步操作期间被清理
+      const currentWorker = workerRef.current;
+      if (!currentWorker) {
+        throw new Error("Worker未正确初始化");
+      }
+
+      currentWorker.postMessage({
         type: MESSAGE_TYPES.VALIDATE_IMAGES,
         data: {
           fileBuffer,

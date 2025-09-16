@@ -6,7 +6,14 @@
       "passwordHash": "$2b$10$/JytYerFSGHWqCZYUV/3sOzamNGd5n9JtpzLNbn07uFW2Wmomf6h6",
       "role": "admin",
       "createdAt": "2025-09-13T04:06:51.641Z",
-      "lastLogin": null
+      "lastLogin": "2025-09-16T16:25:28.770Z",
+      "activeSession": {
+        "sessionId": "21a038eb-62de-49bd-b062-0409718b496d",
+        "tokenHash": "f98d9c320013b2151dd5e32da597dca1da86aa8d43bcea573ad013cddedd9b11",
+        "deviceInfo": "Mozilla/5.0 (::1.xxx)",
+        "loginTime": "2025-09-16T16:25:28.773Z",
+        "lastActivity": "2025-09-16T16:25:28.773Z"
+      }
     },
     {
       "id": "chenrong",
@@ -14,7 +21,14 @@
       "passwordHash": "$2b$10$Y3ogbpUBg6u.Ww6uyHldEerHpAD4ouKZKyHO2VQXG4TI/EzJ5fiqC",
       "role": "user",
       "createdAt": "2025-09-13T04:37:21.805Z",
-      "lastLogin": null
+      "lastLogin": "2025-09-16T16:25:36.252Z",
+      "activeSession": {
+        "sessionId": "d4203976-4a7d-4f66-b493-3209ba6c222a",
+        "tokenHash": "14a27f7dfffca39effac2b0663fdec1d9f0778001163266ad8c4e48483e710fb",
+        "deviceInfo": "Mozilla/5.0 (::1.xxx)",
+        "loginTime": "2025-09-16T16:25:36.255Z",
+        "lastActivity": "2025-09-16T16:32:09.319Z"
+      }
     }
   ]
 }

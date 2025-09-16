@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken, generateToken, findUserByUsername } from "@/lib/auth";
+import {
+  verifyTokenWithSession,
+  generateToken,
+  findUserByUsername,
+  setUserSession,
+  hashToken,
+  getDeviceInfo,
+  type ActiveSession,
+} from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,20 +18,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "未找到认证令牌" }, { status: 401 });
     }
 
-    // 验证当前token（即使过期也要尝试解析）
+    // 🆕 使用增强的token验证（包含会话验证）
+    // 对于refresh，我们需要特殊处理，因为token可能即将过期
     let user;
     try {
-      user = verifyToken(token);
+      user = verifyTokenWithSession(token);
     } catch (error: any) {
-      // 如果是过期错误，尝试解析过期的token
-      if (error.name === "TokenExpiredError") {
-        const jwt = await import("jsonwebtoken");
-        const JWT_SECRET =
-          process.env.JWT_SECRET ||
-          "your-super-secret-jwt-key-change-this-in-production";
-        user = jwt.decode(token);
-      } else {
-        return NextResponse.json({ error: "无效的认证令牌" }, { status: 401 });
+      // 如果会话验证失败，尝试基本的token验证
+      try {
+        user = verifyToken(token);
+        if (user) {
+          // Token有效但会话可能失效，需要重新验证用户
+          const currentUser = findUserByUsername(user.username);
+          if (!currentUser || !currentUser.activeSession) {
+            return NextResponse.json(
+              {
+                error: "会话已失效，请重新登录",
+              },
+              { status: 401 }
+            );
+          }
+        }
+      } catch (tokenError: any) {
+        // 如果是过期错误，尝试解析过期的token
+        if (tokenError.name === "TokenExpiredError") {
+          const jwt = await import("jsonwebtoken");
+          const JWT_SECRET =
+            process.env.JWT_SECRET ||
+            "your-super-secret-jwt-key-change-this-in-production";
+          user = jwt.decode(token);
+        } else {
+          return NextResponse.json(
+            { error: "无效的认证令牌" },
+            { status: 401 }
+          );
+        }
       }
     }
 
@@ -39,6 +68,19 @@ export async function POST(request: NextRequest) {
 
     // 生成新的JWT令牌
     const newToken = generateToken(currentUser);
+
+    // 🆕 更新会话信息
+    const newTokenHash = hashToken(newToken);
+
+    if (currentUser.activeSession) {
+      // 更新现有会话
+      const updatedSession: ActiveSession = {
+        ...currentUser.activeSession,
+        tokenHash: newTokenHash,
+        lastActivity: new Date().toISOString(),
+      };
+      setUserSession(currentUser.id, updatedSession);
+    }
 
     // 创建响应
     const response = NextResponse.json({

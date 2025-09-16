@@ -40,6 +40,15 @@ export function useAuth() {
           isAuthenticated: true,
         });
         return true;
+      } else if (response.status === 401) {
+        // 401错误表示会话已失效，立即重定向到登录页面
+        setAuthState({
+          user: null,
+          isLoading: false,
+          isAuthenticated: false,
+        });
+        router.push("/login?message=session_expired");
+        return false;
       } else {
         return false;
       }
@@ -67,6 +76,7 @@ export function useAuth() {
         // 尝试刷新令牌
         const refreshed = await refreshToken();
         if (!refreshed) {
+          // refreshToken 函数已经处理了重定向，这里只需要设置状态
           setAuthState({
             user: null,
             isLoading: false,

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>浏览器文件处理测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .log { background: #f8f9fa; padding: 10px; margin: 10px 0; border-radius: 3px; font-family: monospace; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Excel文件浏览器处理测试</h1>
+    
+    <div class="test-section info">
+        <h3>测试说明</h3>
+        <p>此测试页面用于检测浏览器处理大型Excel文件的能力和限制。</p>
+        <p>请分别上传两个文件进行对比测试：</p>
+        <ul>
+            <li>文件A: 8月盛邦药店拜访记录.xlsx (约196MB)</li>
+            <li>文件B: 李燕拜访.xlsx (约445MB)</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h3>文件上传测试</h3>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" />
+        <button onclick="testFileProcessing()">开始测试</button>
+        <button onclick="clearLog()">清空日志</button>
+    </div>
+
+    <div class="test-section">
+        <h3>测试结果</h3>
+        <div id="testResults" class="log">等待文件上传...</div>
+    </div>
+
+    <script src="/vendor/xlsx.full.min.js"></script>
+    <script>
+        let testLog = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            testLog.push(logEntry);
+            
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.textContent = testLog.join('\n');
+            
+            console.log(logEntry);
+        }
+
+        function clearLog() {
+            testLog = [];
+            document.getElementById('testResults').textContent = '日志已清空...';
+        }
+
+        async function testFileProcessing() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                log('❌ 请先选择一个文件', 'error');
+                return;
+            }
+
+            log(`🚀 开始测试文件: ${file.name}`);
+            log(`📊 文件大小: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+            log(`📅 文件类型: ${file.type}`);
+            log(`📅 最后修改: ${new Date(file.lastModified).toLocaleString()}`);
+
+            try {
+                // 步骤1: 测试文件读取
+                log('📖 步骤1: 测试文件读取...');
+                const startTime = performance.now();
+                
+                let fileBuffer;
+                try {
+                    fileBuffer = await file.arrayBuffer();
+                    const readTime = performance.now() - startTime;
+                    log(`✅ 文件读取成功，耗时: ${readTime.toFixed(2)}ms`);
+                    log(`📊 Buffer大小: ${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
+                } catch (error) {
+                    log(`❌ 文件读取失败: ${error.message}`, 'error');
+                    return;
+                }
+
+                // 步骤2: 测试内存使用
+                log('🧠 步骤2: 检查内存使用...');
+                if (performance.memory) {
+                    const memory = performance.memory;
+                    log(`💾 已用堆内存: ${(memory.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`);
+                    log(`💾 总堆内存: ${(memory.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`);
+                    log(`💾 堆内存限制: ${(memory.jsHeapSizeLimit / 1024 / 1024).toFixed(2)} MB`);
+                } else {
+                    log('⚠️ 浏览器不支持内存监控');
+                }
+
+                // 步骤3: 测试XLSX解析（工作表信息）
+                log('📋 步骤3: 解析工作表信息...');
+                let workbook;
+                try {
+                    const parseStart = performance.now();
+                    workbook = XLSX.read(fileBuffer, {
+                        type: "array",
+                        bookSheets: true,
+                        bookVBA: false,
+                        bookProps: false,
+                        bookFiles: false,
+                        bookDeps: false,
+                    });
+                    const parseTime = performance.now() - parseStart;
+                    log(`✅ 工作表解析成功，耗时: ${parseTime.toFixed(2)}ms`);
+                    log(`📊 工作表数量: ${workbook.SheetNames.length}`);
+                    log(`📊 工作表名称: ${workbook.SheetNames.join(', ')}`);
+                } catch (error) {
+                    if (error.message && error.message.includes("Invalid array length")) {
+                        log(`❌ 解析失败: Excel文件格式复杂，请尝试减少数据行数或简化工作表内容`, 'error');
+                    } else {
+                        log(`❌ 解析失败: ${error.message}`, 'error');
+                    }
+                    return;
+                }
+
+                // 步骤4: 测试完整数据解析
+                log('📊 步骤4: 解析完整数据...');
+                try {
+                    const dataStart = performance.now();
+                    const fullWorkbook = XLSX.read(fileBuffer, { type: "array" });
+                    const firstSheet = fullWorkbook.Sheets[workbook.SheetNames[0]];
+                    
+                    const data = XLSX.utils.sheet_to_json(firstSheet, {
+                        header: 1,
+                        defval: "",
+                        raw: false,
+                        dateNF: "yyyy-mm-dd",
+                    });
+                    
+                    const dataTime = performance.now() - dataStart;
+                    log(`✅ 数据解析成功，耗时: ${dataTime.toFixed(2)}ms`);
+                    log(`📊 数据行数: ${data.length}`);
+                    
+                    // 检查行数限制
+                    if (data.length > 50000) {
+                        log(`⚠️ 警告: 数据行数 (${data.length}) 超过系统限制 (50,000 行)`, 'warning');
+                    }
+                    
+                } catch (error) {
+                    if (error.message && error.message.includes("Invalid array length")) {
+                        log(`❌ 数据解析失败: 工作表数据过大，请减少数据行数或简化内容`, 'error');
+                    } else {
+                        log(`❌ 数据解析失败: ${error.message}`, 'error');
+                    }
+                    return;
+                }
+
+                // 步骤5: 测试Web Worker兼容性
+                log('🔧 步骤5: 测试Web Worker处理...');
+                try {
+                    const worker = new Worker('/validation-worker.js');
+                    
+                    const workerPromise = new Promise((resolve, reject) => {
+                        const timeout = setTimeout(() => {
+                            worker.terminate();
+                            reject(new Error('Worker超时'));
+                        }, 30000); // 30秒超时
+
+                        worker.onmessage = (e) => {
+                            clearTimeout(timeout);
+                            worker.terminate();
+                            resolve(e.data);
+                        };
+
+                        worker.onerror = (error) => {
+                            clearTimeout(timeout);
+                            worker.terminate();
+                            reject(error);
+                        };
+
+                        // 发送测试消息
+                        worker.postMessage({
+                            type: 'VALIDATE_EXCEL',
+                            data: {
+                                fileBuffer: fileBuffer,
+                                taskName: '药店拜访',
+                                selectedSheet: workbook.SheetNames[0],
+                                template: { validationRules: [] },
+                                includeImages: false
+                            }
+                        });
+                    });
+
+                    const workerResult = await workerPromise;
+                    log(`✅ Web Worker处理成功`);
+                    
+                } catch (error) {
+                    log(`❌ Web Worker处理失败: ${error.message}`, 'error');
+                }
+
+                // 最终内存检查
+                log('🏁 步骤6: 最终内存检查...');
+                if (performance.memory) {
+                    const finalMemory = performance.memory;
+                    log(`💾 最终已用堆内存: ${(finalMemory.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`);
+                    log(`💾 最终总堆内存: ${(finalMemory.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`);
+                }
+
+                log(`🎉 测试完成！文件 ${file.name} 处理成功`);
+
+            } catch (error) {
+                log(`❌ 测试过程中发生错误: ${error.message}`, 'error');
+                log(`📍 错误堆栈: ${error.stack}`, 'error');
+            }
+        }
+
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🚀 测试页面已加载，请选择Excel文件进行测试');
+            
+            // 检查浏览器支持
+            if (typeof Worker === 'undefined') {
+                log('⚠️ 警告: 浏览器不支持Web Worker', 'warning');
+            }
+            
+            if (typeof XLSX === 'undefined') {
+                log('❌ 错误: XLSX库未加载', 'error');
+            } else {
+                log('✅ XLSX库已加载');
+            }
+        });
+    </script>
+</body>
+</html>
