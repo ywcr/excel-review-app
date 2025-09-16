@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@types/bcryptjs": "^3.0.0",
-    "@types/jsonwebtoken": "^9.0.10",
     "bcryptjs": "^3.0.2",
     "exceljs": "^4.4.0",
     "jimp": "^1.6.0",
@@ -28,6 +27,7 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/jest": "^30.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",

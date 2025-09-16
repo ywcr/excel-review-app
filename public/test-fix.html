@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>测试修复后的解析</title>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <h1>测试修复后的解析</h1>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>正在测试...</p>';
+            
+            try {
+                // 测试1: 使用修复后的Worker
+                resultDiv.innerHTML += '<h2>测试1: 使用修复后的Worker</h2>';
+                
+                const worker = new Worker('/validation-worker.js');
+                const fileBuffer = await file.arrayBuffer();
+                
+                worker.onmessage = (e) => {
+                    const { type, data } = e.data;
+                    console.log('Worker消息:', type, data);
+                    
+                    if (type === 'PROGRESS') {
+                        resultDiv.innerHTML += `<p>进度: ${data.message} (${data.progress}%)</p>`;
+                    } else if (type === 'RESULT') {
+                        if (data && data.needSheetSelection) {
+                            resultDiv.innerHTML += '<p style="color: orange;">🔄 需要用户选择工作表</p>';
+                            resultDiv.innerHTML += '<p>可用工作表:</p>';
+                            resultDiv.innerHTML += '<ul>';
+                            data.availableSheets.forEach(sheet => {
+                                resultDiv.innerHTML += `<li>${sheet.name} (${sheet.hasData ? '有数据' : '无数据'})</li>`;
+                            });
+                            resultDiv.innerHTML += '</ul>';
+
+                            // 测试1b: 用户选择第一个有数据的工作表
+                            const firstDataSheet = data.availableSheets.find(s => s.hasData);
+                            if (firstDataSheet) {
+                                resultDiv.innerHTML += '<h3>测试1b: 用户选择工作表</h3>';
+                                worker.postMessage({
+                                    type: 'VALIDATE_EXCEL',
+                                    data: {
+                                        fileBuffer: fileBuffer,
+                                        taskName: 'yuyuan',
+                                        selectedSheet: firstDataSheet.name, // 用户选择的工作表
+                                        template: {
+                                            requiredFields: ['序号', '姓名', '身份证号'],
+                                            sheetNames: ['于源数据', '数据表', 'Sheet1'],
+                                            name: '于源文件验证'
+                                        },
+                                        includeImages: false
+                                    }
+                                });
+                            }
+                        } else {
+                            resultDiv.innerHTML += '<p style="color: green;">✅ Worker解析成功!</p>';
+                            resultDiv.innerHTML += `<p>总行数: ${data.summary?.totalRows || '未知'}</p>`;
+                            resultDiv.innerHTML += `<p>有效行数: ${data.summary?.validRows || '未知'}</p>`;
+                            resultDiv.innerHTML += `<p>错误数: ${data.summary?.errorCount || '未知'}</p>`;
+                            worker.terminate();
+                        }
+                    } else if (type === 'ERROR') {
+                        resultDiv.innerHTML += `<p style="color: red;">❌ Worker解析失败: ${data.message}</p>`;
+                        worker.terminate();
+                    }
+                };
+                
+                worker.onerror = (error) => {
+                    resultDiv.innerHTML += `<p style="color: red;">❌ Worker错误: ${error.message}</p>`;
+                };
+                
+                // 测试1a: 不指定工作表，测试自动匹配
+                resultDiv.innerHTML += '<h3>测试1a: 自动工作表匹配</h3>';
+                worker.postMessage({
+                    type: 'VALIDATE_EXCEL',
+                    data: {
+                        fileBuffer: fileBuffer,
+                        taskName: 'yuyuan',
+                        selectedSheet: undefined, // 不指定工作表
+                        template: {
+                            requiredFields: ['序号', '姓名', '身份证号'],
+                            sheetNames: ['于源数据', '数据表', 'Sheet1'], // 模板期望的工作表名
+                            name: '于源文件验证'
+                        },
+                        includeImages: false
+                    }
+                });
+                
+                // 测试2: 直接解析对比
+                resultDiv.innerHTML += '<h2>测试2: 直接解析对比</h2>';
+                
+                const workbook = XLSX.read(fileBuffer, {
+                    type: "array",
+                    cellDates: true,
+                    dense: false,
+                    sheetStubs: false,
+                    bookVBA: false,
+                    bookProps: false,
+                    bookFiles: false,
+                    bookDeps: false,
+                    raw: false
+                });
+                
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const data = XLSX.utils.sheet_to_json(firstSheet, {
+                    header: 1,
+                    defval: "",
+                    raw: false,
+                    dateNF: "yyyy-mm-dd"
+                });
+                
+                resultDiv.innerHTML += '<p style="color: green;">✅ 直接解析成功!</p>';
+                resultDiv.innerHTML += `<p>工作表: ${workbook.SheetNames.join(', ')}</p>`;
+                resultDiv.innerHTML += `<p>总行数: ${data.length}</p>`;
+                
+                // 查找包含"序号"的行
+                let foundHeaderRow = false;
+                for (let i = 0; i < Math.min(20, data.length); i++) {
+                    const row = data[i];
+                    if (row && row.some(cell => String(cell || '').includes('序号'))) {
+                        resultDiv.innerHTML += `<p style="color: blue;">找到表头行: 第${i+1}行</p>`;
+                        foundHeaderRow = true;
+                        break;
+                    }
+                }
+                if (!foundHeaderRow) {
+                    resultDiv.innerHTML += '<p style="color: orange;">未找到包含"序号"的表头行</p>';
+                }
+                
+            } catch (error) {
+                console.error('测试错误:', error);
+                resultDiv.innerHTML += `<p style="color: red;">测试失败: ${error.message}</p>`;
+            }
+        });
+    </script>
+</body>
+</html>
