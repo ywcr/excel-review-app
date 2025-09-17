@@ -2,10 +2,20 @@ import jwt, { SignOptions } from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { AUTH_CONFIG } from "./auth-config";
 
 // 用户数据文件路径
 const USERS_FILE = path.join(process.cwd(), "data", "users.json");
+
+// 活跃会话接口
+export interface ActiveSession {
+  sessionId: string;
+  tokenHash: string; // token的哈希值（安全考虑）
+  deviceInfo: string; // 设备信息
+  loginTime: string;
+  lastActivity: string;
+}
 
 // 用户接口定义
 export interface User {
@@ -15,6 +25,7 @@ export interface User {
   role: string;
   createdAt: string;
   lastLogin: string | null;
+  activeSession?: ActiveSession | null; // 新增：活跃会话信息
 }
 
 export interface UserData {
@@ -25,6 +36,8 @@ export interface JWTPayload {
   userId: string;
   username: string;
   role: string;
+  sessionId?: string;
+  loginTime?: number;
   iat?: number;
   exp?: number;
 }
@@ -92,12 +105,15 @@ export async function hashPassword(password: string): Promise<string> {
   }
 }
 
-// 生成JWT令牌
-export function generateToken(user: User): string {
+// 生成JWT令牌（包含会话信息）
+export function generateToken(user: User, sessionId?: string): string {
   const payload: JWTPayload = {
     userId: user.id,
     username: user.username,
     role: user.role,
+    // 添加时间戳和会话ID确保每次登录的token都不同
+    sessionId: sessionId || generateSessionId(),
+    loginTime: Date.now(),
   };
 
   const secret =
@@ -165,6 +181,120 @@ export async function authenticateUser(
   }
 }
 
+// 生成会话ID
+export function generateSessionId(): string {
+  return crypto.randomUUID();
+}
+
+// 生成token哈希
+export function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+// 获取设备信息（脱敏处理）
+export function getDeviceInfo(request: Request): string {
+  const userAgent = request.headers.get("user-agent") || "Unknown";
+  const ip =
+    request.headers.get("x-forwarded-for") ||
+    request.headers.get("x-real-ip") ||
+    "Unknown";
+
+  // 只保留必要信息，避免过度收集
+  const browserInfo = userAgent.split(" ")[0] || "Unknown Browser";
+  const ipMasked = ip.split(".").slice(0, 3).join(".") + ".xxx"; // IP脱敏
+
+  return `${browserInfo} (${ipMasked})`;
+}
+
+// 清除用户的活跃会话
+export function clearUserSession(userId: string): void {
+  try {
+    const userData = loadUsers();
+    const user = userData.users.find((u) => u.id === userId);
+
+    if (user) {
+      user.activeSession = null;
+      saveUsers(userData);
+    }
+  } catch (error) {
+    console.error("清除用户会话失败:", error);
+  }
+}
+
+// 设置用户活跃会话
+export function setUserSession(userId: string, session: ActiveSession): void {
+  try {
+    const userData = loadUsers();
+    const user = userData.users.find((u) => u.id === userId);
+
+    if (user) {
+      user.activeSession = session;
+      saveUsers(userData);
+    }
+  } catch (error) {
+    console.error("设置用户会话失败:", error);
+  }
+}
+
+// 验证用户会话
+export function validateUserSession(
+  userId: string,
+  tokenHash: string
+): boolean {
+  try {
+    const userData = loadUsers();
+    const user = userData.users.find((u) => u.id === userId);
+
+    if (!user || !user.activeSession) {
+      return false;
+    }
+
+    // 检查token哈希是否匹配
+    if (user.activeSession.tokenHash !== tokenHash) {
+      return false;
+    }
+
+    // 检查会话是否过期（24小时）
+    const sessionTime = new Date(user.activeSession.loginTime).getTime();
+    const now = Date.now();
+    const maxAge = 24 * 60 * 60 * 1000; // 24小时
+
+    if (now - sessionTime > maxAge) {
+      // 会话过期，清除
+      clearUserSession(userId);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("验证用户会话失败:", error);
+    return false;
+  }
+}
+
+// 增强的token验证函数
+export function verifyTokenWithSession(token: string): JWTPayload | null {
+  try {
+    const secret =
+      process.env.JWT_SECRET ||
+      "your-super-secret-jwt-key-change-this-in-production";
+    const decoded = jwt.verify(token, secret) as JWTPayload;
+
+    // 验证会话是否有效
+    const tokenHash = hashToken(token);
+    const isValidSession = validateUserSession(decoded.userId, tokenHash);
+
+    if (!isValidSession) {
+      return null;
+    }
+
+    return decoded;
+  } catch (error) {
+    console.error("JWT验证失败:", error);
+    return null;
+  }
+}
+
 // 从请求中获取用户信息
 export function getUserFromRequest(request: Request): JWTPayload | null {
   try {
@@ -185,6 +315,34 @@ export function getUserFromRequest(request: Request): JWTPayload | null {
 // 检查用户是否有特定角色
 export function hasRole(user: JWTPayload, role: string): boolean {
   return user.role === role || user.role === "admin";
+}
+
+// 清理过期会话
+export function cleanupExpiredSessions(): void {
+  try {
+    const userData = loadUsers();
+    let hasChanges = false;
+
+    userData.users.forEach((user) => {
+      if (user.activeSession) {
+        const sessionTime = new Date(user.activeSession.loginTime).getTime();
+        const now = Date.now();
+        const maxAge = 24 * 60 * 60 * 1000; // 24小时
+
+        if (now - sessionTime > maxAge) {
+          user.activeSession = null;
+          hasChanges = true;
+          console.log(`清理用户 ${user.username} 的过期会话`);
+        }
+      }
+    });
+
+    if (hasChanges) {
+      saveUsers(userData);
+    }
+  } catch (error) {
+    console.error("清理过期会话失败:", error);
+  }
 }
 
 // 生成安全的随机密码

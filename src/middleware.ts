@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { decodeJWT } from "@/lib/auth-edge";
+import { decodeJWT, validateSessionInEdge } from "@/lib/auth-edge";
 
 // 需要认证的路径
 const protectedPaths = [
@@ -85,13 +85,18 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 验证token
+  // 验证token（在Edge Runtime中只能做基本验证）
   let user = decodeJWT(token);
 
-  if (!user) {
+  if (!user || !validateSessionInEdge(token)) {
     // 如果是API请求，返回401让前端处理刷新
     if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "认证令牌已过期" }, { status: 401 });
+      return NextResponse.json(
+        {
+          error: "认证令牌已过期或会话无效",
+        },
+        { status: 401 }
+      );
     }
 
     // 如果是页面请求，重定向到登录页

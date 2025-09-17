@@ -12,14 +12,16 @@ export interface JWTPayload {
 // 简单的JWT解码（不验证签名，仅用于中间件）
 export function decodeJWT(token: string): JWTPayload | null {
   try {
-    const parts = token.split('.');
+    const parts = token.split(".");
     if (parts.length !== 3) {
       return null;
     }
 
     const payload = parts[1];
-    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
-    
+    const decoded = JSON.parse(
+      atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
+    );
+
     // 检查是否过期
     if (decoded.exp && decoded.exp < Date.now() / 1000) {
       return null;
@@ -27,9 +29,18 @@ export function decodeJWT(token: string): JWTPayload | null {
 
     return decoded as JWTPayload;
   } catch (error) {
-    console.error('JWT解码失败:', error);
+    console.error("JWT解码失败:", error);
     return null;
   }
+}
+
+// Edge Runtime兼容的会话验证（简化版）
+export function validateSessionInEdge(token: string): boolean {
+  // 在Edge Runtime中，我们只能做基本的JWT验证
+  // 完整的会话验证将在API路由中进行
+  // 这里只验证JWT格式和过期时间，不验证会话状态
+  const decoded = decodeJWT(token);
+  return decoded !== null;
 }
 
 // 检查用户是否有特定角色
