@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   verifyTokenWithSession,
+  verifyToken,
   generateToken,
   findUserByUsername,
   setUserSession,
@@ -60,10 +61,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "无效的用户信息" }, { status: 401 });
     }
 
-    // 验证用户是否仍然存在
+    // 验证用户是否仍然存在（账户删除检测）
     const currentUser = findUserByUsername(user.username);
     if (!currentUser) {
-      return NextResponse.json({ error: "用户不存在" }, { status: 401 });
+      console.log(`用户 ${user.username} 账户已被删除，拒绝令牌刷新`);
+      return NextResponse.json(
+        {
+          error: "用户账户已被删除，请重新登录",
+        },
+        { status: 401 }
+      );
     }
 
     // 生成新的JWT令牌
@@ -93,12 +100,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 设置新的HTTP-only cookie
+    // 设置新的HTTP-only cookie（持久化会话配置）
     response.cookies.set("auth-token", newToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 24 * 60 * 60 * 1000, // 24小时
+      maxAge: 365 * 24 * 60 * 60 * 1000, // 1年过期时间，支持持久化会话
       path: "/",
     });
 

@@ -105,7 +105,7 @@ export async function hashPassword(password: string): Promise<string> {
   }
 }
 
-// 生成JWT令牌（包含会话信息）
+// 生成JWT令牌（包含会话信息）- 持久化会话配置
 export function generateToken(user: User, sessionId?: string): string {
   const payload: JWTPayload = {
     userId: user.id,
@@ -119,7 +119,10 @@ export function generateToken(user: User, sessionId?: string): string {
   const secret =
     process.env.JWT_SECRET ||
     "your-super-secret-jwt-key-change-this-in-production";
-  const expiresIn = process.env.JWT_EXPIRES_IN || "24h";
+
+  // 持久化会话：设置很长的过期时间（1年）或不设置过期时间
+  // 实际的会话管理通过服务端会话验证控制
+  const expiresIn = process.env.JWT_EXPIRES_IN || "365d"; // 1年过期时间
 
   return jwt.sign(payload, secret, { expiresIn } as any);
 }
@@ -236,7 +239,7 @@ export function setUserSession(userId: string, session: ActiveSession): void {
   }
 }
 
-// 验证用户会话
+// 验证用户会话 - 持久化会话管理（移除自动过期）
 export function validateUserSession(
   userId: string,
   tokenHash: string
@@ -245,25 +248,29 @@ export function validateUserSession(
     const userData = loadUsers();
     const user = userData.users.find((u) => u.id === userId);
 
-    if (!user || !user.activeSession) {
+    // 检查用户是否存在（支持服务端账户删除检测）
+    if (!user) {
+      console.log(`用户 ${userId} 不存在，会话无效`);
+      return false;
+    }
+
+    // 检查是否有活跃会话
+    if (!user.activeSession) {
+      console.log(`用户 ${userId} 没有活跃会话`);
       return false;
     }
 
     // 检查token哈希是否匹配
     if (user.activeSession.tokenHash !== tokenHash) {
+      console.log(`用户 ${userId} token哈希不匹配`);
       return false;
     }
 
-    // 检查会话是否过期（24小时）
-    const sessionTime = new Date(user.activeSession.loginTime).getTime();
-    const now = Date.now();
-    const maxAge = 24 * 60 * 60 * 1000; // 24小时
-
-    if (now - sessionTime > maxAge) {
-      // 会话过期，清除
-      clearUserSession(userId);
-      return false;
-    }
+    // 移除24小时过期检查 - 实现持久化会话
+    // 会话只在以下情况下失效：
+    // 1. 用户主动登出
+    // 2. 用户账户被删除
+    // 3. 用户在其他设备登录（互踢机制）
 
     return true;
   } catch (error) {
@@ -272,7 +279,33 @@ export function validateUserSession(
   }
 }
 
-// 增强的token验证函数
+// 删除用户账户并清理所有相关会话
+export function deleteUserAccount(userId: string): boolean {
+  try {
+    const userData = loadUsers();
+    const userIndex = userData.users.findIndex((u) => u.id === userId);
+
+    if (userIndex === -1) {
+      console.log(`用户 ${userId} 不存在，无需删除`);
+      return false;
+    }
+
+    // 清除用户会话
+    clearUserSession(userId);
+
+    // 从用户列表中删除用户
+    userData.users.splice(userIndex, 1);
+    saveUsers(userData);
+
+    console.log(`用户 ${userId} 已删除，相关会话已清理`);
+    return true;
+  } catch (error) {
+    console.error("删除用户账户失败:", error);
+    return false;
+  }
+}
+
+// 增强的token验证函数（包含账户删除检测）
 export function verifyTokenWithSession(token: string): JWTPayload | null {
   try {
     const secret =
@@ -280,11 +313,12 @@ export function verifyTokenWithSession(token: string): JWTPayload | null {
       "your-super-secret-jwt-key-change-this-in-production";
     const decoded = jwt.verify(token, secret) as JWTPayload;
 
-    // 验证会话是否有效
+    // 验证会话是否有效（包含账户存在性检查）
     const tokenHash = hashToken(token);
     const isValidSession = validateUserSession(decoded.userId, tokenHash);
 
     if (!isValidSession) {
+      console.log(`用户 ${decoded.userId} 会话验证失败，可能账户已被删除`);
       return null;
     }
 

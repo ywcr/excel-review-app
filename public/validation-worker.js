@@ -200,15 +200,32 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
     "验证开始"
   );
 
+  const fileSizeMB = fileBuffer.byteLength / 1024 / 1024;
+  const isLargeFile = fileSizeMB > 100;
+
   ImageDebugLogger.info(
     ImageDebugLogger.STAGES.FILE_PARSE,
     `开始验证Excel文件`,
     {
-      fileSize: `${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`,
+      fileSize: `${fileSizeMB.toFixed(2)}MB`,
       taskName,
       selectedSheet: selectedSheet || "未指定",
+      isLargeFile,
     }
   );
+
+  // For large files, add memory warnings
+  if (isLargeFile) {
+    ImageDebugLogger.warn(
+      ImageDebugLogger.STAGES.FILE_PARSE,
+      `检测到大文件 (${fileSizeMB.toFixed(2)}MB)，将使用优化处理模式`,
+      {
+        recommendedMaxSize: "100MB",
+        currentSize: `${fileSizeMB.toFixed(2)}MB`,
+        optimizations: ["分块处理", "内存监控", "垃圾回收"],
+      }
+    );
+  }
 
   try {
     // 解析Excel文件
@@ -375,6 +392,7 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
       // 如果仍然没有匹配到，使用第一个工作表
       if (!targetSheet || !workbook.SheetNames.includes(targetSheet)) {
         targetSheet = workbook.SheetNames[0];
+        isAutoMatched = true; // 标记为已匹配，使用默认工作表
         ImageDebugLogger.warn(
           ImageDebugLogger.STAGES.SHEET_IDENTIFY,
           `使用默认工作表: ${targetSheet}`,
@@ -1480,6 +1498,119 @@ async function validateRowsChunked(sheet, template, headerRowIndex) {
   return errors;
 }
 
+// Large file handling functions
+async function readFileInChunks(file) {
+  const fileSizeMB = file.size / (1024 * 1024);
+
+  // 根据文件大小动态调整块大小
+  let CHUNK_SIZE;
+  if (fileSizeMB > 1000) {
+    CHUNK_SIZE = 32 * 1024 * 1024; // 超大文件使用32MB块
+  } else if (fileSizeMB > 500) {
+    CHUNK_SIZE = 48 * 1024 * 1024; // 大文件使用48MB块
+  } else {
+    CHUNK_SIZE = 64 * 1024 * 1024; // 中等文件使用64MB块
+  }
+
+  const chunks = [];
+  let offset = 0;
+
+  ImageDebugLogger.info(
+    ImageDebugLogger.STAGES.FILE_PARSE,
+    `开始分块读取大文件`,
+    {
+      totalSize: `${fileSizeMB.toFixed(2)}MB`,
+      chunkSize: `${(CHUNK_SIZE / 1024 / 1024).toFixed(0)}MB`,
+      estimatedChunks: Math.ceil(file.size / CHUNK_SIZE),
+      optimizationLevel:
+        fileSizeMB > 1000 ? "最高" : fileSizeMB > 500 ? "高" : "标准",
+    }
+  );
+
+  while (offset < file.size) {
+    if (isValidationCancelled) {
+      throw new Error("文件读取已取消");
+    }
+
+    const chunk = file.slice(offset, Math.min(offset + CHUNK_SIZE, file.size));
+    const chunkBuffer = await readChunkAsArrayBuffer(chunk);
+    chunks.push(new Uint8Array(chunkBuffer));
+
+    offset += CHUNK_SIZE;
+    const progress = Math.min((offset / file.size) * 20, 20); // 0-20% for file reading
+    const progressPercent = Math.round((offset / file.size) * 100);
+
+    sendProgress(
+      `读取文件 ${progressPercent}% (${chunks.length}/${Math.ceil(
+        file.size / CHUNK_SIZE
+      )} 块)...`,
+      progress
+    );
+
+    // 对于超大文件，更频繁地进行垃圾回收
+    if (fileSizeMB > 1000 && chunks.length % 2 === 0) {
+      if (typeof gc === "function") {
+        gc();
+        ImageDebugLogger.debug(
+          ImageDebugLogger.STAGES.FILE_PARSE,
+          `强制垃圾回收 (块 ${chunks.length})`
+        );
+      }
+    } else if (typeof gc === "function" && chunks.length % 5 === 0) {
+      gc();
+    }
+
+    // Monitor memory usage
+    ImageDebugLogger.logMemoryUsage(
+      ImageDebugLogger.STAGES.FILE_PARSE,
+      `读取块 ${chunks.length}/${Math.ceil(file.size / CHUNK_SIZE)}`
+    );
+
+    // 检查内存使用情况，如果过高则警告
+    if (typeof performance !== "undefined" && performance.memory) {
+      const memoryUsageMB = performance.memory.usedJSHeapSize / 1024 / 1024;
+      if (memoryUsageMB > 800) {
+        ImageDebugLogger.warn(
+          ImageDebugLogger.STAGES.FILE_PARSE,
+          `内存使用较高: ${memoryUsageMB.toFixed(0)}MB`,
+          {
+            currentChunk: chunks.length,
+            totalChunks: Math.ceil(file.size / CHUNK_SIZE),
+          }
+        );
+      }
+    }
+  }
+
+  // Combine chunks into single ArrayBuffer
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const result = new Uint8Array(totalLength);
+  let position = 0;
+
+  for (const chunk of chunks) {
+    result.set(chunk, position);
+    position += chunk.length;
+  }
+
+  // Clear chunks array to free memory
+  chunks.length = 0;
+
+  ImageDebugLogger.info(ImageDebugLogger.STAGES.FILE_PARSE, `文件读取完成`, {
+    totalSize: `${(totalLength / 1024 / 1024).toFixed(2)}MB`,
+  });
+
+  return result.buffer;
+}
+
+async function readChunkAsArrayBuffer(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
 // Main message handler
 self.onmessage = async function (e) {
   const { type, data } = e.data;
@@ -1506,7 +1637,15 @@ self.onmessage = async function (e) {
 
 // Excel validation function
 async function validateExcel(data) {
-  const { fileBuffer, taskName, selectedSheet, template, includeImages } = data;
+  const {
+    fileBuffer,
+    file,
+    taskName,
+    selectedSheet,
+    template,
+    includeImages,
+    isLargeFile,
+  } = data;
 
   // 接收从主线程传递的完整模板
   if (template) {
@@ -1514,9 +1653,29 @@ async function validateExcel(data) {
   }
 
   try {
+    let actualFileBuffer;
+
+    if (isLargeFile && file) {
+      // For large files, read File object in chunks
+      ImageDebugLogger.info(
+        ImageDebugLogger.STAGES.FILE_PARSE,
+        `处理大文件: ${file.name}`,
+        {
+          fileSize: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+          isLargeFile: true,
+        }
+      );
+
+      // Read file in worker thread
+      actualFileBuffer = await readFileInChunks(file);
+    } else {
+      // For small files, use provided buffer
+      actualFileBuffer = fileBuffer;
+    }
+
     // 直接调用修复后的 validateExcelStreaming 函数
     const result = await validateExcelStreaming(
-      fileBuffer,
+      actualFileBuffer,
       taskName,
       selectedSheet
     );
@@ -1526,7 +1685,7 @@ async function validateExcel(data) {
       try {
         sendProgress("🚀 前端解析：正在验证图片...", 85);
         const imageValidationResult = await validateImagesInternal(
-          fileBuffer,
+          actualFileBuffer,
           selectedSheet
         );
         result.imageValidation = imageValidationResult;
@@ -1561,7 +1720,9 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
     ImageDebugLogger.STAGES.IMAGE_EXTRACT,
     "开始图片验证流程",
     {
-      fileSize: `${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`,
+      fileSize: fileBuffer
+        ? `${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`
+        : "未知",
       selectedSheet: selectedSheet || "未指定",
       blockHashAvailable,
     }
@@ -2069,7 +2230,9 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
       {
         error: error.message,
         stack: error.stack,
-        fileSize: `${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`,
+        fileSize: fileBuffer
+          ? `${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`
+          : "未知",
         selectedSheet: selectedSheet || "未指定",
         stage: "图片验证主流程",
       }
@@ -2084,7 +2247,25 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
 
 // Image validation function (for direct image validation requests)
 async function validateImages(data) {
-  const { fileBuffer } = data;
+  const { fileBuffer, file, isLargeFile } = data;
+
+  let actualFileBuffer;
+
+  if (isLargeFile && file) {
+    // For large files, read File object in chunks
+    ImageDebugLogger.info(
+      ImageDebugLogger.STAGES.IMAGE_EXTRACT,
+      `处理大文件图片验证: ${file.name}`,
+      {
+        fileSize: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+        isLargeFile: true,
+      }
+    );
+
+    actualFileBuffer = await readFileInChunks(file);
+  } else {
+    actualFileBuffer = fileBuffer;
+  }
 
   // 如果 blockhash 不可用，返回空结果
   if (
@@ -2109,7 +2290,7 @@ async function validateImages(data) {
   sendProgress("正在提取图片...", 10);
 
   try {
-    const result = await validateImagesInternal(fileBuffer);
+    const result = await validateImagesInternal(actualFileBuffer);
     sendResult(result);
   } catch (error) {
     sendError(`图片验证失败: ${error.message}`);

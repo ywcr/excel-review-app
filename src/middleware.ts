@@ -20,7 +20,9 @@ function enforceHTTPS(request: NextRequest) {
     request.headers.get("x-forwarded-proto") !== "https"
   ) {
     return NextResponse.redirect(
-      `https://${request.headers.get("host")}${request.nextUrl.pathname}${request.nextUrl.search}`,
+      `https://${request.headers.get("host")}${request.nextUrl.pathname}${
+        request.nextUrl.search
+      }`,
       301
     );
   }
@@ -37,7 +39,10 @@ function addSecurityHeaders(response: NextResponse) {
 
   // 在生产环境中强制HTTPS
   if (process.env.NODE_ENV === "production") {
-    response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    response.headers.set(
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains"
+    );
   }
 
   return response;
@@ -85,15 +90,18 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 验证token（在Edge Runtime中只能做基本验证）
+  // 验证token（简化验证 - 持久化会话管理）
   let user = decodeJWT(token);
 
-  if (!user || !validateSessionInEdge(token)) {
-    // 如果是API请求，返回401让前端处理刷新
+  if (!user) {
+    // 只在token完全无效时才拒绝访问
+    // 移除validateSessionInEdge检查，减少不必要的会话验证
+
+    // 如果是API请求，返回401让前端处理
     if (pathname.startsWith("/api/")) {
       return NextResponse.json(
         {
-          error: "认证令牌已过期或会话无效",
+          error: "认证令牌无效",
         },
         { status: 401 }
       );
@@ -104,7 +112,7 @@ export function middleware(request: NextRequest) {
     loginUrl.searchParams.set("redirect", pathname);
     const response = NextResponse.redirect(loginUrl);
 
-    // 清除过期的cookie
+    // 清除无效的cookie
     response.cookies.set("auth-token", "", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import {
   authenticateUser,
   generateToken,
@@ -61,12 +61,12 @@ export async function POST(request: NextRequest) {
       message: "登录成功",
     });
 
-    // 设置HTTP-only cookie（增强安全性）
+    // 设置HTTP-only cookie（持久化会话配置）
     response.cookies.set("auth-token", token, {
       httpOnly: true,
-      secure: true, // 总是要求HTTPS
-      sameSite: "strict", // 更严格的同站策略
-      maxAge: 24 * 60 * 60 * 1000, // 24小时
+      secure: process.env.NODE_ENV === "production", // 开发环境允许HTTP
+      sameSite: "lax", // 放宽同站策略以支持更好的兼容性
+      maxAge: 365 * 24 * 60 * 60 * 1000, // 1年过期时间，支持持久化会话
       path: "/",
     });
 

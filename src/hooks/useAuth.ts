@@ -126,21 +126,55 @@ export function useAuth() {
     checkAuth();
   }, []);
 
-  // 定期刷新令牌（每20分钟检查一次）
-  useEffect(() => {
-    if (authState.isAuthenticated) {
-      const interval = setInterval(() => {
-        refreshToken();
-      }, 20 * 60 * 1000); // 20分钟
+  // 移除自动令牌刷新 - 持久化会话管理
+  // 不再需要定期刷新令牌，会话将持续到用户主动登出或账户被删除
+  // useEffect(() => {
+  //   if (authState.isAuthenticated) {
+  //     const interval = setInterval(() => {
+  //       refreshToken();
+  //     }, 30 * 60 * 1000); // 30分钟
+  //
+  //     return () => clearInterval(interval);
+  //   }
+  // }, [authState.isAuthenticated]);
 
-      return () => clearInterval(interval);
+  // 验证前检查登录状态（简化版 - 持久化会话管理）
+  const ensureAuthenticated = async (): Promise<boolean> => {
+    if (!authState.isAuthenticated) {
+      console.log("用户未认证");
+      return false;
     }
-  }, [authState.isAuthenticated]);
+
+    // 简单检查当前认证状态，不进行令牌刷新
+    // 持久化会话下，只需要验证用户仍然登录即可
+    try {
+      const response = await fetch("/api/auth/me", {
+        credentials: "include",
+      });
+
+      if (response.ok) {
+        console.log("用户认证状态有效");
+        return true;
+      } else {
+        console.log("用户认证状态无效");
+        setAuthState({
+          user: null,
+          isLoading: false,
+          isAuthenticated: false,
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error("会话验证失败:", error);
+      return false;
+    }
+  };
 
   return {
     ...authState,
     logout,
     checkAuth,
     refreshToken,
+    ensureAuthenticated,
   };
 }

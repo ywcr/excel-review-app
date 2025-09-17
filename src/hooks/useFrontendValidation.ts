@@ -214,27 +214,46 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
           cleanupWorker();
         };
 
-        // Create a new File object and clone into memory to avoid stale handles
-        const newFile = new File([file], file.name, {
-          type: file.type,
-          lastModified: Date.now(),
-        });
-        const fileBuffer = await newFile.arrayBuffer();
+        // For large files (>100MB), pass File object directly to avoid memory issues
+        const fileSizeMB = file.size / (1024 * 1024);
+        const isLargeFile = fileSizeMB > 100;
 
         // Get complete template from validationRules
         const template = getTaskTemplate(taskName);
 
-        // Send validation request to worker
-        workerRef.current!.postMessage({
-          type: MESSAGE_TYPES.VALIDATE_EXCEL,
-          data: {
-            fileBuffer,
-            taskName,
-            selectedSheet,
-            template, // 传递完整模板
-            includeImages: includeImages || false, // 传递图片验证选项
-          },
-        });
+        if (isLargeFile) {
+          // For large files, pass File object directly
+          workerRef.current!.postMessage({
+            type: MESSAGE_TYPES.VALIDATE_EXCEL,
+            data: {
+              file: file, // Pass File object directly
+              taskName,
+              selectedSheet,
+              template,
+              includeImages: includeImages || false,
+              isLargeFile: true,
+            },
+          });
+        } else {
+          // For small files, use traditional ArrayBuffer approach
+          const newFile = new File([file], file.name, {
+            type: file.type,
+            lastModified: Date.now(),
+          });
+          const fileBuffer = await newFile.arrayBuffer();
+
+          workerRef.current!.postMessage({
+            type: MESSAGE_TYPES.VALIDATE_EXCEL,
+            data: {
+              fileBuffer,
+              taskName,
+              selectedSheet,
+              template,
+              includeImages: includeImages || false,
+              isLargeFile: false,
+            },
+          });
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "文件读取失败");
         setIsValidating(false);
@@ -302,16 +321,30 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
         cleanupWorker();
       };
 
-      // Convert file to ArrayBuffer
-      const fileBuffer = await file.arrayBuffer();
+      // Check file size for image validation
+      const fileSizeMB = file.size / (1024 * 1024);
+      const isLargeFile = fileSizeMB > 100;
 
-      // Send image validation request to worker
-      workerRef.current!.postMessage({
-        type: MESSAGE_TYPES.VALIDATE_IMAGES,
-        data: {
-          fileBuffer,
-        },
-      });
+      if (isLargeFile) {
+        // For large files, pass File object directly
+        workerRef.current!.postMessage({
+          type: MESSAGE_TYPES.VALIDATE_IMAGES,
+          data: {
+            file: file,
+            isLargeFile: true,
+          },
+        });
+      } else {
+        // For small files, convert to ArrayBuffer
+        const fileBuffer = await file.arrayBuffer();
+        workerRef.current!.postMessage({
+          type: MESSAGE_TYPES.VALIDATE_IMAGES,
+          data: {
+            fileBuffer,
+            isLargeFile: false,
+          },
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "图片验证失败");
       setIsValidating(false);
@@ -354,5 +387,6 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
     cancelValidation,
     clearResult,
     clearDebugLogs,
+    // setError 已移除，使用组件内部的 localError 状态管理
   };
 }

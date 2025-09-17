@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大文件处理测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #007bff;
+        }
+        .upload-area.dragover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #007bff;
+            transition: width 0.3s;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .status.warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .file-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .memory-info {
+            font-family: monospace;
+            font-size: 12px;
+            background: #f1f3f4;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 大文件处理测试</h1>
+        <p>此页面用于测试1GB+大文件的处理能力，验证内存优化和分块处理功能。</p>
+
+        <div class="upload-area" id="uploadArea">
+            <p>点击或拖拽Excel文件到此处</p>
+            <p style="font-size: 14px; color: #666;">支持 .xlsx 和 .xls 格式，包括大文件 (>100MB)</p>
+            <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
+        </div>
+
+        <div id="fileInfo" class="file-info" style="display: none;">
+            <h3>文件信息</h3>
+            <div id="fileDetails"></div>
+        </div>
+
+        <div id="status"></div>
+
+        <div id="progressContainer" style="display: none;">
+            <div class="progress">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <p id="progressText">准备中...</p>
+            <button id="cancelBtn" class="btn" style="background: #dc3545;">取消处理</button>
+        </div>
+
+        <div id="memoryInfo" class="memory-info" style="display: none;">
+            <h4>内存使用情况</h4>
+            <div id="memoryDetails"></div>
+        </div>
+
+        <div id="result" style="display: none;">
+            <h3>处理结果</h3>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <script>
+        let worker = null;
+
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileDetails = document.getElementById('fileDetails');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const statusDiv = document.getElementById('status');
+        const memoryInfo = document.getElementById('memoryInfo');
+        const memoryDetails = document.getElementById('memoryDetails');
+        const resultDiv = document.getElementById('result');
+        const resultContent = document.getElementById('resultContent');
+
+        // 文件上传处理
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            if (worker) {
+                worker.terminate();
+                worker = null;
+            }
+            hideProgress();
+            showStatus('处理已取消', 'info');
+        });
+
+        function handleFile(file) {
+            if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+                showStatus('请选择Excel文件 (.xlsx 或 .xls)', 'error');
+                return;
+            }
+
+            const fileSizeMB = file.size / (1024 * 1024);
+            
+            // 显示文件信息
+            showFileInfo(file, fileSizeMB);
+            
+            // 检查文件大小
+            if (fileSizeMB > 2000) {
+                showStatus(`文件过大 (${fileSizeMB.toFixed(1)}MB)。当前测试限制为2GB。`, 'error');
+                return;
+            } else if (fileSizeMB > 1000) {
+                showStatus(`检测到超大文件 (${fileSizeMB.toFixed(1)}MB)。将使用最高级别优化处理模式，请耐心等待。`, 'warning');
+            } else if (fileSizeMB > 100) {
+                showStatus(`检测到大文件 (${fileSizeMB.toFixed(1)}MB)。将使用优化处理模式。`, 'warning');
+            } else {
+                showStatus(`文件大小正常 (${fileSizeMB.toFixed(1)}MB)。`, 'info');
+            }
+
+            // 开始处理
+            processFile(file);
+        }
+
+        function showFileInfo(file, sizeMB) {
+            fileDetails.innerHTML = `
+                <p><strong>文件名:</strong> ${file.name}</p>
+                <p><strong>文件大小:</strong> ${sizeMB.toFixed(2)} MB (${file.size.toLocaleString()} bytes)</p>
+                <p><strong>文件类型:</strong> ${file.type || '未知'}</p>
+                <p><strong>最后修改:</strong> ${new Date(file.lastModified).toLocaleString()}</p>
+                <p><strong>处理模式:</strong> ${sizeMB > 100 ? '大文件优化模式' : '标准模式'}</p>
+            `;
+            fileInfo.style.display = 'block';
+        }
+
+        function processFile(file) {
+            showProgress();
+            resultDiv.style.display = 'none';
+            memoryInfo.style.display = 'block';
+
+            // 创建Worker
+            worker = new Worker('/validation-worker.js');
+            
+            worker.onmessage = (e) => {
+                const { type, data } = e.data;
+                
+                switch (type) {
+                    case 'PROGRESS':
+                        updateProgress(data.progress, data.message);
+                        break;
+                    case 'RESULT':
+                        hideProgress();
+                        displayResult(data);
+                        break;
+                    case 'ERROR':
+                        hideProgress();
+                        showStatus(`处理失败: ${data.message}`, 'error');
+                        break;
+                    case 'DEBUG_LOG':
+                        handleDebugLog(data);
+                        break;
+                }
+            };
+
+            worker.onerror = (error) => {
+                hideProgress();
+                showStatus(`Worker错误: ${error.message}`, 'error');
+            };
+
+            // 发送处理请求
+            const fileSizeMB = file.size / (1024 * 1024);
+            const isLargeFile = fileSizeMB > 100;
+
+            if (isLargeFile) {
+                // 大文件：传递File对象
+                worker.postMessage({
+                    type: 'VALIDATE_EXCEL',
+                    data: {
+                        file: file,
+                        taskName: '药店拜访',
+                        selectedSheet: null,
+                        template: null,
+                        includeImages: false,
+                        isLargeFile: true
+                    }
+                });
+            } else {
+                // 小文件：传统方式
+                file.arrayBuffer().then(buffer => {
+                    worker.postMessage({
+                        type: 'VALIDATE_EXCEL',
+                        data: {
+                            fileBuffer: buffer,
+                            taskName: '药店拜访',
+                            selectedSheet: null,
+                            template: null,
+                            includeImages: false,
+                            isLargeFile: false
+                        }
+                    });
+                });
+            }
+        }
+
+        function handleDebugLog(logData) {
+            if (logData.stage === 'FILE_PARSE' && logData.data && logData.data.memoryUsage) {
+                updateMemoryInfo(logData.data.memoryUsage);
+            }
+        }
+
+        function updateMemoryInfo(memoryUsage) {
+            memoryDetails.innerHTML = `
+                <p>已用内存: ${memoryUsage.usedJSHeapSize ? (memoryUsage.usedJSHeapSize / 1024 / 1024).toFixed(2) + ' MB' : '不可用'}</p>
+                <p>总内存: ${memoryUsage.totalJSHeapSize ? (memoryUsage.totalJSHeapSize / 1024 / 1024).toFixed(2) + ' MB' : '不可用'}</p>
+                <p>内存限制: ${memoryUsage.jsHeapSizeLimit ? (memoryUsage.jsHeapSizeLimit / 1024 / 1024).toFixed(2) + ' MB' : '不可用'}</p>
+                <p>更新时间: ${new Date().toLocaleTimeString()}</p>
+            `;
+        }
+
+        function displayResult(result) {
+            console.log('处理结果:', result);
+
+            // 检查是否需要工作表选择
+            if (result.needSheetSelection) {
+                showStatus('需要选择工作表，请在主应用中进行选择', 'warning');
+                resultContent.innerHTML = `
+                    <div class="status warning">
+                        <h4>需要工作表选择</h4>
+                        <p>文件包含多个工作表，系统无法自动识别目标工作表。</p>
+                        <p><strong>可用工作表:</strong></p>
+                        <ul>
+                            ${result.availableSheets ? result.availableSheets.map(sheet =>
+                                `<li>${sheet.name} (${sheet.rowCount || 0} 行)</li>`
+                            ).join('') : '<li>无法获取工作表信息</li>'}
+                        </ul>
+                        <p>请在主应用中上传此文件并选择正确的工作表。</p>
+                    </div>
+                `;
+                resultDiv.style.display = 'block';
+                return;
+            }
+
+            const summary = result.summary || {};
+
+            let statusText = result.isValid ? '处理成功' : '处理完成（有错误）';
+            let statusClass = result.isValid ? 'success' : 'warning';
+
+            showStatus(`${statusText} - 总行数: ${summary.totalRows || 0}, 有效行数: ${summary.validRows || 0}, 错误数: ${summary.errorCount || 0}`, statusClass);
+
+            resultContent.innerHTML = `
+                <div class="status ${statusClass}">
+                    <h4>处理结果</h4>
+                    <p>状态: ${result.isValid ? '✅ 成功' : '⚠️ 有错误'}</p>
+                    <p>总行数: ${summary.totalRows || 0}</p>
+                    <p>有效行数: ${summary.validRows || 0}</p>
+                    <p>错误数量: ${summary.errorCount || 0}</p>
+                    ${result.headerValidation ? `
+                        <p>表头验证: ${result.headerValidation.isValid ? '✅ 通过' : '❌ 失败'}</p>
+                        ${result.headerValidation.missingFields && result.headerValidation.missingFields.length > 0 ?
+                            `<p>缺失字段: ${result.headerValidation.missingFields.join(', ')}</p>` : ''}
+                    ` : ''}
+                </div>
+                ${result.errors && result.errors.length > 0 ? `
+                    <div class="status info" style="margin-top: 10px;">
+                        <h4>前10个错误示例</h4>
+                        <ul>
+                            ${result.errors.slice(0, 10).map(err =>
+                                `<li>第${err.row}行: ${err.message}</li>`
+                            ).join('')}
+                        </ul>
+                        ${result.errors.length > 10 ? `<p>... 还有 ${result.errors.length - 10} 个错误</p>` : ''}
+                    </div>
+                ` : ''}
+            `;
+
+            resultDiv.style.display = 'block';
+        }
+
+        function showProgress() {
+            progressContainer.style.display = 'block';
+        }
+
+        function hideProgress() {
+            progressContainer.style.display = 'none';
+        }
+
+        function updateProgress(progress, message) {
+            progressBar.style.width = progress + '%';
+            progressText.textContent = message;
+        }
+
+        function showStatus(message, type) {
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // 定期更新内存信息
+        setInterval(() => {
+            if (performance.memory) {
+                updateMemoryInfo(performance.memory);
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

@@ -10,7 +10,7 @@ import UserMenu from "@/components/UserMenu";
 import DebugLogViewer from "@/components/DebugLogViewer";
 import { useFrontendValidation } from "@/hooks/useFrontendValidation";
 import { useAuth } from "@/hooks/useAuth";
-import { useSessionKeepAlive } from "@/hooks/useSessionKeepAlive";
+// import { useSessionKeepAlive } from "@/hooks/useSessionKeepAlive"; // 移除会话保持机制
 import { getAvailableTasks } from "@/lib/validationRules";
 import {
   AnimationProvider,
@@ -22,7 +22,12 @@ import {
 import { usePerformanceMode } from "@/hooks/usePerformanceMode";
 
 function HomeContent() {
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const {
+    user,
+    isLoading: authLoading,
+    isAuthenticated,
+    ensureAuthenticated,
+  } = useAuth();
   const availableTasks = getAvailableTasks();
   const [selectedTask, setSelectedTask] = useState<string>(
     availableTasks[0] || ""
@@ -33,6 +38,7 @@ function HomeContent() {
   const [isExporting, setIsExporting] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [showDebugLogs, setShowDebugLogs] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   // 性能监控和动画控制
   const { updateMetrics, isAnimationEnabled } = usePerformanceMode();
@@ -50,13 +56,15 @@ function HomeContent() {
     clearDebugLogs,
   } = useFrontendValidation();
 
-  // 会话保持 - 在验证过程中自动刷新令牌
-  const { startKeepAlive, stopKeepAlive } = useSessionKeepAlive({
-    enabled: isValidating,
-    refreshInterval: 5 * 60 * 1000, // 5分钟刷新一次
-    onTaskStart: () => console.log("Excel验证开始，启动会话保持"),
-    onTaskEnd: () => console.log("Excel验证结束，停止会话保持"),
-  });
+  // 移除会话保持机制 - 持久化会话管理
+  // 不再需要在验证过程中自动刷新令牌，持久化会话将保持稳定
+  // const { startKeepAlive, stopKeepAlive } = useSessionKeepAlive({
+  //   enabled: isValidating,
+  //   refreshInterval: 5 * 60 * 1000, // 5分钟刷新一次
+  //   extendedKeepAliveTime: 10 * 60 * 1000, // 验证结束后延续10分钟
+  //   onTaskStart: () => console.log("Excel验证开始，启动会话保持"),
+  //   onTaskEnd: () => console.log("Excel验证结束，延续会话保持10分钟"),
+  // });
 
   // 监听验证结果，只有在真正成功时才显示成功动画
   useEffect(() => {
@@ -84,6 +92,39 @@ function HomeContent() {
   }
 
   const handleFileUpload = (file: File) => {
+    // Check file type
+    if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
+      setLocalError("请选择Excel文件 (.xlsx 或 .xls)");
+      return;
+    }
+
+    // Check file size and show warning for large files
+    const fileSizeMB = file.size / (1024 * 1024);
+    if (fileSizeMB > 2000) {
+      setLocalError(
+        `文件过大 (${fileSizeMB.toFixed(
+          1
+        )}MB)。建议文件大小不超过2GB以确保最佳性能。`
+      );
+      return;
+    } else if (fileSizeMB > 1000) {
+      setLocalError(
+        `检测到超大文件 (${fileSizeMB.toFixed(
+          1
+        )}MB)。处理可能需要很长时间，建议使用更小的文件或分批处理。`
+      );
+      // Clear error after 5 seconds to allow processing
+      setTimeout(() => setLocalError(null), 5000);
+    } else if (fileSizeMB > 100) {
+      setLocalError(
+        `检测到大文件 (${fileSizeMB.toFixed(
+          1
+        )}MB)。处理可能需要较长时间，请耐心等待。`
+      );
+      // Clear error after 3 seconds to allow processing
+      setTimeout(() => setLocalError(null), 3000);
+    }
+
     // 如果已有上传的文件，先触发重新上传逻辑
     if (uploadedFile) {
       setUploadedFile(null);
@@ -101,6 +142,13 @@ function HomeContent() {
 
   const handleValidate = async () => {
     if (!uploadedFile || !selectedTask) return;
+
+    // 验证前检查登录状态
+    const isAuthValid = await ensureAuthenticated();
+    if (!isAuthValid) {
+      setLocalError("登录状态已过期，请重新登录");
+      return;
+    }
 
     try {
       // 更新性能指标 - 开始处理
@@ -132,6 +180,13 @@ function HomeContent() {
     setShowSheetSelector(false);
 
     if (!uploadedFile || !selectedTask) return;
+
+    // 验证前检查登录状态
+    const isAuthValid = await ensureAuthenticated();
+    if (!isAuthValid) {
+      setLocalError("登录状态已过期，请重新登录");
+      return;
+    }
 
     try {
       await validateExcel(
@@ -451,7 +506,7 @@ function HomeContent() {
         )}
 
         {/* 错误显示 */}
-        {error && (
+        {(error || localError) && (
           <div className="mb-6">
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <div className="flex items-center">
@@ -470,7 +525,9 @@ function HomeContent() {
                 </svg>
                 <div>
                   <h3 className="text-sm font-medium text-red-800">验证失败</h3>
-                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                  <p className="text-sm text-red-700 mt-1">
+                    {error || localError}
+                  </p>
                 </div>
               </div>
             </div>

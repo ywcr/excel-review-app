@@ -1,0 +1,158 @@
+
+// ==================== 自动化控制面板 ====================
+(function(){
+  try {
+    if (document.getElementById('automation-control-panel')) return;
+
+    // 样式
+    var style = document.createElement('style');
+    style.id = 'automation-control-panel-style';
+    style.textContent = "#automation-control-panel{position:fixed;right:20px;bottom:20px;width:320px;background:#fff;border:1px solid #e1e4e8;border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.12);font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue','Noto Sans','Liberation Sans',Arial,'Apple Color Emoji','Segoe UI Emoji';z-index:2147483647;overflow:hidden;}"+
+      "#automation-control-panel .acp-header{cursor:move;background:linear-gradient(135deg,#20c997,#17a2b8);color:#fff;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;font-weight:600;}"+
+      "#automation-control-panel .acp-title{display:flex;align-items:center;gap:8px;font-size:14px;}"+
+      "#automation-control-panel .acp-actions{display:flex;gap:6px;}"+
+      "#automation-control-panel .acp-btn{border:0;background:transparent;color:#fff;cursor:pointer;font-size:14px;opacity:.9}"+
+      "#automation-control-panel .acp-btn:hover{opacity:1}"+
+      "#automation-control-panel .acp-body{padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;}"+
+      "#automation-control-panel .acp-row{grid-column:1/-1;display:flex;gap:8px;align-items:center;}"+
+      "#automation-control-panel .acp-separator{grid-column:1/-1;height:1px;background:#dee2e6;margin:4px 0;}"+
+      "#automation-control-panel input[type='text']{flex:1;border:1px solid #ced4da;border-radius:6px;padding:6px 8px;font-size:13px;}"+
+        "#automation-control-panel button.primary{background:#28a745;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:13px;cursor:pointer;transition:all .2s}"+
+        "#automation-control-panel button.primary:hover{background:#218838;transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,.1)}"+
+        "#automation-control-panel button.secondary{background:#17a2b8;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:13px;cursor:pointer;transition:all .2s}"+
+        "#automation-control-panel button.secondary:hover{background:#138496;transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,.1)}"+
+        "#automation-control-panel button.light{background:#f1f3f5;color:#212529;border:none;border-radius:6px;padding:6px 8px;font-size:13px;cursor:pointer;transition:all .2s}"+
+        "#automation-control-panel button.light:hover{background:#e2e6ea;transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,.1)}"+
+        "#automation-control-panel button.warn{background:#ffc107;color:#212529;border:none;border-radius:6px;padding:6px 8px;font-size:13px;cursor:pointer;transition:all .2s}"+
+        "#automation-control-panel button.warn:hover{background:#e0a800;transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,.1)}"+
+        "#automation-control-panel button.error{background:#dc3545;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:13px;cursor:pointer;transition:all .2s}"+
+        "#automation-control-panel button.error:hover{background:#c82333;transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,.1)}"+
+        "#automation-control-panel button.info{background:#6f42c1;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:13px;cursor:pointer;transition:all .2s}"+
+        "#automation-control-panel button.info:hover{background:#5e35b1;transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,.1)}"+
+      "#automation-control-panel .muted{color:#6c757d;font-size:12px;}";
+    document.head.appendChild(style);
+
+    // 控制面板
+    var panel = document.createElement('div');
+    panel.id = 'automation-control-panel';
+
+    var header = document.createElement('div');
+    header.className = 'acp-header';
+    var title = document.createElement('div');
+    title.className = 'acp-title';
+    var mode = (typeof window.startApi==='function' || typeof window.automaticApi==='function') ? 'API' : 'DOM';
+    title.innerHTML = '<span>🧰 自动化控制台</span><span class="muted">(' + mode + '模式)</span>';
+    var actions = document.createElement('div'); actions.className='acp-actions';
+    var minBtn=document.createElement('button'); minBtn.className='acp-btn'; minBtn.title='最小化'; minBtn.textContent='—';
+    var closeBtn=document.createElement('button'); closeBtn.className='acp-btn'; closeBtn.title='关闭'; closeBtn.textContent='×';
+    actions.appendChild(minBtn); actions.appendChild(closeBtn);
+    header.appendChild(title); header.appendChild(actions);
+
+    var body = document.createElement('div'); body.className='acp-body';
+
+    // 创建联系人按钮总是存在
+    var btnAddContact = document.createElement('button'); btnAddContact.className='info'; btnAddContact.textContent='创建联系人'; btnAddContact.title='startAddContact()';
+    
+    // 添加创建按钮（如果有医院字段则创建并显示医院创建按钮）
+    if (false) {
+      var btnAddChannel = document.createElement('button'); btnAddChannel.className='info'; btnAddChannel.textContent='创建医院'; btnAddChannel.title='startAddChannel()';
+      body.appendChild(btnAddChannel);
+    }
+    body.appendChild(btnAddContact);
+    
+    // 分隔线
+    var separator1 = document.createElement('div'); separator1.className='acp-separator';
+    body.appendChild(separator1);
+
+    // 控制按钮
+    var btnStart = document.createElement('button'); btnStart.className='light'; btnStart.textContent='单步执行'; btnStart.title='start()';
+    var btnAuto = document.createElement('button'); btnAuto.className='primary'; btnAuto.textContent='自动执行'; btnAuto.title='automatic()';
+    var btnValidate = document.createElement('button'); btnValidate.className='secondary'; btnValidate.textContent='验证数据'; btnValidate.title='validateData()';
+    var btnShowMissing = document.createElement('button'); btnShowMissing.className='light'; btnShowMissing.textContent='显示缺失'; btnShowMissing.title='showMissing()';
+    var btnUpdateMissing = document.createElement('button'); btnUpdateMissing.className='warn'; btnUpdateMissing.textContent='填充缺失'; btnUpdateMissing.title='updateWithMissing()';
+    var btnExecuteAll = document.createElement('button'); btnExecuteAll.className='secondary'; btnExecuteAll.textContent='全部日期'; btnExecuteAll.title='executeAllDates()';
+    var btnErrorSummary = document.createElement('button'); btnErrorSummary.className='error'; btnErrorSummary.textContent='错误汇总'; btnErrorSummary.title='showErrorSummary()';
+
+    body.appendChild(btnStart);
+    body.appendChild(btnAuto);
+    body.appendChild(btnValidate);
+    body.appendChild(btnShowMissing);
+    body.appendChild(btnUpdateMissing);
+    body.appendChild(btnExecuteAll);
+    body.appendChild(btnErrorSummary);
+
+    // 日期输入行
+    var row = document.createElement('div'); row.className='acp-row';
+    var dateInput = document.createElement('input'); dateInput.type='text'; dateInput.placeholder='输入日期 (如 09.01)';
+    var runByDateBtn = document.createElement('button'); runByDateBtn.className='secondary'; runByDateBtn.textContent='按日期执行';
+    row.appendChild(dateInput); row.appendChild(runByDateBtn);
+    body.appendChild(row);
+
+    panel.appendChild(header);
+    panel.appendChild(body);
+    document.body.appendChild(panel);
+
+    // 拖拽
+    (function(){
+      var isDown=false, sx=0, sy=0, startRight=0, startBottom=0;
+      header.addEventListener('mousedown', function(e){ isDown=true; sx=e.clientX; sy=e.clientY; var rect=panel.getBoundingClientRect(); startRight = window.innerWidth - rect.right; startBottom = window.innerHeight - rect.bottom; document.body.style.userSelect='none'; });
+      window.addEventListener('mouseup', function(){ isDown=false; document.body.style.userSelect=''; });
+      window.addEventListener('mousemove', function(e){ if(!isDown) return; var dx=e.clientX - sx; var dy=e.clientY - sy; panel.style.right = Math.max(0, startRight - dx) + 'px'; panel.style.bottom = Math.max(0, startBottom - dy) + 'px'; });
+    })();
+
+    // 最小化 / 关闭
+    var minimized=false;
+    minBtn.addEventListener('click', function(){ minimized=!minimized; body.style.display=minimized?'none':'grid'; });
+    closeBtn.addEventListener('click', function(){ panel.remove(); });
+
+    // 安全调用函数
+    var fns = {
+      start: (window.startApi || window.start),
+      automatic: (window.automaticApi || window.automatic),
+      validateData: window.validateData,
+      showMissing: window.showMissing,
+      updateWithMissing: window.updateWithMissing,
+      executeAllDates: window.executeAllDates,
+      showErrorSummary: window.showErrorSummary,
+      startAddChannel: window.startAddChannel,
+      startAddContact: window.startAddContact
+    };
+    function call(name, arg){
+      var fn = fns[name];
+      if (typeof fn !== 'function'){ console.warn('函数不可用:', name); return; }
+      try { (arg===undefined) ? fn() : fn(arg); } catch(err){ console.error('执行失败', name, err); }
+    }
+
+    // 事件绑定
+    if (false) {
+      // btnAddChannel在条件内定义，所以需要在同一个作用域内绑定事件
+      var channelBtn = body.querySelector('button[title="startAddChannel()"]');
+      if (channelBtn) {
+        channelBtn.addEventListener('click', function(){ call('startAddChannel'); });
+      }
+    }
+    if (btnAddContact) {
+      btnAddContact.addEventListener('click', function(){ call('startAddContact'); });
+    }
+    btnStart.addEventListener('click', function(){ call('start'); });
+    btnAuto.addEventListener('click', function(){ call('automatic'); });
+    runByDateBtn.addEventListener('click', function(){ var v=(dateInput.value||'').trim(); if(!v){ call('automatic'); } else { call('automatic', v); } });
+    btnValidate.addEventListener('click', function(){ call('validateData'); });
+    btnShowMissing.addEventListener('click', function(){ call('showMissing'); });
+    btnUpdateMissing.addEventListener('click', function(){ call('updateWithMissing'); });
+
+    // 可选按钮
+    if (typeof fns.executeAllDates === 'function' && false) {
+      btnExecuteAll.style.display='inline-block';
+      btnExecuteAll.addEventListener('click', function(){ call('executeAllDates'); });
+    } else {
+      btnExecuteAll.style.display='none';
+    }
+    if (typeof fns.showErrorSummary === 'function') {
+      btnErrorSummary.style.display='inline-block';
+      btnErrorSummary.addEventListener('click', function(){ call('showErrorSummary'); });
+    } else {
+      btnErrorSummary.style.display='none';
+    }
+  } catch(e){ console.warn('初始化控制面板失败:', e); }
+})();
