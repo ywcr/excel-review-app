@@ -88,15 +88,26 @@ export class ImageProcessor {
     file: File,
     selectedSheet?: string
   ): Promise<ImageInfo[]> {
-    if (selectedSheet) {
-    }
+    console.log(`[IMAGE_PROCESSOR] 开始提取图片`, {
+      fileName: file.name,
+      fileSize: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+      selectedSheet: selectedSheet || "未指定",
+    });
 
     try {
       // 方法1: 优先使用DISPIMG公式提取（最准确）
+      console.log(`[IMAGE_PROCESSOR] 尝试DISPIMG公式提取`);
       const formulaImages = await this.extractFromFormulas(file, selectedSheet);
+      console.log(`[IMAGE_PROCESSOR] DISPIMG公式提取完成`, {
+        extractedCount: formulaImages.length,
+      });
 
       // 方法2: 使用ZIP解析作为补充
+      console.log(`[IMAGE_PROCESSOR] 尝试ZIP解析提取`);
       const zipImages = await this.extractFromZip(file, selectedSheet);
+      console.log(`[IMAGE_PROCESSOR] ZIP解析提取完成`, {
+        extractedCount: zipImages.length,
+      });
 
       // 合并结果，优先使用公式方法
       const allImages = this.mergeAndDeduplicateImages([
@@ -104,9 +115,23 @@ export class ImageProcessor {
         ...zipImages,
       ]);
 
+      console.log(`[IMAGE_PROCESSOR] 图片提取完成`, {
+        formulaImages: formulaImages.length,
+        zipImages: zipImages.length,
+        totalImages: allImages.length,
+        deduplicationRate: `${(
+          ((formulaImages.length + zipImages.length - allImages.length) /
+            (formulaImages.length + zipImages.length)) *
+          100
+        ).toFixed(1)}%`,
+      });
+
       return allImages;
     } catch (error) {
-      console.error("增强提取失败，回退到原始方法:", error);
+      console.error(`[IMAGE_PROCESSOR] 增强提取失败，回退到原始方法:`, {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       return this.extractFromZipFallback(file);
     }
   }

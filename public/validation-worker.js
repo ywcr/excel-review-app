@@ -40,6 +40,7 @@ const MESSAGE_TYPES = {
   RESULT: "RESULT",
   ERROR: "ERROR",
   CANCEL: "CANCEL",
+  DEBUG_LOG: "DEBUG_LOG", // 新增：调试日志消息类型
 };
 
 // Performance configuration
@@ -68,9 +69,146 @@ let templateFromMainThread = null;
 // Worker现在完全依赖从主线程传入的模板，不再维护内置模板
 // 这确保了UI和Worker使用完全相同的模板定义
 
+// 🚀 统一日志系统
+const ImageDebugLogger = {
+  // 日志级别
+  LEVELS: {
+    INFO: "INFO",
+    WARN: "WARN",
+    ERROR: "ERROR",
+    DEBUG: "DEBUG",
+  },
+
+  // 处理阶段标识
+  STAGES: {
+    FILE_PARSE: "FILE_PARSE",
+    ZIP_EXTRACT: "ZIP_EXTRACT",
+    SHEET_IDENTIFY: "SHEET_IDENTIFY",
+    IMAGE_EXTRACT: "IMAGE_EXTRACT",
+    POSITION_MAP: "POSITION_MAP",
+    IMAGE_PROCESS: "IMAGE_PROCESS",
+    QUALITY_CHECK: "QUALITY_CHECK",
+    DUPLICATE_CHECK: "DUPLICATE_CHECK",
+    MEMORY_MONITOR: "MEMORY_MONITOR",
+  },
+
+  // 发送日志到主线程
+  log(level, stage, message, data = null) {
+    const timestamp = new Date().toISOString();
+    const logEntry = {
+      timestamp,
+      level,
+      stage,
+      message,
+      data,
+      prefix: "[IMAGE_DEBUG]",
+    };
+
+    // 发送到主线程显示
+    postMessage({
+      type: MESSAGE_TYPES.DEBUG_LOG,
+      data: logEntry,
+    });
+
+    // 同时在Worker控制台输出
+    const consoleMsg = `${logEntry.prefix} [${timestamp}] [${level}] [${stage}] ${message}`;
+    switch (level) {
+      case this.LEVELS.ERROR:
+        console.error(consoleMsg, data);
+        break;
+      case this.LEVELS.WARN:
+        console.warn(consoleMsg, data);
+        break;
+      case this.LEVELS.DEBUG:
+        console.debug(consoleMsg, data);
+        break;
+      default:
+        console.log(consoleMsg, data);
+    }
+  },
+
+  // 便捷方法
+  info(stage, message, data) {
+    this.log(this.LEVELS.INFO, stage, message, data);
+  },
+  warn(stage, message, data) {
+    this.log(this.LEVELS.WARN, stage, message, data);
+  },
+  error(stage, message, data) {
+    this.log(this.LEVELS.ERROR, stage, message, data);
+  },
+  debug(stage, message, data) {
+    this.log(this.LEVELS.DEBUG, stage, message, data);
+  },
+
+  // 性能监控
+  startTimer(stage) {
+    const key = `timer_${stage}`;
+    this[key] = performance.now();
+    this.debug(stage, `开始计时: ${stage}`);
+  },
+
+  endTimer(stage, message = "") {
+    const key = `timer_${stage}`;
+    if (this[key]) {
+      const duration = performance.now() - this[key];
+      this.info(stage, `${message || stage} 耗时: ${duration.toFixed(2)}ms`);
+      delete this[key];
+      return duration;
+    }
+    return 0;
+  },
+
+  // 内存使用监控
+  logMemoryUsage(stage, context = "") {
+    if (typeof performance !== "undefined" && performance.memory) {
+      const memory = performance.memory;
+      const memoryInfo = {
+        usedJSHeapSize: (memory.usedJSHeapSize / 1024 / 1024).toFixed(2) + "MB",
+        totalJSHeapSize:
+          (memory.totalJSHeapSize / 1024 / 1024).toFixed(2) + "MB",
+        jsHeapSizeLimit:
+          (memory.jsHeapSizeLimit / 1024 / 1024).toFixed(2) + "MB",
+        context,
+      };
+      this.info(
+        this.STAGES.MEMORY_MONITOR,
+        `内存使用情况 ${context}`,
+        memoryInfo
+      );
+
+      // 内存警告
+      const usedMB = memory.usedJSHeapSize / 1024 / 1024;
+      if (usedMB > 500) {
+        this.warn(
+          this.STAGES.MEMORY_MONITOR,
+          `内存使用过高: ${usedMB.toFixed(2)}MB`
+        );
+      }
+    }
+  },
+};
+
 // Streaming validation function
 async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
   isValidationCancelled = false;
+
+  // 开始整体计时和内存监控
+  ImageDebugLogger.startTimer("TOTAL_VALIDATION");
+  ImageDebugLogger.logMemoryUsage(
+    ImageDebugLogger.STAGES.FILE_PARSE,
+    "验证开始"
+  );
+
+  ImageDebugLogger.info(
+    ImageDebugLogger.STAGES.FILE_PARSE,
+    `开始验证Excel文件`,
+    {
+      fileSize: `${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`,
+      taskName,
+      selectedSheet: selectedSheet || "未指定",
+    }
+  );
 
   try {
     // 解析Excel文件
@@ -81,17 +219,32 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
 
     let workbook;
     try {
+      ImageDebugLogger.startTimer("EXCEL_PARSE");
+
       // 根据文件大小选择不同的解析策略
       let parseOptions;
 
       if (fileBuffer.byteLength > 500 * 1024 * 1024) {
         // 超大文件（>500MB）：使用最简单的解析选项
-        console.log("检测到超大文件，使用简单解析选项");
+        ImageDebugLogger.warn(
+          ImageDebugLogger.STAGES.FILE_PARSE,
+          "检测到超大文件，使用简单解析选项",
+          {
+            fileSize: `${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`,
+          }
+        );
         parseOptions = {
           type: "array",
         };
       } else {
         // 普通文件：使用优化的解析选项
+        ImageDebugLogger.info(
+          ImageDebugLogger.STAGES.FILE_PARSE,
+          "使用标准解析选项",
+          {
+            fileSize: `${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`,
+          }
+        );
         parseOptions = {
           type: "array",
           cellDates: true,
@@ -113,14 +266,45 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
         }
       }
 
-      console.log("开始解析Excel文件，选项:", JSON.stringify(parseOptions));
+      ImageDebugLogger.debug(
+        ImageDebugLogger.STAGES.FILE_PARSE,
+        "开始解析Excel文件",
+        { parseOptions }
+      );
+
       workbook = XLSX.read(fileBuffer, parseOptions);
-      console.log("解析完成，工作表名:", workbook.SheetNames);
-      console.log("Sheets对象:", workbook.Sheets ? "存在" : "不存在");
-      if (workbook.Sheets) {
-        console.log("可用工作表:", Object.keys(workbook.Sheets));
-      }
+
+      const parseTime = ImageDebugLogger.endTimer(
+        "EXCEL_PARSE",
+        "Excel文件解析"
+      );
+      ImageDebugLogger.logMemoryUsage(
+        ImageDebugLogger.STAGES.FILE_PARSE,
+        "Excel解析完成"
+      );
+
+      ImageDebugLogger.info(
+        ImageDebugLogger.STAGES.FILE_PARSE,
+        "Excel文件解析完成",
+        {
+          sheetNames: workbook.SheetNames,
+          sheetCount: workbook.SheetNames.length,
+          hasSheets: workbook.Sheets ? true : false,
+          availableSheets: workbook.Sheets ? Object.keys(workbook.Sheets) : [],
+          parseTime: `${parseTime.toFixed(2)}ms`,
+        }
+      );
     } catch (error) {
+      ImageDebugLogger.error(
+        ImageDebugLogger.STAGES.FILE_PARSE,
+        "Excel文件解析失败",
+        {
+          error: error.message,
+          stack: error.stack,
+          fileSize: `${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`,
+        }
+      );
+
       if (error.message && error.message.includes("Invalid array length")) {
         throw new Error(
           "Excel 文件格式复杂，请尝试减少数据行数或简化工作表内容"
@@ -132,9 +316,25 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
     if (isValidationCancelled) return;
 
     // 获取工作表名称
+    ImageDebugLogger.startTimer("SHEET_IDENTIFY");
+
     if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      ImageDebugLogger.error(
+        ImageDebugLogger.STAGES.SHEET_IDENTIFY,
+        "Excel文件中没有找到任何工作表"
+      );
       throw new Error("Excel 文件中没有找到任何工作表");
     }
+
+    ImageDebugLogger.info(
+      ImageDebugLogger.STAGES.SHEET_IDENTIFY,
+      "开始工作表识别和选择",
+      {
+        availableSheets: workbook.SheetNames,
+        requestedSheet: selectedSheet || "未指定",
+        totalSheets: workbook.SheetNames.length,
+      }
+    );
 
     // 智能工作表选择逻辑（来自我们的修复）
     let targetSheet = selectedSheet;
@@ -142,6 +342,15 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
 
     // 如果没有指定工作表或指定的工作表不存在，尝试自动匹配
     if (!targetSheet || !workbook.SheetNames.includes(targetSheet)) {
+      ImageDebugLogger.debug(
+        ImageDebugLogger.STAGES.SHEET_IDENTIFY,
+        "需要自动匹配工作表",
+        {
+          requestedSheet: targetSheet,
+          sheetExists: workbook.SheetNames.includes(targetSheet || ""),
+        }
+      );
+
       // 尝试根据模板匹配工作表
       const template = templateFromMainThread;
       if (template && template.sheetNames && template.sheetNames.length > 0) {
@@ -152,22 +361,42 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
         if (matchedSheet) {
           targetSheet = matchedSheet;
           isAutoMatched = true;
-          console.log(`自动匹配到工作表: ${targetSheet}`);
+          ImageDebugLogger.info(
+            ImageDebugLogger.STAGES.SHEET_IDENTIFY,
+            `自动匹配到工作表: ${targetSheet}`,
+            {
+              templateSheetNames: template.sheetNames,
+              matchedSheet,
+            }
+          );
         }
       }
 
       // 如果仍然没有匹配到，使用第一个工作表
       if (!targetSheet || !workbook.SheetNames.includes(targetSheet)) {
         targetSheet = workbook.SheetNames[0];
-        console.log(`使用默认工作表: ${targetSheet}`);
+        ImageDebugLogger.warn(
+          ImageDebugLogger.STAGES.SHEET_IDENTIFY,
+          `使用默认工作表: ${targetSheet}`,
+          {
+            reason: "无法自动匹配，使用第一个工作表",
+          }
+        );
       }
     } else {
       isAutoMatched = true;
+      ImageDebugLogger.info(
+        ImageDebugLogger.STAGES.SHEET_IDENTIFY,
+        `使用指定工作表: ${targetSheet}`
+      );
     }
 
     // 如果无法自动匹配且用户未明确选择，触发工作表选择
     if (!isAutoMatched && !selectedSheet) {
-      console.log("无法自动匹配工作表，触发用户选择");
+      ImageDebugLogger.info(
+        ImageDebugLogger.STAGES.SHEET_IDENTIFY,
+        "无法自动匹配工作表，触发用户选择"
+      );
       sendResult({
         needSheetSelection: true,
         availableSheets: workbook.SheetNames.map((name) => ({
@@ -179,6 +408,7 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
     }
 
     const sheetName = targetSheet;
+    ImageDebugLogger.endTimer("SHEET_IDENTIFY", "工作表识别完成");
 
     // 获取目标工作表 - 直接从已解析的工作簿中获取
     let worksheet;
@@ -277,9 +507,18 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
       data: { progress: 30, message: "验证表头..." },
     });
 
-    const headerValidation = validateHeaders(headerRow, template);
+    const headerValidation = validateHeaderRow(headerRow, template);
 
     if (!headerValidation.isValid) {
+      ImageDebugLogger.warn(
+        ImageDebugLogger.STAGES.FILE_PARSE,
+        "表头验证失败",
+        {
+          missingFields: headerValidation.missingFields,
+          headerRow: headerRow,
+          template: template.requiredFields,
+        }
+      );
       return {
         isValid: false,
         headerValidation,
@@ -431,6 +670,99 @@ function calculateSimilarity(str1, str2) {
 
   const maxLen = Math.max(len1, len2);
   return (maxLen - matrix[len1][len2]) / maxLen;
+}
+
+// 验证表头行（针对已找到的表头行数组）
+function validateHeaderRow(headerRow, template) {
+  if (!headerRow || !Array.isArray(headerRow)) {
+    return {
+      isValid: false,
+      missingFields: template.requiredFields || [],
+      unmatchedFields: [],
+      suggestions: [],
+      headerRowIndex: -1,
+    };
+  }
+
+  // 清洗表头：去换行、去空格
+  const actualHeaders = headerRow
+    .map((h) =>
+      String(h || "")
+        .trim()
+        .replace(/\n/g, "")
+        .replace(/\s+/g, "")
+    )
+    .filter((h) => h);
+
+  // 同步构建一个"清洗后的 fieldMappings"，用于同义列名的匹配
+  const cleanedFieldMappings = {};
+  if (template.fieldMappings) {
+    Object.keys(template.fieldMappings).forEach((key) => {
+      const cleanedKey = String(key || "")
+        .trim()
+        .replace(/\n/g, "")
+        .replace(/\s+/g, "");
+      cleanedFieldMappings[cleanedKey] = template.fieldMappings[key];
+    });
+  }
+
+  const missingFields = [];
+
+  for (const required of template.requiredFields || []) {
+    const cleanedRequired = String(required || "")
+      .trim()
+      .replace(/\n/g, "")
+      .replace(/\s+/g, "");
+
+    let found = false;
+
+    // 1. 精确匹配
+    if (actualHeaders.includes(cleanedRequired)) {
+      found = true;
+    }
+
+    // 2. 同义词匹配
+    if (!found && cleanedFieldMappings[cleanedRequired]) {
+      const synonyms = cleanedFieldMappings[cleanedRequired];
+      for (const synonym of synonyms) {
+        const cleanedSynonym = String(synonym || "")
+          .trim()
+          .replace(/\n/g, "")
+          .replace(/\s+/g, "");
+        if (actualHeaders.includes(cleanedSynonym)) {
+          found = true;
+          break;
+        }
+      }
+    }
+
+    // 3. 包含匹配
+    if (!found) {
+      found = actualHeaders.some(
+        (header) =>
+          header.includes(cleanedRequired) || cleanedRequired.includes(header)
+      );
+    }
+
+    // 4. 相似度匹配
+    if (!found) {
+      found = actualHeaders.some(
+        (header) => calculateSimilarity(header, cleanedRequired) > 0.8
+      );
+    }
+
+    if (!found) {
+      missingFields.push(required);
+    }
+  }
+
+  return {
+    isValid: missingFields.length === 0,
+    missingFields,
+    unmatchedFields: [],
+    suggestions: [],
+    headerRowIndex: 0, // 已经找到的表头行
+  };
 }
 
 // 流式验证数据行
@@ -1049,6 +1381,41 @@ function createFieldMapping(headerRow, template) {
   return mapping;
 }
 
+// 验证单行数据
+function validateSingleRow(row, fieldMapping, template, rowNumber) {
+  const errors = [];
+
+  if (!row || !Array.isArray(row)) {
+    return errors;
+  }
+
+  // 遍历所有验证规则
+  for (const rule of template.validationRules || []) {
+    // 跳过跨行验证规则（这些在 validateCrossRows 中处理）
+    if (["unique", "frequency", "dateInterval"].includes(rule.type)) {
+      continue;
+    }
+
+    const colIndex = fieldMapping.get(rule.field);
+    if (colIndex === undefined) continue;
+
+    const value = row[colIndex];
+    const error = validateField(
+      value,
+      rule,
+      rowNumber,
+      colIndex,
+      undefined // rowData - 暂时不需要
+    );
+
+    if (error) {
+      errors.push(error);
+    }
+  }
+
+  return errors;
+}
+
 // 基于工作表的分块行级验证（减少单次内存峰值）
 async function validateRowsChunked(sheet, template, headerRowIndex) {
   const errors = [];
@@ -1184,13 +1551,37 @@ async function validateExcel(data) {
 
 // Internal image validation function (shared logic)
 async function validateImagesInternal(fileBuffer, selectedSheet = null) {
+  ImageDebugLogger.startTimer("IMAGE_VALIDATION_TOTAL");
+  ImageDebugLogger.logMemoryUsage(
+    ImageDebugLogger.STAGES.IMAGE_EXTRACT,
+    "图片验证开始"
+  );
+
+  ImageDebugLogger.info(
+    ImageDebugLogger.STAGES.IMAGE_EXTRACT,
+    "开始图片验证流程",
+    {
+      fileSize: `${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`,
+      selectedSheet: selectedSheet || "未指定",
+      blockHashAvailable,
+    }
+  );
+
   // 如果 blockhash 不可用，返回空结果
   if (
     !blockHashAvailable ||
     !self.blockhash ||
     typeof self.blockhash.bmvbhash !== "function"
   ) {
-    console.warn("图片验证跳过：blockhash 不可用");
+    ImageDebugLogger.warn(
+      ImageDebugLogger.STAGES.IMAGE_EXTRACT,
+      "图片验证跳过：blockhash 不可用",
+      {
+        blockHashAvailable,
+        selfBlockhash: !!self.blockhash,
+        bmvbhashFunction: typeof self.blockhash?.bmvbhash,
+      }
+    );
     return {
       images: [],
       duplicates: [],
@@ -1204,20 +1595,43 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
   }
 
   try {
+    ImageDebugLogger.startTimer("ZIP_EXTRACT");
     const zip = new JSZip();
     const zipContent = await zip.loadAsync(fileBuffer);
+    ImageDebugLogger.endTimer("ZIP_EXTRACT", "ZIP文件解压");
+
+    ImageDebugLogger.info(
+      ImageDebugLogger.STAGES.ZIP_EXTRACT,
+      "ZIP文件解压完成",
+      {
+        totalFiles: Object.keys(zipContent.files).length,
+        hasMediaFolder: !!zipContent.folder("xl/media"),
+      }
+    );
 
     // Extract images from xl/media and get position info from drawing relationships
     const images = [];
     const mediaFolder = zipContent.folder("xl/media");
 
+    ImageDebugLogger.startTimer("POSITION_MAP");
     // Try to get drawing relationships to map images to positions
     const imagePositions = await extractImagePositions(
       zipContent,
       selectedSheet
     );
+    ImageDebugLogger.endTimer("POSITION_MAP", "图片位置映射");
+
+    ImageDebugLogger.info(
+      ImageDebugLogger.STAGES.POSITION_MAP,
+      "图片位置映射完成",
+      {
+        positionMappings: imagePositions.size,
+        mappedImages: Array.from(imagePositions.keys()),
+      }
+    );
 
     if (mediaFolder) {
+      ImageDebugLogger.startTimer("IMAGE_EXTRACT");
       const imagePromises = [];
       let imageCounter = 0;
 
@@ -1247,71 +1661,187 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
       // 按文件路径排序，确保顺序一致
       imageFiles.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
 
+      ImageDebugLogger.info(
+        ImageDebugLogger.STAGES.IMAGE_EXTRACT,
+        "发现图片文件",
+        {
+          totalImageFiles: imageFiles.length,
+          imageFileNames: imageFiles.map((f) => f.relativePath),
+          supportedFormats: [
+            "png",
+            "jpg",
+            "jpeg",
+            "gif",
+            "bmp",
+            "tif",
+            "tiff",
+            "webp",
+            "jfif",
+            "svg",
+            "emf",
+            "wmf",
+          ],
+        }
+      );
+
       // 处理每个图片文件（使用精确解析结果；无法解析时保持未知）
       imageFiles.forEach(({ relativePath, file }, index) => {
         imagePromises.push(
-          file.async("uint8array").then((data) => {
-            // 支持同一媒体文件的多次放置：位置列表
-            let posList = imagePositions.get(relativePath);
-            if (!posList) {
-              posList = imagePositions.get(`xl/media/${relativePath}`);
-            }
-
-            if (Array.isArray(posList) && posList.length > 0) {
-              posList.forEach((positionInfo, dupIdx) => {
-                images.push({
-                  id:
-                    positionInfo && positionInfo.position
-                      ? positionInfo.position
-                      : `${relativePath}#${dupIdx}`,
-                  name: relativePath,
-                  size: data.length,
-                  data: data,
-                  position: positionInfo ? positionInfo.position : undefined,
-                  row: positionInfo ? positionInfo.row : undefined,
-                  column: positionInfo ? positionInfo.column : undefined,
-                });
-              });
-            } else {
-              console.warn(
-                `⚠️ 未找到位置映射: ${relativePath}, 跳过该条图片处理`
+          file
+            .async("uint8array")
+            .then((data) => {
+              ImageDebugLogger.debug(
+                ImageDebugLogger.STAGES.IMAGE_EXTRACT,
+                `处理图片文件: ${relativePath}`,
+                {
+                  index,
+                  fileSize: `${(data.length / 1024).toFixed(2)}KB`,
+                  fileName: relativePath,
+                }
               );
-              // 未找到位置映射，跳过该条图片处理，不使用位置估算
 
-              // const positionInfo = extractPositionFromPath(relativePath, index);
-              // images.push({
-              //   id: positionInfo.position || relativePath,
-              //   name: relativePath,
-              //   size: data.length,
-              //   data: data,
-              //   position: positionInfo.position,
-              //   row: positionInfo.row,
-              //   column: positionInfo.column,
-              // });
-            }
-          })
+              // 支持同一媒体文件的多次放置：位置列表
+              let posList = imagePositions.get(relativePath);
+              if (!posList) {
+                posList = imagePositions.get(`xl/media/${relativePath}`);
+              }
+
+              if (Array.isArray(posList) && posList.length > 0) {
+                ImageDebugLogger.info(
+                  ImageDebugLogger.STAGES.IMAGE_EXTRACT,
+                  `找到位置映射: ${relativePath}`,
+                  {
+                    positionCount: posList.length,
+                    positions: posList.map((p) => ({
+                      position: p.position,
+                      row: p.row,
+                      column: p.column,
+                    })),
+                  }
+                );
+
+                posList.forEach((positionInfo, dupIdx) => {
+                  const imageInfo = {
+                    id:
+                      positionInfo && positionInfo.position
+                        ? positionInfo.position
+                        : `${relativePath}#${dupIdx}`,
+                    name: relativePath,
+                    size: data.length,
+                    data: data,
+                    position: positionInfo ? positionInfo.position : undefined,
+                    row: positionInfo ? positionInfo.row : undefined,
+                    column: positionInfo ? positionInfo.column : undefined,
+                  };
+                  images.push(imageInfo);
+
+                  ImageDebugLogger.debug(
+                    ImageDebugLogger.STAGES.IMAGE_EXTRACT,
+                    `添加图片到处理队列`,
+                    {
+                      imageId: imageInfo.id,
+                      position: imageInfo.position,
+                      size: `${(imageInfo.size / 1024).toFixed(2)}KB`,
+                    }
+                  );
+                });
+              } else {
+                ImageDebugLogger.warn(
+                  ImageDebugLogger.STAGES.IMAGE_EXTRACT,
+                  `未找到位置映射: ${relativePath}`,
+                  {
+                    fileName: relativePath,
+                    index,
+                    fileSize: `${(data.length / 1024).toFixed(2)}KB`,
+                    availablePositions: Array.from(imagePositions.keys()),
+                    reason: "跳过该条图片处理",
+                  }
+                );
+                // 未找到位置映射，跳过该条图片处理，不使用位置估算
+              }
+            })
+            .catch((error) => {
+              ImageDebugLogger.error(
+                ImageDebugLogger.STAGES.IMAGE_EXTRACT,
+                `图片文件处理失败: ${relativePath}`,
+                {
+                  error: error.message,
+                  stack: error.stack,
+                  fileName: relativePath,
+                  index,
+                }
+              );
+            })
         );
       });
 
       // 等待所有图片处理完成（图片已在异步处理内直接推入 images）
       await Promise.all(imagePromises);
+      ImageDebugLogger.endTimer("IMAGE_EXTRACT", "图片提取完成");
+
+      ImageDebugLogger.info(
+        ImageDebugLogger.STAGES.IMAGE_EXTRACT,
+        "图片提取阶段完成",
+        {
+          totalExtracted: images.length,
+          totalFiles: imageFiles.length,
+          extractionRate: `${(
+            (images.length / imageFiles.length) *
+            100
+          ).toFixed(1)}%`,
+        }
+      );
     }
 
+    // 验证位置一致性
+    ImageDebugLogger.startTimer("POSITION_VALIDATION");
+    let positionInconsistencies = 0;
     images.forEach((img, i) => {
       // 仅记录位置不一致，用于排查；不强制修改，避免覆盖真实锚点
       if (img.position && img.row) {
         const expectedPosition = `${img.column || "N"}${img.row}`;
         if (img.position !== expectedPosition) {
-          console.warn(
-            `⚠️ 位置不一致(仅记录): 显示=${img.position}, 期望=${expectedPosition} (行${img.row})`
+          positionInconsistencies++;
+          ImageDebugLogger.warn(
+            ImageDebugLogger.STAGES.POSITION_MAP,
+            `位置不一致: ${img.name}`,
+            {
+              displayedPosition: img.position,
+              expectedPosition,
+              row: img.row,
+              column: img.column,
+              imageIndex: i,
+            }
           );
         }
       }
     });
+    ImageDebugLogger.endTimer("POSITION_VALIDATION", "位置验证完成");
+
+    ImageDebugLogger.info(
+      ImageDebugLogger.STAGES.POSITION_MAP,
+      "位置验证结果",
+      {
+        totalImages: images.length,
+        positionInconsistencies,
+        consistencyRate: `${(
+          ((images.length - positionInconsistencies) / images.length) *
+          100
+        ).toFixed(1)}%`,
+      }
+    );
 
     sendProgress(`找到 ${images.length} 张图片，正在分析...`, 30);
+    ImageDebugLogger.logMemoryUsage(
+      ImageDebugLogger.STAGES.IMAGE_PROCESS,
+      "开始图片质量分析"
+    );
 
     if (images.length === 0) {
+      ImageDebugLogger.warn(
+        ImageDebugLogger.STAGES.IMAGE_EXTRACT,
+        "没有找到任何图片文件"
+      );
       return {
         totalImages: 0,
         blurryImages: 0,
@@ -1321,19 +1851,43 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
     }
 
     // Validate images with real algorithms
+    ImageDebugLogger.startTimer("QUALITY_CHECK");
     const results = [];
 
     // 串行处理避免内存溢出（700+张图片时并发会导致崩溃）
     const concurrency = 1; // 强制串行处理，避免内存问题
+
+    ImageDebugLogger.info(
+      ImageDebugLogger.STAGES.QUALITY_CHECK,
+      "开始图片质量检测",
+      {
+        totalImages: images.length,
+        concurrency,
+        processingMode: "串行处理（避免内存溢出）",
+      }
+    );
 
     let completed = 0;
     for (let i = 0; i < images.length; i += concurrency) {
       const batch = images.slice(i, i + concurrency);
       await Promise.all(
         batch.map(async (image) => {
+          const imageStartTime = performance.now();
           try {
+            ImageDebugLogger.debug(
+              ImageDebugLogger.STAGES.QUALITY_CHECK,
+              `分析图片: ${image.name}`,
+              {
+                imageId: image.id,
+                size: `${(image.size / 1024).toFixed(2)}KB`,
+                position: image.position,
+              }
+            );
+
             const sharpness = await calculateImageSharpness(image.data);
             const hash = await calculateImageHash(image.data);
+
+            const processingTime = performance.now() - imageStartTime;
 
             const result = {
               id: image.id,
@@ -1354,8 +1908,28 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
               size: image.data.length,
             };
             results.push(result);
+
+            ImageDebugLogger.debug(
+              ImageDebugLogger.STAGES.QUALITY_CHECK,
+              `图片分析完成: ${image.name}`,
+              {
+                sharpness: sharpness.toFixed(2),
+                isBlurry: result.isBlurry,
+                hashLength: hash.length,
+                processingTime: `${processingTime.toFixed(2)}ms`,
+              }
+            );
           } catch (error) {
-            console.warn(`Failed to analyze image ${image.id}:`, error);
+            ImageDebugLogger.error(
+              ImageDebugLogger.STAGES.QUALITY_CHECK,
+              `图片分析失败: ${image.name}`,
+              {
+                error: error.message,
+                stack: error.stack,
+                imageId: image.id,
+                size: `${(image.size / 1024).toFixed(2)}KB`,
+              }
+            );
             results.push({
               id: image.id,
               sharpness: 0,
@@ -1373,6 +1947,25 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
               `正在分析图片 ${completed}/${images.length}...`,
               progress
             );
+
+            // 定期记录进度和内存使用
+            if (completed % 10 === 0 || completed === images.length) {
+              ImageDebugLogger.info(
+                ImageDebugLogger.STAGES.QUALITY_CHECK,
+                `质量检测进度更新`,
+                {
+                  completed,
+                  total: images.length,
+                  progress: `${((completed / images.length) * 100).toFixed(
+                    1
+                  )}%`,
+                }
+              );
+              ImageDebugLogger.logMemoryUsage(
+                ImageDebugLogger.STAGES.QUALITY_CHECK,
+                `处理了${completed}张图片`
+              );
+            }
           }
         })
       );
@@ -1380,15 +1973,42 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
       // 内存清理和让出控制权（处理大量图片时防止崩溃）
       if (typeof self.gc === "function") {
         self.gc(); // 强制垃圾回收（如果可用）
+        ImageDebugLogger.debug(
+          ImageDebugLogger.STAGES.MEMORY_MONITOR,
+          "执行强制垃圾回收"
+        );
       }
 
       // 增加处理间隔，让浏览器有时间回收内存
       await new Promise((r) => setTimeout(r, 100));
     }
 
+    ImageDebugLogger.endTimer("QUALITY_CHECK", "图片质量检测完成");
+    const qualityStats = {
+      totalProcessed: results.length,
+      successfulAnalysis: results.filter((r) => r.sharpness > 0).length,
+      failedAnalysis: results.filter((r) => r.sharpness === 0).length,
+      blurryCount: results.filter((r) => r.isBlurry).length,
+    };
+    ImageDebugLogger.info(
+      ImageDebugLogger.STAGES.QUALITY_CHECK,
+      "质量检测统计",
+      qualityStats
+    );
+
     sendProgress("正在检测重复图片...", 95);
+    ImageDebugLogger.startTimer("DUPLICATE_CHECK");
 
     // Detect duplicates (simplified)
+    ImageDebugLogger.info(
+      ImageDebugLogger.STAGES.DUPLICATE_CHECK,
+      "开始重复检测",
+      {
+        totalImages: results.length,
+        hashAlgorithm: "blockhash",
+        detectionMethod: "汉明距离比较",
+      }
+    );
 
     // 构建图片数据映射用于二次确认
     const imageDataMap = new Map();
@@ -1396,14 +2016,45 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
       imageDataMap.set(img.id, img.data);
     }
     await detectDuplicates(results, imageDataMap);
+    ImageDebugLogger.endTimer("DUPLICATE_CHECK", "重复检测完成");
 
     // 调试：输出重复检测结果
     const duplicateResults = results.filter((r) => r.duplicates.length > 0);
-
-    duplicateResults.forEach((r) => {});
+    ImageDebugLogger.info(
+      ImageDebugLogger.STAGES.DUPLICATE_CHECK,
+      "重复检测结果",
+      {
+        totalDuplicates: duplicateResults.length,
+        duplicateDetails: duplicateResults.map((r) => ({
+          id: r.id,
+          position: r.position,
+          duplicateCount: r.duplicates.length,
+          duplicateIds: r.duplicates.map((d) => d.id),
+        })),
+      }
+    );
 
     const blurryImages = results.filter((r) => r.isBlurry).length;
     const duplicateGroups = countDuplicateGroups(results);
+
+    // 最终统计和总结
+    const finalStats = {
+      totalImages: images.length,
+      blurryImages,
+      duplicateGroups,
+      processingSuccess: true,
+    };
+
+    ImageDebugLogger.endTimer("IMAGE_VALIDATION_TOTAL", "图片验证总流程完成");
+    ImageDebugLogger.logMemoryUsage(
+      ImageDebugLogger.STAGES.IMAGE_PROCESS,
+      "验证完成"
+    );
+    ImageDebugLogger.info(
+      ImageDebugLogger.STAGES.IMAGE_PROCESS,
+      "图片验证最终结果",
+      finalStats
+    );
 
     return {
       totalImages: images.length,
@@ -1412,7 +2063,21 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
       results,
     };
   } catch (error) {
-    console.error("图片验证失败:", error);
+    ImageDebugLogger.error(
+      ImageDebugLogger.STAGES.IMAGE_PROCESS,
+      "图片验证流程失败",
+      {
+        error: error.message,
+        stack: error.stack,
+        fileSize: `${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`,
+        selectedSheet: selectedSheet || "未指定",
+        stage: "图片验证主流程",
+      }
+    );
+    ImageDebugLogger.logMemoryUsage(
+      ImageDebugLogger.STAGES.IMAGE_PROCESS,
+      "验证失败时"
+    );
     throw error;
   }
 }

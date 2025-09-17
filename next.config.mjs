@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 使用自定义构建目录，避免 .next\trace 被占用导致的 EPERM 问题
+  distDir: ".next-dev",
+
   // 确保静态文件被正确处理
   serverExternalPackages: ["sharp", "jimp"],
 

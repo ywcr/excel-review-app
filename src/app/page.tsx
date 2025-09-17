@@ -7,6 +7,7 @@ import ValidationRequirements from "@/components/ValidationRequirements";
 import ValidationResults from "@/components/ValidationResults";
 import FrontendSheetSelector from "@/components/FrontendSheetSelector";
 import UserMenu from "@/components/UserMenu";
+import DebugLogViewer from "@/components/DebugLogViewer";
 import { useFrontendValidation } from "@/hooks/useFrontendValidation";
 import { useAuth } from "@/hooks/useAuth";
 import { useSessionKeepAlive } from "@/hooks/useSessionKeepAlive";
@@ -31,6 +32,7 @@ function HomeContent() {
   const [includeImageValidation, setIncludeImageValidation] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [showDebugLogs, setShowDebugLogs] = useState(false);
 
   // 性能监控和动画控制
   const { updateMetrics, isAnimationEnabled } = usePerformanceMode();
@@ -41,9 +43,11 @@ function HomeContent() {
     progress,
     result,
     error,
+    debugLogs,
     validateExcel,
     cancelValidation,
     clearResult,
+    clearDebugLogs,
   } = useFrontendValidation();
 
   // 会话保持 - 在验证过程中自动刷新令牌
@@ -504,6 +508,14 @@ function HomeContent() {
           show={showSuccessAnimation}
           message="审核完成！✨"
           onComplete={() => setShowSuccessAnimation(false)}
+        />
+
+        {/* 调试日志查看器 */}
+        <DebugLogViewer
+          logs={debugLogs}
+          onClear={clearDebugLogs}
+          isVisible={showDebugLogs}
+          onToggle={() => setShowDebugLogs(!showDebugLogs)}
         />
       </div>
     </GentleGradientBackground>

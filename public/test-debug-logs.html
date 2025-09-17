@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片处理调试日志测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #007bff;
+        }
+        .upload-area.dragover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #007bff;
+            transition: width 0.3s;
+        }
+        .log-container {
+            background: #1a1a1a;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            padding: 15px;
+            border-radius: 4px;
+            height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 4px 0;
+            border-left: 2px solid #333;
+            padding-left: 8px;
+        }
+        .log-timestamp {
+            color: #888;
+            font-size: 11px;
+        }
+        .log-level {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            margin: 0 5px;
+        }
+        .log-level.INFO { background: #007bff; color: white; }
+        .log-level.WARN { background: #ffc107; color: black; }
+        .log-level.ERROR { background: #dc3545; color: white; }
+        .log-level.DEBUG { background: #6c757d; color: white; }
+        .log-stage {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            background: #28a745;
+            color: white;
+            margin-right: 5px;
+        }
+        .log-message {
+            color: #00ff88;
+        }
+        .log-data {
+            color: #ffff88;
+            font-size: 11px;
+            margin-top: 4px;
+            padding-left: 10px;
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 图片处理调试日志测试</h1>
+        <p>此页面用于测试新增的图片处理调试日志功能。上传一个包含图片的Excel文件来查看详细的处理日志。</p>
+
+        <div class="controls">
+            <button id="clearLogs" class="btn">清除日志</button>
+            <button id="exportLogs" class="btn">导出日志</button>
+            <label>
+                <input type="checkbox" id="autoScroll" checked> 自动滚动
+            </label>
+        </div>
+
+        <div class="upload-area" id="uploadArea">
+            <p>点击或拖拽Excel文件到此处</p>
+            <p style="font-size: 14px; color: #666;">支持 .xlsx 和 .xls 格式</p>
+            <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
+        </div>
+
+        <div id="status"></div>
+
+        <div id="progressContainer" style="display: none;">
+            <div class="progress">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <p id="progressText">准备中...</p>
+            <button id="cancelBtn" class="btn" style="background: #dc3545;">取消验证</button>
+        </div>
+
+        <div class="log-container" id="logContainer">
+            <div style="color: #888; text-align: center; padding: 20px;">
+                等待文件上传以开始调试...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let worker = null;
+        let logs = [];
+        let autoScroll = true;
+
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const logContainer = document.getElementById('logContainer');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const clearLogsBtn = document.getElementById('clearLogs');
+        const exportLogsBtn = document.getElementById('exportLogs');
+        const autoScrollCheckbox = document.getElementById('autoScroll');
+        const statusDiv = document.getElementById('status');
+
+        // 文件上传处理
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // 控制按钮
+        clearLogsBtn.addEventListener('click', clearLogs);
+        exportLogsBtn.addEventListener('click', exportLogs);
+        autoScrollCheckbox.addEventListener('change', (e) => {
+            autoScroll = e.target.checked;
+        });
+        cancelBtn.addEventListener('click', () => {
+            if (worker) {
+                worker.terminate();
+                worker = null;
+            }
+            hideProgress();
+            showStatus('验证已取消', 'info');
+        });
+
+        function handleFile(file) {
+            if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+                showStatus('请选择Excel文件 (.xlsx 或 .xls)', 'error');
+                return;
+            }
+
+            clearLogs();
+            showProgress();
+            showStatus(`开始处理文件: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`, 'info');
+
+            // 创建Worker
+            worker = new Worker('/validation-worker.js');
+            
+            worker.onmessage = (e) => {
+                const { type, data } = e.data;
+                
+                switch (type) {
+                    case 'PROGRESS':
+                        updateProgress(data.progress, data.message);
+                        break;
+                    case 'RESULT':
+                        hideProgress();
+                        showStatus('验证完成！', 'success');
+                        addLog('INFO', 'VALIDATION_COMPLETE', '验证流程完成', data);
+                        break;
+                    case 'ERROR':
+                        hideProgress();
+                        showStatus(`验证失败: ${data.message}`, 'error');
+                        addLog('ERROR', 'VALIDATION_ERROR', '验证失败', data);
+                        break;
+                    case 'DEBUG_LOG':
+                        addLog(data.level, data.stage, data.message, data.data);
+                        break;
+                }
+            };
+
+            worker.onerror = (error) => {
+                hideProgress();
+                showStatus(`Worker错误: ${error.message}`, 'error');
+                addLog('ERROR', 'WORKER_ERROR', 'Worker发生错误', { error: error.message });
+            };
+
+            // 发送验证请求
+            file.arrayBuffer().then(buffer => {
+                worker.postMessage({
+                    type: 'VALIDATE_IMAGES',
+                    data: { fileBuffer: buffer }
+                });
+            });
+        }
+
+        function addLog(level, stage, message, data = null) {
+            const timestamp = new Date().toISOString();
+            const logEntry = { timestamp, level, stage, message, data };
+            logs.push(logEntry);
+
+            const logElement = document.createElement('div');
+            logElement.className = 'log-entry';
+            
+            const timeStr = new Date(timestamp).toLocaleTimeString() + '.' + 
+                           new Date(timestamp).getMilliseconds().toString().padStart(3, '0');
+            
+            logElement.innerHTML = `
+                <span class="log-timestamp">${timeStr}</span>
+                <span class="log-level ${level}">${level}</span>
+                <span class="log-stage">${stage}</span>
+                <span class="log-message">${message}</span>
+                ${data ? `<div class="log-data">${JSON.stringify(data, null, 2)}</div>` : ''}
+            `;
+
+            logContainer.appendChild(logElement);
+
+            if (autoScroll) {
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+        }
+
+        function clearLogs() {
+            logs = [];
+            logContainer.innerHTML = '<div style="color: #888; text-align: center; padding: 20px;">日志已清除</div>';
+        }
+
+        function exportLogs() {
+            if (logs.length === 0) {
+                showStatus('没有日志可导出', 'info');
+                return;
+            }
+
+            const logText = logs.map(log => {
+                const data = log.data ? `\nData: ${JSON.stringify(log.data, null, 2)}` : '';
+                return `[${log.timestamp}] [${log.level}] [${log.stage}] ${log.message}${data}`;
+            }).join('\n\n');
+
+            const blob = new Blob([logText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `debug-logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showStatus('日志已导出', 'success');
+        }
+
+        function showProgress() {
+            progressContainer.style.display = 'block';
+        }
+
+        function hideProgress() {
+            progressContainer.style.display = 'none';
+        }
+
+        function updateProgress(progress, message) {
+            progressBar.style.width = progress + '%';
+            progressText.textContent = message;
+        }
+
+        function showStatus(message, type) {
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+            setTimeout(() => {
+                statusDiv.innerHTML = '';
+            }, 5000);
+        }
+
+        // 初始化日志
+        addLog('INFO', 'SYSTEM', '调试日志系统已启动', {
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            features: {
+                webWorkers: typeof Worker !== 'undefined',
+                arrayBuffer: typeof ArrayBuffer !== 'undefined',
+                fileAPI: typeof File !== 'undefined'
+            }
+        });
+    </script>
+</body>
+</html>

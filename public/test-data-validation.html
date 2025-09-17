@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据验证测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #007bff;
+        }
+        .upload-area.dragover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #007bff;
+            transition: width 0.3s;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 20px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .task-selector {
+            margin-bottom: 20px;
+        }
+        .task-selector select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 数据验证测试</h1>
+        <p>此页面用于测试修复后的数据验证功能，确保总行数、有效行数等统计信息正确显示。</p>
+
+        <div class="task-selector">
+            <label for="taskSelect">选择任务类型：</label>
+            <select id="taskSelect">
+                <option value="药店拜访">药店拜访</option>
+                <option value="医院拜访">医院拜访</option>
+                <option value="科室会">科室会</option>
+                <option value="学术会议">学术会议</option>
+                <option value="其他活动">其他活动</option>
+            </select>
+        </div>
+
+        <div class="upload-area" id="uploadArea">
+            <p>点击或拖拽Excel文件到此处</p>
+            <p style="font-size: 14px; color: #666;">支持 .xlsx 和 .xls 格式</p>
+            <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
+        </div>
+
+        <div id="status"></div>
+
+        <div id="progressContainer" style="display: none;">
+            <div class="progress">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <p id="progressText">准备中...</p>
+            <button id="cancelBtn" class="btn" style="background: #dc3545;">取消验证</button>
+        </div>
+
+        <div id="result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        let worker = null;
+
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const taskSelect = document.getElementById('taskSelect');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const statusDiv = document.getElementById('status');
+        const resultDiv = document.getElementById('result');
+
+        // 文件上传处理
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            if (worker) {
+                worker.terminate();
+                worker = null;
+            }
+            hideProgress();
+            showStatus('验证已取消', 'info');
+        });
+
+        function handleFile(file) {
+            if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+                showStatus('请选择Excel文件 (.xlsx 或 .xls)', 'error');
+                return;
+            }
+
+            const taskName = taskSelect.value;
+            showProgress();
+            showStatus(`开始验证文件: ${file.name} (任务类型: ${taskName})`, 'info');
+            resultDiv.style.display = 'none';
+
+            // 创建Worker
+            worker = new Worker('/validation-worker.js');
+            
+            worker.onmessage = (e) => {
+                const { type, data } = e.data;
+                
+                switch (type) {
+                    case 'PROGRESS':
+                        updateProgress(data.progress, data.message);
+                        break;
+                    case 'RESULT':
+                        hideProgress();
+                        displayResult(data);
+                        break;
+                    case 'ERROR':
+                        hideProgress();
+                        showStatus(`验证失败: ${data.message}`, 'error');
+                        break;
+                    case 'DEBUG_LOG':
+                        console.log(`[${data.level}] [${data.stage}] ${data.message}`, data.data);
+                        break;
+                }
+            };
+
+            worker.onerror = (error) => {
+                hideProgress();
+                showStatus(`Worker错误: ${error.message}`, 'error');
+            };
+
+            // 发送验证请求
+            file.arrayBuffer().then(buffer => {
+                worker.postMessage({
+                    type: 'VALIDATE_EXCEL',
+                    data: {
+                        fileBuffer: buffer,
+                        taskName: taskName,
+                        selectedSheet: null,
+                        template: null, // 让Worker从内置模板中获取
+                        includeImages: false
+                    }
+                });
+            });
+        }
+
+        function displayResult(result) {
+            if (result.needSheetSelection) {
+                showStatus('需要选择工作表，请在主应用中进行选择', 'info');
+                resultDiv.textContent = `可用工作表: ${result.availableSheets.map(s => s.name).join(', ')}`;
+                resultDiv.style.display = 'block';
+                return;
+            }
+
+            const summary = result.summary || {};
+            const headerValidation = result.headerValidation || {};
+            
+            let statusText = result.isValid ? '验证通过' : '验证未通过';
+            let statusClass = result.isValid ? 'success' : 'error';
+            
+            showStatus(`${statusText} - 总行数: ${summary.totalRows || 0}, 有效行数: ${summary.validRows || 0}, 错误数: ${summary.errorCount || 0}`, statusClass);
+
+            // 显示详细结果
+            const resultText = `验证结果详情:
+===================
+文件验证状态: ${result.isValid ? '✅ 通过' : '❌ 未通过'}
+总行数: ${summary.totalRows || 0}
+有效行数: ${summary.validRows || 0}
+错误数量: ${summary.errorCount || 0}
+
+表头验证:
+- 状态: ${headerValidation.isValid ? '✅ 通过' : '❌ 未通过'}
+- 缺失字段: ${headerValidation.missingFields ? headerValidation.missingFields.join(', ') : '无'}
+
+${result.errors && result.errors.length > 0 ? `
+前10个错误:
+${result.errors.slice(0, 10).map(err => `- 第${err.row}行: ${err.message}`).join('\n')}
+${result.errors.length > 10 ? `... 还有 ${result.errors.length - 10} 个错误` : ''}
+` : ''}
+
+原始结果对象:
+${JSON.stringify(result, null, 2)}`;
+
+            resultDiv.textContent = resultText;
+            resultDiv.style.display = 'block';
+        }
+
+        function showProgress() {
+            progressContainer.style.display = 'block';
+        }
+
+        function hideProgress() {
+            progressContainer.style.display = 'none';
+        }
+
+        function updateProgress(progress, message) {
+            progressBar.style.width = progress + '%';
+            progressText.textContent = message;
+        }
+
+        function showStatus(message, type) {
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+    </script>
+</body>
+</html>
