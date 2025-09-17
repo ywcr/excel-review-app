@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>重构代码测试</title>
+</head>
+<body>
+    <h1>重构代码测试</h1>
+    <div id="test-results"></div>
+    
+    <script>
+        // 模拟CONFIG对象
+        const CONFIG = {
+            questionnaireTypes: {
+                xihuang_consumer: {
+                    name: "西黄消费者问卷",
+                    contactType: "消费者",
+                    hasChannel: true,
+                    apiEndpoint: "/lgb/xfzwj/add"
+                }
+            }
+        };
+    </script>
+    
+    <!-- 引入重构后的模块 -->
+    <script src="js/automation/questionnaire-logic/base-questionnaire.js"></script>
+    <script src="js/automation/questionnaire-logic/xihuang-questionnaire.js"></script>
+    <script src="js/automation/template-manager.js"></script>
+    <script src="js/automation/validation-manager.js"></script>
+    <script src="js/automation/execution-logic.js"></script>
+    <script src="js/automation/control-panel.js"></script>
+    <script src="js/automation/code-generator.js"></script>
+    
+    <script>
+        function runTests() {
+            const results = document.getElementById('test-results');
+            let testResults = [];
+            
+            try {
+                // 测试1: 基础问卷类
+                console.log('测试1: 基础问卷类');
+                const baseQuestionnaire = new BaseQuestionnaire({
+                    name: "测试问卷",
+                    contactType: "消费者",
+                    hasChannel: true
+                });
+                testResults.push('✅ 基础问卷类创建成功');
+                
+                // 测试2: 问卷逻辑工厂
+                console.log('测试2: 问卷逻辑工厂');
+                const xihuangLogic = QuestionnaireLogicFactory.create("西黄消费者问卷");
+                testResults.push('✅ 西黄问卷逻辑创建成功');
+                
+                // 测试3: 模板管理器
+                console.log('测试3: 模板管理器');
+                const templateManager = new TemplateManager();
+                const domTemplate = templateManager.getTemplate('dom_single');
+                testResults.push('✅ 模板管理器工作正常');
+                
+                // 测试4: 验证管理器
+                console.log('测试4: 验证管理器');
+                const validationManager = new ValidationManager();
+                const validationCode = validationManager.getValidationCode();
+                testResults.push('✅ 验证管理器工作正常');
+                
+                // 测试5: 执行逻辑管理器
+                console.log('测试5: 执行逻辑管理器');
+                const executionLogicManager = new ExecutionLogicManager();
+                const domLogic = executionLogicManager.getDomExecutionLogic();
+                testResults.push('✅ 执行逻辑管理器工作正常');
+                
+                // 测试6: 控制面板管理器
+                console.log('测试6: 控制面板管理器');
+                const controlPanelManager = new ControlPanelManager();
+                const panelCode = controlPanelManager.getControlPanelCode();
+                testResults.push('✅ 控制面板管理器工作正常');
+                
+                // 测试7: 核心代码生成器
+                console.log('测试7: 核心代码生成器');
+                const generator = new AutomationCodeGenerator(CONFIG.questionnaireTypes.xihuang_consumer);
+                
+                // 模拟测试数据
+                const testData = [
+                    { name: "张三", sex: "男", time: "09.01", assignee: "测试员" }
+                ];
+                
+                const code = generator.generateCode(testData, "测试员", "09.01", false);
+                testResults.push('✅ 核心代码生成器工作正常');
+                
+                testResults.push('🎉 所有测试通过！重构成功！');
+                
+            } catch (error) {
+                testResults.push(`❌ 测试失败: ${error.message}`);
+                console.error('测试错误:', error);
+            }
+            
+            results.innerHTML = testResults.map(result => `<p>${result}</p>`).join('');
+        }
+        
+        // 页面加载完成后运行测试
+        window.addEventListener('load', runTests);
+    </script>
+</body>
+</html>

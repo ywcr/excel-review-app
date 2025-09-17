@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>答题函数调试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .debug-title { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 10px; }
+        .debug-result { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 3px; font-family: monospace; white-space: pre-wrap; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>答题函数调试页面</h1>
+    <p>专门用于调试答题函数的问题</p>
+
+    <div class="debug-section">
+        <div class="debug-title">1. 基础模块测试</div>
+        <button onclick="testBasicModules()">测试基础模块</button>
+        <div id="basicResult" class="debug-result"></div>
+    </div>
+
+    <div class="debug-section">
+        <div class="debug-title">2. 生成逻辑代码查看</div>
+        <button onclick="showGeneratedCode()">查看生成的代码</button>
+        <div id="codeResult" class="debug-result"></div>
+    </div>
+
+    <div class="debug-section">
+        <div class="debug-title">3. 执行测试</div>
+        <button onclick="testExecution()">测试执行</button>
+        <div id="executionResult" class="debug-result"></div>
+    </div>
+
+    <!-- 引入必要的模块 -->
+    <script src="js/utils.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/automation/questionnaire-logic/base-questionnaire.js"></script>
+    <script src="js/automation/questionnaire-logic/xihuang-questionnaire.js"></script>
+
+    <script>
+        function testBasicModules() {
+            const result = document.getElementById('basicResult');
+            let output = [];
+            
+            output.push('=== 模块加载检查 ===');
+            output.push(`BaseQuestionnaire: ${typeof BaseQuestionnaire}`);
+            output.push(`XihuangQuestionnaire: ${typeof XihuangQuestionnaire}`);
+            output.push(`QuestionnaireLogicFactory: ${typeof QuestionnaireLogicFactory}`);
+            
+            try {
+                const xihuang = new XihuangQuestionnaire({});
+                output.push(`创建西黄问卷实例: 成功`);
+                output.push(`实例类型: ${xihuang.constructor.name}`);
+            } catch (error) {
+                output.push(`创建西黄问卷实例: 失败 - ${error.message}`);
+            }
+            
+            result.textContent = output.join('\n');
+        }
+
+        function showGeneratedCode() {
+            const result = document.getElementById('codeResult');
+            
+            try {
+                const xihuang = new XihuangQuestionnaire({});
+                const logic = xihuang.getQuestionLogic();
+                
+                result.textContent = `=== 生成的逻辑代码 ===\n${logic}`;
+            } catch (error) {
+                result.textContent = `生成代码失败: ${error.message}\n${error.stack}`;
+            }
+        }
+
+        function testExecution() {
+            const result = document.getElementById('executionResult');
+            let output = [];
+            
+            try {
+                output.push('=== 执行测试 ===');
+                
+                // 清除之前的函数
+                for (let i = 0; i < 15; i++) {
+                    delete window[`_answer${i}`];
+                }
+                
+                const xihuang = new XihuangQuestionnaire({});
+                const logic = xihuang.getQuestionLogic();
+                
+                output.push('1. 生成逻辑代码: 成功');
+                output.push(`   代码长度: ${logic.length} 字符`);
+                
+                // 在全局作用域执行
+                (1,eval)(logic);
+                output.push('2. 执行逻辑代码: 成功');
+                
+                // 检查函数是否存在
+                output.push('3. 检查答题函数:');
+                for (let i = 0; i < 10; i++) {
+                    const funcName = `_answer${i}`;
+                    if (typeof window[funcName] === 'function') {
+                        try {
+                            const answer = window[funcName]();
+                            output.push(`   ✅ ${funcName}(): ${answer}`);
+                        } catch (error) {
+                            output.push(`   ❌ ${funcName}(): 执行错误 - ${error.message}`);
+                        }
+                    } else {
+                        output.push(`   ❌ ${funcName}(): 函数不存在`);
+                    }
+                }
+                
+                // 检查辅助函数
+                output.push('4. 检查辅助函数:');
+                output.push(`   random: ${typeof window.random}`);
+                output.push(`   randomAnswerByRate: ${typeof window.randomAnswerByRate}`);
+                
+                if (typeof window.random === 'function') {
+                    output.push(`   random(1,5) 测试: ${window.random(1,5)}`);
+                }
+                
+            } catch (error) {
+                output.push(`执行测试失败: ${error.message}`);
+                output.push(`错误堆栈: ${error.stack}`);
+            }
+            
+            result.textContent = output.join('\n');
+        }
+
+        // 页面加载完成后自动测试
+        window.addEventListener('load', function() {
+            setTimeout(testBasicModules, 500);
+        });
+    </script>
+</body>
+</html>

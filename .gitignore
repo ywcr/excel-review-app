@@ -55,3 +55,4 @@ test_*.xlsx
 # Data directories
 public/data/
 scripts/image_mapping.json
+html/zxyy2

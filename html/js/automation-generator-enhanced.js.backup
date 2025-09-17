@@ -393,7 +393,6 @@ async function updateWithMissing(newData = null) {
     return `
 // ==================== API模式自动化执行代码（增强版） ====================
 // 执行人: {{ASSIGNEE}}
-// 日期: {{DATE}}
 // 包含功能: 自动化创建 + 数据验证 + 缺失补充
 
 const data = {{DATA}};
@@ -1094,7 +1093,6 @@ function _answer9() {
     return `
 // ==================== DOM模式自动化执行代码（全部日期） ====================
 // 执行人: {{ASSIGNEE}}
-// 日期列表: {{DATES}}
 // 包含功能: 自动化创建 + 数据验证 + 日期切换
 
 const data = {{DATA}};
@@ -1310,10 +1308,14 @@ ${this.getExecutionLogic()}
 
     // 创建联系人按钮总是存在
     var btnAddContact = document.createElement('button'); btnAddContact.className='info'; btnAddContact.textContent='创建联系人'; btnAddContact.title='startAddContact()';
-    ${hasChannel === "true" ? `
+    ${
+      hasChannel === "true"
+        ? `
     // 添加创建医院按钮
     var btnAddChannel = document.createElement('button'); btnAddChannel.className='info'; btnAddChannel.textContent='创建医院'; btnAddChannel.title='startAddChannel()';
-    body.appendChild(btnAddChannel);` : ''}
+    body.appendChild(btnAddChannel);`
+        : ""
+    }
     body.appendChild(btnAddContact);
     
     // 分隔线
@@ -1323,9 +1325,9 @@ ${this.getExecutionLogic()}
     // 控制按钮
     var btnStart = document.createElement('button'); btnStart.className='light'; btnStart.textContent='单步执行'; btnStart.title='start()';
     var btnAuto = document.createElement('button'); btnAuto.className='primary'; btnAuto.textContent='自动执行'; btnAuto.title='automatic()';
-    var btnValidate = document.createElement('button'); btnValidate.className='secondary'; btnValidate.textContent='验证数据'; btnValidate.title='validateData()';
-    var btnShowMissing = document.createElement('button'); btnShowMissing.className='light'; btnShowMissing.textContent='显示缺失'; btnShowMissing.title='showMissing()';
-    var btnUpdateMissing = document.createElement('button'); btnUpdateMissing.className='warn'; btnUpdateMissing.textContent='填充缺失'; btnUpdateMissing.title='updateWithMissing()';
+    var btnValidate = document.createElement('button'); btnValidate.className='secondary'; btnValidate.textContent='验证遗漏'; btnValidate.title='validateData()';
+    var btnShowMissing = document.createElement('button'); btnShowMissing.className='light'; btnShowMissing.textContent='显示遗漏'; btnShowMissing.title='showMissing()';
+    var btnUpdateMissing = document.createElement('button'); btnUpdateMissing.className='warn'; btnUpdateMissing.textContent='补充遗漏'; btnUpdateMissing.title='updateWithMissing()';
     var btnExecuteAll = document.createElement('button'); btnExecuteAll.className='secondary'; btnExecuteAll.textContent='全部日期'; btnExecuteAll.title='executeAllDates()';
     var btnErrorSummary = document.createElement('button'); btnErrorSummary.className='error'; btnErrorSummary.textContent='错误汇总'; btnErrorSummary.title='showErrorSummary()';
 
@@ -1369,8 +1371,12 @@ ${this.getExecutionLogic()}
       showMissing: window.showMissing,
       updateWithMissing: window.updateWithMissing,
       executeAllDates: window.executeAllDates,
-      showErrorSummary: window.showErrorSummary,${hasChannel === "true" ? `
-      startAddChannel: window.startAddChannel,` : ''}
+      showErrorSummary: window.showErrorSummary,${
+        hasChannel === "true"
+          ? `
+      startAddChannel: window.startAddChannel,`
+          : ""
+      }
       startAddContact: window.startAddContact
     };
     function call(name, arg){
@@ -1379,12 +1385,16 @@ ${this.getExecutionLogic()}
       try { (arg===undefined) ? fn() : fn(arg); } catch(err){ console.error('执行失败', name, err); }
     }
 
-    // 事件绑定${hasChannel === "true" ? `
+    // 事件绑定${
+      hasChannel === "true"
+        ? `
     // 医院创建按钮事件
     var channelBtn = body.querySelector('button[title="startAddChannel()"]');
     if (channelBtn) {
       channelBtn.addEventListener('click', function(){ call('startAddChannel'); });
-    }` : ''}
+    }`
+        : ""
+    }
     if (btnAddContact) {
       btnAddContact.addEventListener('click', function(){ call('startAddContact'); });
     }

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API端点测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .test-title { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 10px; }
+        .test-result { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 3px; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        input { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 3px; width: 400px; }
+        .endpoint-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+        .endpoint-item { padding: 10px; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; }
+        .endpoint-item:hover { background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>API端点测试页面</h1>
+    <p>用于测试不同问卷类型的API端点是否正确</p>
+
+    <div class="test-section">
+        <div class="test-title">1. 预设端点测试</div>
+        <div class="endpoint-list">
+            <div class="endpoint-item" onclick="testEndpoint('/lgb/payMerge/createDynamicsSalt?methodName=/njwj/add', '牛解-方式1')">
+                牛解-方式1: /lgb/payMerge/createDynamicsSalt?methodName=/njwj/add
+            </div>
+            <div class="endpoint-item" onclick="testEndpoint('/lgb/payMerge/createDynamicsSalt?methodName=%2Fnjwj%2Fadd', '牛解-方式2')">
+                牛解-方式2: /lgb/payMerge/createDynamicsSalt?methodName=%2Fnjwj%2Fadd
+            </div>
+            <div class="endpoint-item" onclick="testEndpoint('/lgb/njwj/createDynamicsSalt', '牛解-方式3')">
+                牛解-方式3: /lgb/njwj/createDynamicsSalt
+            </div>
+            <div class="endpoint-item" onclick="testEndpoint('/lgb/payMerge/createDynamicsSalt?methodName=/xfzwj/add', '西黄-参考')">
+                西黄-参考: /lgb/payMerge/createDynamicsSalt?methodName=/xfzwj/add
+            </div>
+        </div>
+        <div id="presetResult" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <div class="test-title">2. 自定义端点测试</div>
+        <input type="text" id="customEndpoint" placeholder="输入要测试的端点" value="/lgb/payMerge/createDynamicsSalt?methodName=/njwj/add">
+        <button onclick="testCustomEndpoint()">测试自定义端点</button>
+        <div id="customResult" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <div class="test-title">3. 所有问卷类型端点测试</div>
+        <button onclick="testAllQuestionnaires()">测试所有问卷端点</button>
+        <div id="allResult" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <div class="test-title">4. 端点发现</div>
+        <button onclick="discoverEndpoints()">尝试发现可用端点</button>
+        <div id="discoverResult" class="test-result"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = window.location.origin;
+
+        async function testEndpoint(endpoint, name) {
+            const result = document.getElementById('presetResult');
+            let output = [];
+            
+            output.push(`=== 测试 ${name} ===`);
+            output.push(`端点: ${API_BASE_URL}${endpoint}`);
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                    method: 'GET',
+                    headers: {
+                        'accept': '*/*',
+                        'accept-language': 'zh-CN,zh;q=0.9',
+                        'x-requested-with': 'XMLHttpRequest'
+                    },
+                    credentials: 'include'
+                });
+                
+                output.push(`HTTP状态: ${response.status} ${response.statusText}`);
+                
+                const data = await response.json();
+                output.push(`响应: ${JSON.stringify(data, null, 2)}`);
+                
+                if (data.code === 0) {
+                    output.push('✅ 成功！');
+                    result.className = 'test-result success';
+                } else {
+                    output.push(`❌ 失败: ${data.message} (错误码: ${data.code})`);
+                    result.className = 'test-result error';
+                }
+                
+            } catch (error) {
+                output.push(`❌ 请求失败: ${error.message}`);
+                result.className = 'test-result error';
+            }
+            
+            result.textContent = output.join('\n');
+        }
+
+        async function testCustomEndpoint() {
+            const endpoint = document.getElementById('customEndpoint').value;
+            const result = document.getElementById('customResult');
+            let output = [];
+            
+            output.push(`=== 测试自定义端点 ===`);
+            output.push(`端点: ${API_BASE_URL}${endpoint}`);
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                    method: 'GET',
+                    headers: {
+                        'accept': '*/*',
+                        'accept-language': 'zh-CN,zh;q=0.9',
+                        'x-requested-with': 'XMLHttpRequest'
+                    },
+                    credentials: 'include'
+                });
+                
+                output.push(`HTTP状态: ${response.status} ${response.statusText}`);
+                
+                const data = await response.json();
+                output.push(`响应: ${JSON.stringify(data, null, 2)}`);
+                
+                if (data.code === 0) {
+                    output.push('✅ 成功！');
+                    result.className = 'test-result success';
+                } else {
+                    output.push(`❌ 失败: ${data.message} (错误码: ${data.code})`);
+                    result.className = 'test-result error';
+                }
+                
+            } catch (error) {
+                output.push(`❌ 请求失败: ${error.message}`);
+                result.className = 'test-result error';
+            }
+            
+            result.textContent = output.join('\n');
+        }
+
+        async function testAllQuestionnaires() {
+            const result = document.getElementById('allResult');
+            let output = [];
+            
+            const endpoints = [
+                { name: '西黄消费者', endpoint: '/lgb/payMerge/createDynamicsSalt?methodName=%2Fxfzwj%2Fadd' },
+                { name: '牛解消费者', endpoint: '/lgb/payMerge/createDynamicsSalt?methodName=%2Fnjwj%2Fadd' },
+                { name: '知柏消费者', endpoint: '/lgb/payMerge/createDynamicsSalt?methodName=%2Fzbwj%2Fadd' },
+                { name: '六味患者', endpoint: '/lgb/hzwj/createDynamicsSalt' },
+                { name: '贴膏患者', endpoint: '/lgb/payMerge/createDynamicsSalt?methodName=%2Ftgwj%2Fadd' }
+            ];
+            
+            output.push('=== 测试所有问卷类型端点 ===\n');
+            
+            for (const item of endpoints) {
+                output.push(`测试 ${item.name}:`);
+                output.push(`端点: ${item.endpoint}`);
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}${item.endpoint}`, {
+                        method: 'GET',
+                        headers: {
+                            'accept': '*/*',
+                            'accept-language': 'zh-CN,zh;q=0.9',
+                            'x-requested-with': 'XMLHttpRequest'
+                        },
+                        credentials: 'include'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.code === 0) {
+                        output.push(`✅ ${item.name}: 成功`);
+                    } else {
+                        output.push(`❌ ${item.name}: 失败 - ${data.message} (${data.code})`);
+                    }
+                    
+                } catch (error) {
+                    output.push(`❌ ${item.name}: 请求失败 - ${error.message}`);
+                }
+                
+                output.push(''); // 空行
+            }
+            
+            result.className = 'test-result';
+            result.textContent = output.join('\n');
+        }
+
+        async function discoverEndpoints() {
+            const result = document.getElementById('discoverResult');
+            let output = [];
+            
+            output.push('=== 端点发现 ===');
+            output.push('尝试不同的端点格式...\n');
+            
+            const patterns = [
+                '/lgb/njwj/createDynamicsSalt',
+                '/lgb/payMerge/createDynamicsSalt?methodName=/njwj/add',
+                '/lgb/payMerge/createDynamicsSalt?methodName=njwj/add',
+                '/lgb/payMerge/createDynamicsSalt?methodName=njwj',
+                '/lgb/payMerge/createDynamicsSalt?method=/njwj/add',
+                '/lgb/njwj/salt',
+                '/lgb/njwj/getDynamicsSalt'
+            ];
+            
+            for (const pattern of patterns) {
+                output.push(`测试: ${pattern}`);
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}${pattern}`, {
+                        method: 'GET',
+                        headers: {
+                            'accept': '*/*',
+                            'accept-language': 'zh-CN,zh;q=0.9',
+                            'x-requested-with': 'XMLHttpRequest'
+                        },
+                        credentials: 'include'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.code === 0) {
+                        output.push(`✅ 成功: ${pattern}`);
+                    } else {
+                        output.push(`❌ 失败: ${data.message} (${data.code})`);
+                    }
+                    
+                } catch (error) {
+                    output.push(`❌ 错误: ${error.message}`);
+                }
+                
+                output.push(''); // 空行
+            }
+            
+            result.className = 'test-result';
+            result.textContent = output.join('\n');
+        }
+    </script>
+</body>
+</html>

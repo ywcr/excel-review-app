@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>问卷逻辑测试</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      .test-section {
+        margin: 20px 0;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      .test-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 10px;
+      }
+      .test-result {
+        margin: 10px 0;
+        padding: 10px;
+        background: #f5f5f5;
+        border-radius: 3px;
+      }
+      .success {
+        background: #d4edda;
+        color: #155724;
+      }
+      .error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>问卷逻辑测试页面</h1>
+    <p>测试重构后的问卷逻辑是否正常工作</p>
+
+    <div class="test-section">
+      <div class="test-title">1. 模块加载测试</div>
+      <button onclick="testModuleLoading()">测试模块加载</button>
+      <div id="moduleResult" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+      <div class="test-title">2. 问卷逻辑生成测试</div>
+      <button onclick="testQuestionnaireLogic()">测试问卷逻辑生成</button>
+      <div id="logicResult" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+      <div class="test-title">3. 答题函数测试</div>
+      <button onclick="testAnswerFunctions()">测试西黄问卷答题函数</button>
+      <button onclick="testAllQuestionnaires()">测试所有问卷答题函数</button>
+      <div id="answerResult" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+      <div class="test-title">4. 代码生成器测试</div>
+      <button onclick="testCodeGenerator()">测试代码生成器</button>
+      <div id="generatorResult" class="test-result"></div>
+    </div>
+
+    <!-- 引入所有必要的模块 -->
+    <script src="js/utils.js"></script>
+    <script src="js/config.js"></script>
+
+    <!-- 引入重构后的模块 -->
+    <script src="js/automation/template-manager.js"></script>
+    <script src="js/automation/validation-manager.js"></script>
+    <script src="js/automation/execution-logic.js"></script>
+    <script src="js/automation/control-panel.js"></script>
+
+    <!-- 引入问卷逻辑模块 -->
+    <script src="js/automation/questionnaire-logic/base-questionnaire.js"></script>
+    <script src="js/automation/questionnaire-logic/xihuang-questionnaire.js"></script>
+    <script src="js/automation/questionnaire-logic/niujie-questionnaire.js"></script>
+    <script src="js/automation/questionnaire-logic/zhibai-questionnaire.js"></script>
+    <script src="js/automation/questionnaire-logic/liuwei-questionnaire.js"></script>
+    <script src="js/automation/questionnaire-logic/tiegao-questionnaire.js"></script>
+
+    <!-- 引入核心代码生成器 -->
+    <script src="js/automation/code-generator.js"></script>
+
+    <script>
+      // 测试模块加载
+      function testModuleLoading() {
+        const result = document.getElementById("moduleResult");
+        const modules = [
+          "TemplateManager",
+          "ValidationManager",
+          "ExecutionLogicManager",
+          "ControlPanelManager",
+          "BaseQuestionnaire",
+          "XihuangQuestionnaire",
+          "NiujieQuestionnaire",
+          "ZhibaiQuestionnaire",
+          "LiuweiQuestionnaire",
+          "TiegaoQuestionnaire",
+          "QuestionnaireLogicFactory",
+          "AutomationCodeGenerator",
+        ];
+
+        let loadedModules = [];
+        let failedModules = [];
+
+        modules.forEach((moduleName) => {
+          if (window[moduleName]) {
+            loadedModules.push(moduleName);
+          } else {
+            failedModules.push(moduleName);
+          }
+        });
+
+        if (failedModules.length === 0) {
+          result.className = "test-result success";
+          result.innerHTML = `✅ 所有模块加载成功！<br>已加载: ${loadedModules.join(
+            ", "
+          )}`;
+        } else {
+          result.className = "test-result error";
+          result.innerHTML = `❌ 部分模块加载失败！<br>成功: ${loadedModules.join(
+            ", "
+          )}<br>失败: ${failedModules.join(", ")}`;
+        }
+      }
+
+      // 测试问卷逻辑生成
+      function testQuestionnaireLogic() {
+        const result = document.getElementById("logicResult");
+        const questionnaireTypes = [
+          { name: "西黄消费者问卷", class: "XihuangQuestionnaire" },
+          { name: "牛解消费者问卷", class: "NiujieQuestionnaire" },
+          { name: "知柏消费者问卷", class: "ZhibaiQuestionnaire" },
+          { name: "六味患者问卷", class: "LiuweiQuestionnaire" },
+          { name: "贴膏患者问卷", class: "TiegaoQuestionnaire" },
+        ];
+
+        let results = [];
+
+        questionnaireTypes.forEach((type) => {
+          try {
+            const questionnaire = QuestionnaireLogicFactory.create(type.name);
+            const logic = questionnaire.getQuestionLogic();
+
+            if (logic && logic.includes("function _answer0")) {
+              results.push(`✅ ${type.name}: 逻辑生成成功`);
+            } else {
+              results.push(`❌ ${type.name}: 逻辑生成失败或不完整`);
+            }
+          } catch (error) {
+            results.push(`❌ ${type.name}: 生成出错 - ${error.message}`);
+          }
+        });
+
+        result.className = "test-result";
+        result.innerHTML = results.join("<br>");
+      }
+
+      // 测试答题函数
+      function testAnswerFunctions() {
+        const result = document.getElementById("answerResult");
+
+        try {
+          // 测试西黄问卷的答题函数
+          const xihuang = new XihuangQuestionnaire({});
+          const logic = xihuang.getQuestionLogic();
+
+          console.log("生成的逻辑代码:", logic.substring(0, 200) + "...");
+
+          // 在全局作用域执行生成的逻辑代码
+          (1, eval)(logic);
+
+          // 测试答题函数
+          let testResults = [];
+          for (let i = 0; i < 10; i++) {
+            // 西黄问卷有10个问题
+            const funcName = `_answer${i}`;
+            if (typeof window[funcName] === "function") {
+              const answer = window[funcName]();
+              testResults.push(`✅ ${funcName}(): ${answer}`);
+            } else {
+              testResults.push(`❌ ${funcName}(): 函数不存在`);
+            }
+          }
+
+          result.className = "test-result success";
+          result.innerHTML = `西黄问卷答题函数测试结果：<br>${testResults.join(
+            "<br>"
+          )}`;
+        } catch (error) {
+          result.className = "test-result error";
+          result.innerHTML = `❌ 答题函数测试失败: ${error.message}<br>详细信息: ${error.stack}`;
+          console.error("答题函数测试错误:", error);
+        }
+      }
+
+      // 测试所有问卷的答题函数
+      function testAllQuestionnaires() {
+        const result = document.getElementById("answerResult");
+
+        const questionnaireTypes = [
+          {
+            name: "西黄消费者问卷",
+            class: XihuangQuestionnaire,
+            questionCount: 10,
+          },
+          {
+            name: "牛解消费者问卷",
+            class: NiujieQuestionnaire,
+            questionCount: 9,
+          },
+          {
+            name: "知柏消费者问卷",
+            class: ZhibaiQuestionnaire,
+            questionCount: 9,
+          },
+          {
+            name: "六味患者问卷",
+            class: LiuweiQuestionnaire,
+            questionCount: 10,
+          },
+          {
+            name: "贴膏患者问卷",
+            class: TiegaoQuestionnaire,
+            questionCount: 14,
+          },
+        ];
+
+        let allResults = [];
+
+        questionnaireTypes.forEach((type) => {
+          try {
+            // 清除之前的函数
+            for (let i = 0; i < 20; i++) {
+              delete window[`_answer${i}`];
+            }
+
+            const questionnaire = new type.class({});
+            const logic = questionnaire.getQuestionLogic();
+
+            // 在全局作用域执行生成的逻辑代码
+            (1, eval)(logic);
+
+            let questionResults = [];
+            let successCount = 0;
+
+            for (let i = 0; i < type.questionCount; i++) {
+              const funcName = `_answer${i}`;
+              if (typeof window[funcName] === "function") {
+                try {
+                  const answer = window[funcName]();
+                  questionResults.push(`✅ ${funcName}(): ${answer}`);
+                  successCount++;
+                } catch (error) {
+                  questionResults.push(
+                    `❌ ${funcName}(): 执行错误 - ${error.message}`
+                  );
+                }
+              } else {
+                questionResults.push(`❌ ${funcName}(): 函数不存在`);
+              }
+            }
+
+            allResults.push(
+              `<strong>${type.name}</strong> (${successCount}/${type.questionCount})`
+            );
+            allResults.push(...questionResults);
+            allResults.push(""); // 空行分隔
+          } catch (error) {
+            allResults.push(
+              `<strong>${type.name}</strong>: ❌ 测试失败 - ${error.message}`
+            );
+            allResults.push(""); // 空行分隔
+          }
+        });
+
+        result.className = "test-result";
+        result.innerHTML = allResults.join("<br>");
+      }
+
+      // 测试代码生成器
+      function testCodeGenerator() {
+        const result = document.getElementById("generatorResult");
+
+        try {
+          const config = CONFIG.questionnaireTypes.xihuang_consumer;
+          const generator = new AutomationCodeGenerator(config);
+
+          const testData = [
+            { name: "测试用户1", sex: "男" },
+            { name: "测试用户2", sex: "女" },
+          ];
+
+          const code = generator.generateCode(
+            testData,
+            "测试指派人",
+            "11.07",
+            false
+          );
+
+          if (code && code.includes("function _answer0")) {
+            result.className = "test-result success";
+            result.innerHTML = `✅ 代码生成器测试成功！<br>生成的代码长度: ${code.length} 字符<br>包含答题逻辑: 是`;
+          } else {
+            result.className = "test-result error";
+            result.innerHTML = `❌ 代码生成器测试失败：生成的代码不完整`;
+          }
+        } catch (error) {
+          result.className = "test-result error";
+          result.innerHTML = `❌ 代码生成器测试失败: ${error.message}`;
+        }
+      }
+
+      // 页面加载完成后自动测试模块加载
+      window.addEventListener("load", function () {
+        setTimeout(testModuleLoading, 500);
+      });
+    </script>
+  </body>
+</html>
