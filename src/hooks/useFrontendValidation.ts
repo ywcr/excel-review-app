@@ -53,11 +53,22 @@ export interface ValidationResult {
   };
 }
 
+// 调试日志接口
+export interface DebugLogEntry {
+  timestamp: string;
+  level: "INFO" | "WARN" | "ERROR" | "DEBUG";
+  stage: string;
+  message: string;
+  data?: any;
+  prefix: string;
+}
+
 export interface UseFrontendValidationReturn {
   isValidating: boolean;
   progress: ValidationProgress | null;
   result: ValidationResult | null;
   error: string | null;
+  debugLogs: DebugLogEntry[]; // 新增：调试日志数组
   validateExcel: (
     file: File,
     taskName: string,
@@ -67,6 +78,7 @@ export interface UseFrontendValidationReturn {
   validateImages: (file: File) => Promise<void>;
   cancelValidation: () => void;
   clearResult: () => void;
+  clearDebugLogs: () => void; // 新增：清除调试日志
 }
 
 /**
@@ -85,6 +97,7 @@ const MESSAGE_TYPES = {
   PROGRESS: "PROGRESS",
   RESULT: "RESULT",
   ERROR: "ERROR",
+  DEBUG_LOG: "DEBUG_LOG", // 新增：调试日志消息类型
 };
 
 function toFriendlyError(message: string): string {
@@ -112,6 +125,7 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
   const [progress, setProgress] = useState<ValidationProgress | null>(null);
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [debugLogs, setDebugLogs] = useState<DebugLogEntry[]>([]); // 新增：调试日志状态
 
   const workerRef = useRef<Worker | null>(null);
 
@@ -177,6 +191,17 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
               setIsValidating(false);
               setProgress(null);
               cleanupWorker();
+              break;
+            case MESSAGE_TYPES.DEBUG_LOG:
+              // 处理调试日志
+              setDebugLogs((prev) => {
+                const newLogs = [...prev, data];
+                // 限制日志数量，避免内存溢出
+                if (newLogs.length > 1000) {
+                  return newLogs.slice(-500); // 保留最新的500条
+                }
+                return newLogs;
+              });
               break;
           }
         };
@@ -256,6 +281,17 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
             setProgress(null);
             cleanupWorker();
             break;
+          case MESSAGE_TYPES.DEBUG_LOG:
+            // 处理调试日志
+            setDebugLogs((prev) => {
+              const newLogs = [...prev, data];
+              // 限制日志数量，避免内存溢出
+              if (newLogs.length > 1000) {
+                return newLogs.slice(-500); // 保留最新的500条
+              }
+              return newLogs;
+            });
+            break;
         }
       };
       worker.onerror = (error) => {
@@ -297,6 +333,11 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
     setProgress(null);
   }, []);
 
+  // Clear debug logs
+  const clearDebugLogs = useCallback(() => {
+    setDebugLogs([]);
+  }, []);
+
   useEffect(() => {
     // Cleanup worker on component unmount
     return () => cleanupWorker();
@@ -307,9 +348,11 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
     progress,
     result,
     error,
+    debugLogs,
     validateExcel,
     validateImages,
     cancelValidation,
     clearResult,
+    clearDebugLogs,
   };
 }

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>调试于源文件</title>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <h1>调试于源文件数据结构</h1>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>正在读取文件...</p>';
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                
+                // 使用与Worker相同的解析选项
+                const workbook = XLSX.read(arrayBuffer, {
+                    type: "array",
+                    cellDates: true,
+                    dense: false,
+                    sheetStubs: false,
+                    bookVBA: false,
+                    bookProps: false,
+                    bookFiles: false,
+                    bookDeps: false,
+                    raw: false
+                });
+                
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const data = XLSX.utils.sheet_to_json(firstSheet, {
+                    header: 1,
+                    defval: "",
+                    raw: false,
+                    dateNF: "yyyy-mm-dd"
+                });
+                
+                let html = '<h2>数据结构分析</h2>';
+                html += `<p>总行数: ${data.length}</p>`;
+                
+                // 显示前10行的详细信息
+                html += '<h3>前10行详细信息:</h3>';
+                for (let i = 0; i < Math.min(10, data.length); i++) {
+                    const row = data[i];
+                    html += `<div style="border: 1px solid #ccc; margin: 5px 0; padding: 5px;">`;
+                    html += `<strong>第${i+1}行 (索引${i}):</strong><br>`;
+                    
+                    if (!row || row.length === 0) {
+                        html += '<em>空行</em>';
+                    } else {
+                        html += '<table border="1" style="margin-top: 5px;">';
+                        html += '<tr>';
+                        for (let j = 0; j < Math.min(15, row.length); j++) {
+                            const cell = row[j];
+                            const displayValue = cell === null || cell === undefined ? '(空)' : 
+                                               cell === '' ? '(空字符串)' : 
+                                               String(cell).replace(/\n/g, '\\n');
+                            html += `<td title="${displayValue}">${displayValue.substring(0, 20)}${displayValue.length > 20 ? '...' : ''}</td>`;
+                        }
+                        html += '</tr>';
+                        html += '</table>';
+                        
+                        // 显示清洗后的值
+                        html += '<div style="margin-top: 5px;">清洗后的值: ';
+                        const cleanedValues = row.map(h => String(h || '').trim().replace(/[\n\r]+/g, '').replace(/\s+/g, ''));
+                        html += cleanedValues.filter(v => v).join(' | ');
+                        html += '</div>';
+                    }
+                    
+                    html += '</div>';
+                }
+                
+                // 查找包含"序号"的行
+                html += '<h3>查找包含"序号"的行:</h3>';
+                let foundHeaderRow = false;
+                for (let i = 0; i < Math.min(20, data.length); i++) {
+                    const row = data[i];
+                    if (row && row.some(cell => String(cell || '').includes('序号'))) {
+                        html += `<p style="color: green;">找到! 第${i+1}行 (索引${i})</p>`;
+                        html += '<table border="1">';
+                        html += '<tr>';
+                        row.forEach((cell, j) => {
+                            if (cell) {
+                                html += `<td>${j}: ${String(cell).replace(/\n/g, '\\n')}</td>`;
+                            }
+                        });
+                        html += '</tr>';
+                        html += '</table>';
+                        foundHeaderRow = true;
+                        break;
+                    }
+                }
+                if (!foundHeaderRow) {
+                    html += '<p style="color: red;">未找到包含"序号"的行</p>';
+                }
+                
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                console.error('处理错误:', error);
+                resultDiv.innerHTML = `<p style="color: red;">错误: ${error.message}</p>`;
+            }
+        });
+    </script>
+</body>
+</html>

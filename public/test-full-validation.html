@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>完整验证流程测试</title>
+</head>
+<body>
+    <h1>完整验证流程测试</h1>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <div id="result"></div>
+
+    <script>
+        // 模拟完整的验证Worker
+        const worker = new Worker('/validation-worker.js');
+        
+        // 设置消息类型
+        const MESSAGE_TYPES = {
+            VALIDATE_EXCEL: 'VALIDATE_EXCEL',
+            VALIDATION_PROGRESS: 'VALIDATION_PROGRESS',
+            VALIDATION_RESULT: 'VALIDATION_RESULT',
+            VALIDATION_ERROR: 'VALIDATION_ERROR'
+        };
+        
+        // 模拟任务模板 - 适配于源文件的实际字段
+        const mockTemplate = {
+            fields: ['序号', '任务标题', '实施\n人', '对接人', '零售渠道'],
+            requiredFields: ['序号', '任务标题', '实施\n人'],
+            fieldMappings: {
+                '序号': 'id',
+                '任务标题': 'task_title',
+                '实施人': 'implementer',
+                '实施\n人': 'implementer',
+                '对接人': 'contact',
+                '零售渠道': 'channel',
+                '渠道名称': 'channel_name',
+                '渠道地址': 'channel_address',
+                '渠道类别': 'channel_type',
+                '拜访开始时间': 'visit_start_time',
+                '拜访结束时间': 'visit_end_time',
+                '拜访时长(分钟)': 'visit_duration',
+                '地址': 'address',
+                '当日拜访次序': 'visit_order',
+                '任务状态': 'task_status',
+                '备注': 'remarks'
+            },
+            validationRules: []
+        };
+        
+        worker.onmessage = (e) => {
+            console.log('收到Worker消息:', e.data);
+            
+            switch (e.data.type) {
+                case MESSAGE_TYPES.VALIDATION_PROGRESS:
+                    console.log(`进度: ${e.data.progress}% - ${e.data.message}`);
+                    updateProgress(e.data.message, e.data.progress);
+                    break;
+                    
+                case MESSAGE_TYPES.VALIDATION_RESULT:
+                    console.log('验证完成:', e.data);
+                    showResult(e.data);
+                    break;
+                    
+                case MESSAGE_TYPES.VALIDATION_ERROR:
+                    console.error('验证错误:', e.data.error);
+                    showError(e.data.error);
+                    break;
+                    
+                default:
+                    if (e.data.error) {
+                        console.error('Worker错误:', e.data.error);
+                        showError(e.data.error);
+                    }
+            }
+        };
+        
+        worker.onerror = (error) => {
+            console.error('Worker错误:', error);
+            showError('Worker错误: ' + error.message);
+        };
+        
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            console.log('选择的文件:', file.name, '大小:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                console.log('文件读取完成，ArrayBuffer大小:', arrayBuffer.byteLength);
+                
+                // 发送验证消息
+                console.log('发送验证请求到Worker');
+                worker.postMessage({
+                    type: MESSAGE_TYPES.VALIDATE_EXCEL,
+                    data: {
+                        fileBuffer: arrayBuffer,
+                        fileName: file.name,
+                        taskName: '测试任务',
+                        template: mockTemplate,
+                        selectedSheet: 'Sheet1'
+                    }
+                });
+                
+                updateProgress('开始验证...', 0);
+                
+            } catch (error) {
+                console.error('文件处理错误:', error);
+                showError('文件处理错误: ' + error.message);
+            }
+        });
+        
+        function updateProgress(message, progress) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <div style="padding: 20px; background: #f0f0f0; border-radius: 5px;">
+                    <p>${message}</p>
+                    <div style="width: 100%; background: #ddd; height: 20px; border-radius: 10px;">
+                        <div style="width: ${progress}%; background: #4CAF50; height: 100%; border-radius: 10px;"></div>
+                    </div>
+                    <p>${progress}%</p>
+                </div>
+            `;
+        }
+        
+        function showResult(data) {
+            const resultDiv = document.getElementById('result');
+            const summary = data.summary || {};
+            
+            resultDiv.innerHTML = `
+                <div style="padding: 20px; background: #e8f5e9; border-radius: 5px;">
+                    <h2>验证完成</h2>
+                    <p>验证结果: ${data.isValid ? '✅ 通过' : '❌ 未通过'}</p>
+                    <p>总行数: ${summary.totalRows || 0}</p>
+                    <p>有效行数: ${summary.validRows || 0}</p>
+                    <p>错误数: ${summary.errorCount || 0}</p>
+                    ${data.errors && data.errors.length > 0 ? `
+                        <h3>错误详情（前10个）:</h3>
+                        <ul>
+                            ${data.errors.slice(0, 10).map(err => 
+                                `<li>行 ${err.row}: ${err.message}</li>`
+                            ).join('')}
+                        </ul>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        function showError(error) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <div style="padding: 20px; background: #ffebee; border-radius: 5px; color: #c62828;">
+                    <h2>验证失败</h2>
+                    <p>${error}</p>
+                </div>
+            `;
+        }
+        
+        console.log('验证Worker已准备就绪');
+    </script>
+</body>
+</html>

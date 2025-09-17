@@ -1,5 +1,14 @@
 [
   {
+    "fileName": "工作簿2.xlsx",
+    "fileSize": 1716646888,
+    "mediaFiles": 390,
+    "wpsImages": 390,
+    "total": 390,
+    "format": "WPS",
+    "avgImageSize": 3415610.9
+  },
+  {
     "fileName": "8月盛邦药店拜访记录.xlsx",
     "fileSize": 206389261,
     "mediaFiles": 168,
@@ -7,6 +16,15 @@
     "total": 171,
     "format": "WPS",
     "avgImageSize": 1076459.1
+  },
+  {
+    "fileName": "秦凯拜访.xlsx",
+    "fileSize": 687022788,
+    "mediaFiles": 138,
+    "wpsImages": 138,
+    "total": 138,
+    "format": "WPS",
+    "avgImageSize": 4882229.4
   },
   {
     "fileName": "兴盛宇合规.xlsx",

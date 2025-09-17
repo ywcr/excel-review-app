@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>测试秦凯文件解析 - 修复版</title>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <h1>测试秦凯文件解析 - 修复版</h1>
+    <button onclick="testQinkaiFile()">测试秦凯拜访.xlsx (正确模板)</button>
+    <div id="result"></div>
+
+    <script>
+        async function testQinkaiFile() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>正在测试秦凯文件...</p>';
+            
+            try {
+                // 加载秦凯文件
+                const response = await fetch('/data/秦凯拜访.xlsx');
+                if (!response.ok) {
+                    throw new Error(`文件加载失败: ${response.status}`);
+                }
+                
+                const arrayBuffer = await response.arrayBuffer();
+                console.log('文件大小:', (arrayBuffer.byteLength / 1024 / 1024).toFixed(2), 'MB');
+                
+                // 测试Worker验证 - 使用正确的模板
+                resultDiv.innerHTML += '<h2>Worker验证 (正确模板)</h2>';
+                
+                const worker = new Worker('/validation-worker.js');
+                
+                worker.onmessage = (e) => {
+                    const { type, data } = e.data;
+                    console.log('Worker消息:', type, data);
+                    
+                    if (type === 'PROGRESS') {
+                        resultDiv.innerHTML += `<p>进度: ${data.message} (${data.progress}%)</p>`;
+                    } else if (type === 'RESULT') {
+                        if (data && data.needSheetSelection) {
+                            resultDiv.innerHTML += '<p style="color: orange;">🔄 需要用户选择工作表</p>';
+                            resultDiv.innerHTML += '<p>可用工作表:</p>';
+                            resultDiv.innerHTML += '<ul>';
+                            data.availableSheets.forEach(sheet => {
+                                resultDiv.innerHTML += `<li>${sheet.name} (${sheet.hasData ? '有数据' : '无数据'})</li>`;
+                            });
+                            resultDiv.innerHTML += '</ul>';
+                        } else {
+                            resultDiv.innerHTML += '<p style="color: green;">✅ Worker验证成功!</p>';
+                            resultDiv.innerHTML += '<h3>验证结果详情:</h3>';
+                            
+                            // 显示基本信息
+                            if (data.summary) {
+                                resultDiv.innerHTML += `<p><strong>总行数:</strong> ${data.summary.totalRows}</p>`;
+                                resultDiv.innerHTML += `<p><strong>有效行数:</strong> ${data.summary.validRows}</p>`;
+                                resultDiv.innerHTML += `<p><strong>错误数量:</strong> ${data.summary.errorCount}</p>`;
+                            }
+                            
+                            // 显示表头验证
+                            if (data.headerValidation) {
+                                resultDiv.innerHTML += '<h4>表头验证:</h4>';
+                                resultDiv.innerHTML += `<p>表头有效: ${data.headerValidation.isValid ? '✅' : '❌'}</p>`;
+                                resultDiv.innerHTML += `<p>表头行索引: ${data.headerValidation.headerRowIndex}</p>`;
+                                if (data.headerValidation.missingFields && data.headerValidation.missingFields.length > 0) {
+                                    resultDiv.innerHTML += `<p style="color: red;">缺失字段: ${data.headerValidation.missingFields.join(', ')}</p>`;
+                                }
+                                if (data.headerValidation.unmatchedFields && data.headerValidation.unmatchedFields.length > 0) {
+                                    resultDiv.innerHTML += `<p style="color: orange;">未匹配字段: ${data.headerValidation.unmatchedFields.join(', ')}</p>`;
+                                }
+                            }
+                            
+                            // 显示错误详情
+                            if (data.errors && data.errors.length > 0) {
+                                resultDiv.innerHTML += '<h4>验证错误:</h4>';
+                                resultDiv.innerHTML += `<p>共 ${data.errors.length} 个错误</p>`;
+                                resultDiv.innerHTML += '<ul>';
+                                data.errors.slice(0, 10).forEach(error => {
+                                    resultDiv.innerHTML += `<li>第${error.row}行 ${error.column}列: ${error.message}</li>`;
+                                });
+                                if (data.errors.length > 10) {
+                                    resultDiv.innerHTML += `<li>... 还有 ${data.errors.length - 10} 个错误</li>`;
+                                }
+                                resultDiv.innerHTML += '</ul>';
+                            } else {
+                                resultDiv.innerHTML += '<p style="color: green;">🎉 没有发现验证错误！</p>';
+                            }
+                            
+                            // 显示图片验证结果
+                            if (data.imageValidation) {
+                                resultDiv.innerHTML += '<h4>图片验证:</h4>';
+                                resultDiv.innerHTML += `<p>总图片数: ${data.imageValidation.totalImages}</p>`;
+                                resultDiv.innerHTML += `<p>模糊图片: ${data.imageValidation.blurryImages}</p>`;
+                                resultDiv.innerHTML += `<p>重复图片组: ${data.imageValidation.duplicateGroups}</p>`;
+                            }
+                            
+                            // 显示完整的原始数据（用于调试）
+                            resultDiv.innerHTML += '<details><summary>完整验证结果（调试用）</summary>';
+                            resultDiv.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                            resultDiv.innerHTML += '</details>';
+                        }
+                        worker.terminate();
+                    } else if (type === 'ERROR') {
+                        resultDiv.innerHTML += `<p style="color: red;">❌ Worker验证失败: ${data.message}</p>`;
+                        worker.terminate();
+                    }
+                };
+                
+                worker.onerror = (error) => {
+                    resultDiv.innerHTML += `<p style="color: red;">❌ Worker错误: ${error.message}</p>`;
+                };
+                
+                // 发送验证请求 - 使用正确的药店拜访模板
+                console.log('发送验证请求，使用药店拜访模板...');
+                worker.postMessage({
+                    type: 'VALIDATE_EXCEL',
+                    data: {
+                        fileBuffer: arrayBuffer,
+                        taskName: 'drugstore_visit', // 药店拜访任务
+                        selectedSheet: undefined,
+                        template: {
+                            requiredFields: ['序号', '任务标题', '实施人', '对接人', '零售渠道'],
+                            sheetNames: ['Sheet1', '药店拜访', '拜访记录'],
+                            name: '药店拜访记录验证',
+                            // 添加一些验证规则
+                            validationRules: [
+                                {
+                                    field: '序号',
+                                    type: 'required',
+                                    message: '序号不能为空'
+                                },
+                                {
+                                    field: '任务标题',
+                                    type: 'required',
+                                    message: '任务标题不能为空'
+                                },
+                                {
+                                    field: '实施人',
+                                    type: 'required',
+                                    message: '实施人不能为空'
+                                }
+                            ]
+                        },
+                        includeImages: false
+                    }
+                });
+                
+            } catch (error) {
+                console.error('测试错误:', error);
+                resultDiv.innerHTML += `<p style="color: red;">测试失败: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
