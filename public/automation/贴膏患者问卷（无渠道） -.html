@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>贴膏剂北京市患者调研-无渠道</title>
+    <style>
+        * {
+            font-size: 12px;
+        }
+
+        .tag {
+            font-size: 14px;
+            color: red;
+            font-weight: bold;
+        }
+
+        .dataframe {
+            width: 500px;
+            height: 300px;
+            margin-top: 10px;
+        }
+
+        h3 {
+            font-size: 18px;
+        }
+    </style>
+    <script lang="javascript" src="https://cc-static-files.oss-cn-hangzhou.aliyuncs.com/xlsx.full.min.js"></script>
+</head>
+
+<body>
+    <h3>贴膏剂北京市患者调研-无渠道</h3>
+    <!-- 导入文件 -->
+    <div>
+        <p class="tag">第一步 选择要导出的excel文件</p>
+        <input type="file" name="" id="file" onchange="loadFile(this.files)" />
+    </div>
+    <!--  -->
+    <div>
+        <p class="tag">第二步 请输入指派人</p>
+        <input type="text" id="zhipairen">
+    </div>
+    <div>
+        <p class="tag">第三步 请填写任务日期</p>
+        <input type="text" value="" id="dateInput" placeholder="11.07" />
+    </div>
+    <div>
+        <p class="tag">第四步 点击按钮导出数据</p>
+        <button id="handleClickData" onclick="handleData()">数据导出</button><br>
+        <textarea id="dataframe" class="dataframe"></textarea>
+    </div>
+    <script>
+        //-------------------1、导入数据-----------------------------
+        let sheets = {} //存储导出的excel数据
+
+        //-------------- 导出数据------------------
+        function loadFile(files) {
+            name = files[0].name.split('.')[0]
+            const render = new FileReader()
+            render.onload = (e) => {
+                const data = XLSX.read(e.target.result, { type: 'binary' })
+                for (let i = 0; i < data.SheetNames.length; i++) {
+                    const sheetName = data.SheetNames[i];
+                    // 将数据转为json对象，第一行会自动识别为列名
+                    sheetJson = XLSX.utils.sheet_to_json(data.Sheets[sheetName], { header: 1 });
+                    sheets[sheetName] = sheetJson
+                }
+            }
+
+            render.readAsBinaryString(files[0])
+        }
+
+
+
+        //-------------------2、解析数据-----------------------------
+        function handleData() {
+            let runningData = JSON.parse(JSON.stringify(sheets));
+            const wenjuan = runningData.贴膏患者问卷?.slice(1) ?? [];
+
+            const all = []
+            wenjuan.forEach(item => {
+                const [序号, 患者, 性别, 时间, 指派人] = item
+                if (指派人 !== zhipairen.value) {
+                    return
+                }
+
+                // let date = 时间.toString().length === 4 ? 时间.toString() + "0" : 时间.toString()
+
+                let dateArr = 时间.toString().split('.');
+                if (dateArr[0].length !== 2) {
+                    dateArr[0] = '0' + dateArr[0]
+                }
+                if (dateArr[1].length !== 2) {
+                    dateArr[1] = dateArr[1] + '0'
+                }
+
+                const date = dateArr[0] + '.' + dateArr[1];
+
+                all.push({ 患者, 性别, 指派人, 时间: date })
+            })
+            console.log(all)
+            let nowdate = dateInput.value;
+
+            const tpl = template(JSON.stringify(all), nowdate)
+            dataframe.value = tpl
+        }
+
+        function template(data, nowdate) {
+            return `
+            // 使用步骤
+                // 1. 解析execl数据，赋值给data
+                // 2. 进度调查问卷页面，点创建任务，进入创建任务页面
+                // 3. 指定实时日期 date 
+                // 4. 执行start()执行脚本
+
+                const data=${data}
+                console.log("全部数据",data)
+                
+                // 实施时间
+                let date = '${nowdate}'
+                let year = (new Date()).getFullYear();
+
+                // 在创建工单之前，先要创建医院和患者
+                // 1、查询要创建的患者是否存在
+                function getSame(hzName,sex){
+                    return new Promise((resolve,reject)=>{
+                        $.ajax({
+                            url: "/lgb/lxrgl/getMessage",
+                            type: "POST",
+                            data: {
+                                recId:"",
+                                nvcVal:"",
+                                empRecId:"",
+                                lxrType:"患者",
+                                name:hzName,
+                                sex:sex,
+                                remark:""
+                            },
+                            traditional: true,
+                            success: function (res) {
+                                setTimeout(function(){
+                                    resolve(res)
+                                },2000)
+                            },
+                        });
+                    })
+                }
+                // 2、创建患者
+                function addHuanzhe(hzName,sex){
+                    return new Promise((resolve,reject)=>{
+                        $.ajax({
+                            url:"/lgb/lxrgl/save",
+                            type: "POST",
+                            data:{
+                                    recId:"",
+                                    nvcVal:"",
+                                    empRecId:"",
+                                    lxrType:"患者",
+                                    name:hzName,
+                                    sex:sex,
+                                    remark:""
+                            },
+                            traditional: true,
+                            success:function (res) {
+                                setTimeout(function(){
+                                    resolve()
+                                },2000)
+                                
+                            }
+                            
+                        })
+                    })
+                }
+                // 3、执行创建患者任务
+                async function startAddHz() {
+                    for (let i = 0; i < data.length; i++) {
+                        let huanzhename = data[i].患者
+                        let sex = data[i].性别
+                        await getSame(huanzhename, sex).then(async (res) => {
+                            if (res.code == 0) {
+                                await addHuanzhe(huanzhename, sex)
+                                console.log(i+"添加成功！"+huanzhename)
+                            } else {
+                                console.log(i+huanzhename+"患者已存在！")
+                            }
+                        })
+                    }
+                    console.log("患者创建完毕，请执行startAddChannel函数创建医院，如已创建请忽略！")
+                }
+                console.log("执行startAddHz函数创建患者，如已创建请忽略！")
+                console.log("患者问卷需要先创建患者和医院，然后关联隐藏的channelAddress")
+                
+                
+
+                function randomAnswerByRate(highOption, lowOption, lowRate) {
+                    const max = 1 / lowRate
+                    const isLow = random(1, max) === max
+                    return isLow ? randomAnswer(lowOption) : randomAnswer(highOption)
+                }
+
+                function randomAnswer(option) {
+                    const index = random(0, option.length - 1)
+                    return option[index]
+                }
+
+
+                // 随机性别
+                function _sex() {
+                    const option = ['男', '女']
+                    const index = random(0, option.length - 1)
+                    return option[index]
+                }
+
+                
+                //1、您是通过什么渠道了解到羚锐制药通络祛痛膏的？ 
+                function _answer0() {
+                    const option = ['医生推荐', '药店推荐', '朋友介绍','广告宣传']
+                    const index = random(0, option.length - 1)
+                    return option[index]
+                }
+
+                //2、您使用通络祛痛膏是用于治疗哪种疾病或症状？ 
+                function _answer1() {
+                    const option = ['关节疼痛', '肌肉酸痛', '扭伤', '关节炎']
+                    const index = random(0, option.length - 1)
+                    return option[index]
+                }
+
+                // 3、您使用通络祛痛膏的频率是怎样的？ 
+                function _answer2() {
+                    const option = ['每天使用', '隔天使用', '按需使用']
+                    const index = random(0, option.length - 1)
+                    return option[index]
+                }
+
+                //4、在使用通络祛痛膏之前，您是否尝试过其他类似的产品？ 
+                function _answer3() {
+                    const option = ['是，尝试过其他品牌的止痛膏', '否，这是第一次使用']
+                    const index = random(0, option.length - 1)
+                    return option[index]
+                }
+
+                //5、您觉得通络祛痛膏的止痛效果如何？ 
+                function _answer4() {
+                    // ([高概率],[低概率值]，低概率百分比)
+                    return randomAnswerByRate(['非常有效', '有效', '一般'], ['不太有效'], 0.10)
+                }
+
+               
+                //6、您是否会尝试羚锐制药的其他产品？ 
+                function _answer5(){
+                    const option=['会，对该品牌有好感，愿意尝试其他产品', '可能会，看具体产品', '不会，只关注通络祛痛膏']
+                    const index = random(0, option.length - 1)
+                    return option[index]
+                }
+
+                //7、您对通络祛痛膏的贴敷感受如何，是否容易引起皮肤过敏等不适？ 
+                function _answer6(){
+                    return randomAnswerByRate(['贴敷舒适', '无过敏反应', '贴敷后有轻微不适，但可忍受'], ['容易引起皮肤过敏'], 0.10)
+                }
+                // 8、您认为通络祛痛膏的使用方法是否方便？ 
+                function _answer7(){
+                    return randomAnswerByRate(['方便，易于操作'], ['不太方便，需要他人帮助'], 0.10)
+                }
+                //9、您会推荐通络祛痛膏给其他人使用吗？ 
+                function _answer8(){
+                    const option=['会，效果好，愿意推荐','看情况，如果别人有需要会推荐','不确定']
+                    const index = random(0, option.length - 1)
+                    return option[index]
+                }
+                // 10、您对通络祛痛膏的价格是否满意？ 
+                function _answer9(){
+                    return randomAnswerByRate(['满意，价格合理','可以接受'], ['不满意，价格过高'], 0.10)
+                }
+                // 11、您在使用通络祛痛膏的过程中，是否同时使用了其他药物或治疗方法？ 
+                function _answer10(){
+                    const option=['是，同时使用了其他药物或治疗方法','否，仅使用了通络祛痛膏']
+                    const index = random(0, option.length - 1)
+                    return option[index]
+                }
+                // 12、您觉得通络祛痛膏的药效持续时间如何？  
+                function _answer11(){
+                    const option=['很长，能持续一段时间','一般，效果维持时间较短','不确定']
+                    const index = random(0, option.length - 1)
+                    return option[index]
+                }
+                // 13、您对羚锐制药这个品牌的印象如何？ 
+                function _answer12(){
+                    const option=['品牌知名度高','信任度高','听说过，但了解不多','一般']
+                    const index = random(0, option.length - 1)
+                    return option[index]
+                }
+                // 14、对于通络祛痛膏的产品说明和包装，您有什么建议？  
+                function _answer13(){
+                    const option=['产品说明更加详细、易懂','包装更加方便使用、易于保存','增加防伪标识']
+                    const index = random(0, option.length - 1)
+                    return option[index]
+                }
+
+
+                // function _answer9(answer7){
+                //     const option=[]
+                //     if(answer7=='无明显变化'){
+                //         option.push('不太愿意（效果不明显）','一般（视具体病情）')
+                //     }else{
+                //         option.push('非常愿意（疗效明确）','愿意（医生推荐过）')
+                //     }
+
+                //     const index = random(0, option.length - 1)
+                //     return option[index]
+                // }
+        
+ 
+
+                // function getValueFromIframe(name) {
+                //     return document.querySelector('#ssfwIframe').contentWindow.document.querySelector(\`input[name=\${name}]\`).value
+                // }
+
+                // dom查找值
+                function getValueFromIframe(name) {
+                    return contentWindow.document.querySelector(\`input[name=\${name}]\`)
+                }
+
+                const contentWindow = document.querySelector('#ssfwIframe')?.contentWindow ?? window
+                // // 所有问题
+                // const questions = getValueFromIframe('questions')
+                // // 所有问题的选项
+                // const options = getValueFromIframe('options')
+                // // 所有问题的类型（单选 多选）
+                // const types = getValueFromIframe('types')
+
+                function setInputValue(name, value) {
+                    const items = contentWindow.document.querySelectorAll('.main')[0].querySelectorAll('.layui-form-item')
+                    for (let item of items) {
+                        const label = item.querySelector('label').innerText.replace('*', '').replaceAll(' ', '');
+                        if (label !== name) {
+                            continue
+                        }
+                        // item.querySelectorAll('input').forEach(input => {
+                        //     input.value = value
+                        // })
+                        const list=item.querySelectorAll('input');
+
+                        list[list.length-1].value=value;
+                        return
+                    }
+                    console.error(\`未找到\${name}\`)
+                }
+                function setOptionValue(index, values) {
+                    const items = contentWindow.document.querySelectorAll('.main')[1].querySelectorAll('.layui-form-item')
+                    if (!Array.isArray(values)) {
+                        values = [values]
+                    }
+                    values.forEach(val=>{
+                        items[index].querySelector(\`input[value="\${val}"]\`).nextElementSibling.click()
+                    }
+                    )
+                }
+
+
+
+                function createTask(name, sex) {
+                  
+                    setInputValue('实施日期', year + "-" + date.replace(/\\./g, '-'))
+                    setInputValue('患者姓名', name)
+                    setInputValue('性别', sex)
+
+
+                    let answer7=_answer7()
+
+                    setOptionValue(0, _answer0())
+                    setOptionValue(1, _answer1())
+                    setOptionValue(2, _answer2())
+                    setOptionValue(3, _answer3())
+                    setOptionValue(4, _answer4())
+                    setOptionValue(5, _answer5())
+                    setOptionValue(6, _answer6())
+                    setOptionValue(7, answer7)
+                    setOptionValue(8, _answer8())
+                    setOptionValue(9, _answer9())
+                    setOptionValue(10, _answer10())
+                    setOptionValue(11, _answer11())
+                    setOptionValue(12, _answer12())
+                    setOptionValue(13, _answer13())
+                    
+
+                    setTimeout(function(){
+                        contentWindow.document.querySelector('.btn-over button').click()
+                    },5000)
+                }
+
+                var exec_data = data.filter(item=>{
+                    const {患者, 性别,医院, 时间,地址} = item
+                    return date.endsWith(时间)
+                }
+                )
+                console.log(\`\${date}待执行数据\`, exec_data);
+
+                // 开始执行任务
+                var count = 0
+                var i = 0
+                async function start(num=10000) {
+                    const {患者,性别, 时间} = exec_data[i]
+                    // if (count >= num) {
+                    //     console.log("任务完成！")
+                    //     return
+                    // }
+                    console.log(\`开始填表单:\${i}\`, 患者, 性别, exec_data[i])
+                    count++
+                    i++
+                    createTask(患者, 性别)
+                    console.log('表单填写完成')
+                    if(i>=exec_data.length){
+                        console.log("任务完成！")
+                        return
+                    }
+                }
+
+                
+                // 随机生成数
+                function random(min, max) {
+                    return Math.floor(Math.random() * (max - min + 1) + min)
+                }
+                var num=0;
+                function automatic(){
+                    num++
+                    if(num>100){
+                        console.log("任务完成！")
+                        return
+                    }
+                    start()
+                    setTimeout(function(){
+                        automatic() 
+                    },12650)
+                }
+
+            `
+        }
+    </script>
+</body>
+
+</html>

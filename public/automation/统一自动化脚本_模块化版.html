@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>精灵蜂统一自动化脚本 - 模块化版</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <div class="container">
+      <h1>🤖 精灵蜂统一自动化脚本 - 模块化版</h1>
+
+      <!-- API配置区域 -->
+      <div class="api-config">
+        <div class="api-toggle">
+          <div class="mode-switch" role="group" aria-label="选择执行模式">
+            <label>
+              <input type="radio" name="execMode" value="dom" checked />
+              <span>🧩 DOM模式</span>
+            </label>
+            <label>
+              <input type="radio" name="execMode" value="api" />
+              <span>🚀 API模式</span>
+            </label>
+          </div>
+          <div class="api-info" id="modeHint" style="margin-top: 6px">
+            ✅ DOM模式：通过页面操作实现自动化，更稳定
+          </div>
+        </div>
+      </div>
+
+      <!-- 自动化功能配置 -->
+      <div class="auto-features">
+        <h3>🤖 自动化功能配置</h3>
+        <details>
+          <summary>⚙️ 高级选项</summary>
+          <div class="feature-toggle" style="margin-top: 10px">
+            <label>
+              <input type="checkbox" id="autoNextDate" checked />
+              <span>📅 自动切换日期</span>
+            </label>
+            <div class="feature-info">
+              ✅ 当前日期任务完成后自动切换到下一个日期<br />
+              ⚠️ 关闭后需要手动选择日期
+            </div>
+          </div>
+          <div class="feature-toggle">
+            <label>
+              <input type="checkbox" id="autoValidation" checked />
+              <span>🔍 自动数据验证</span>
+            </label>
+            <div class="feature-info">
+              ✅ 任务完成后自动验证是否有遗漏<br />
+              ✅ 发现遗漏时自动补充创建
+            </div>
+          </div>
+          <div class="feature-toggle">
+            <label>
+              <input type="checkbox" id="consoleSnippetMode" checked />
+              <span>📦 控制台代码片段模式</span>
+            </label>
+            <div class="feature-info">
+              ✅ 生成适合Chrome DevTools Snippets的代码格式<br />
+              ✅ 自动命名为指派人名称，方便管理
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <!-- 问卷类型选择 -->
+      <div class="questionnaire-selector">
+        <h3>📋 选择问卷类型</h3>
+        <div class="questionnaire-types" id="questionnaireTypes">
+          <!-- 问卷类型将通过JavaScript动态生成 -->
+        </div>
+      </div>
+
+      <!-- 文件上传区域 -->
+      <div class="file-upload" id="fileUpload">
+        <p>📁 拖拽 Excel文件到此处，或点击选择文件</p>
+        <input
+          type="file"
+          id="fileInput"
+          accept=".xlsx,.xls"
+          style="display: none"
+        />
+        <textarea
+          class="dataframe"
+          id="dataPreview"
+          placeholder="Excel数据预览将显示在这里..."
+          readonly
+        ></textarea>
+      </div>
+
+      <!-- 指派人管理 -->
+      <div
+        class="assignee-management"
+        id="assigneeManagement"
+        style="display: none"
+      >
+        <h3>👥 指派人管理</h3>
+        <div class="assignee-list" id="assigneeList"></div>
+      </div>
+
+      <!-- 日期管理 -->
+      <div class="date-management" id="dateManagement" style="display: none">
+        <h3>📅 <span id="selectedAssigneeName">选择指派人</span> 的日期管理</h3>
+        <div class="date-status" id="dateStatus">
+          <p style="text-align: center; color: #6c757d; padding: 20px">
+            👆 请先点击上方的指派人查看其日期
+          </p>
+        </div>
+      </div>
+      <!-- 生成按钮区域 -->
+      <div
+        class="generation-buttons"
+        id="generationButtons"
+        style="display: none; margin: 20px 0"
+      >
+        <h3>🚀 生成自动化代码</h3>
+        <div class="validation-buttons">
+          <button
+            class="validation-btn primary"
+            id="createQuestionnairesBtn"
+            disabled
+          >
+            📝 生成并复制 当前日期代码
+          </button>
+          <button
+            class="validation-btn secondary"
+            id="createAllQuestionnairesBtn"
+            disabled
+          >
+            📊 生成并复制 全部日期代码
+          </button>
+        </div>
+        <p
+          id="dataSummary"
+          style="color: #6c757d; margin: 8px 0; display: none"
+        ></p>
+      </div>
+      <!-- 数据验证区域 -->
+      <div
+        class="validation-section"
+        id="validationSection"
+        style="display: none"
+      >
+        <h3>🔍 数据验证工具</h3>
+        <p>
+          ⚠️ 数据验证功能已集成到生成的代码片段中，请在控制台中使用以下命令：
+        </p>
+        <div
+          style="
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+          "
+        >
+          <code style="display: block; margin: 5px 0"
+            >validateData() - 验证当前数据集创建情况并给出缺失列表</code
+          >
+          <code style="display: block; margin: 5px 0"
+            >showMissing() - 以表格和 JSON 形式显示缺失项</code
+          >
+          <code style="display: block; margin: 5px 0"
+            >updateWithMissing() - 自动补充创建缺失项（随后会再次验证）</code
+          >
+        </div>
+        <p style="color: #666; font-size: 12px">
+          💡 这些命令只能在执行自动化代码后的控制台中使用，因为需要访问后端API。
+        </p>
+      </div>
+
+      <!-- 代码生成结果区域 -->
+      <div
+        class="questionnaire-creation-section"
+        id="questionnaireCreationSection"
+        style="display: none"
+      >
+        <h3>📦 生成结果</h3>
+
+        <!-- 代码生成结果区域 -->
+        <div id="questionnaireCreationResults" style="margin-top: 20px">
+          <!-- 生成的代码将显示在这里，包含复制按钮 -->
+        </div>
+
+        <!-- 使用说明 -->
+        <div
+          class="usage-instructions"
+          style="
+            margin-top: 20px;
+            padding: 15px;
+            background: #e3f2fd;
+            border-radius: 8px;
+            display: none;
+          "
+          id="usageInstructions"
+        >
+          <h4>📖 使用说明：</h4>
+          <ol>
+            <li><strong>选择模式</strong>：在上方选择"DOM模式"或"API模式"</li>
+            <li>
+              <strong>复制代码</strong>：点击上方绿色区域中的"📋 复制代码"按钮
+            </li>
+            <li><strong>打开问卷页面</strong>：进入问卷创建页面</li>
+            <li><strong>打开控制台</strong>：按F12键，切换到Console标签</li>
+            <li><strong>粘贴执行</strong>：粘贴代码（Ctrl+V）并按回车</li>
+            <li><strong>开始自动化</strong>：根据控制台提示调用相应函数</li>
+          </ol>
+          <div
+            style="
+              margin-top: 15px;
+              padding: 10px;
+              background: #fff3cd;
+              border-radius: 5px;
+            "
+          >
+            <h5>🔧 模式说明：</h5>
+            <ul>
+              <li>
+                <strong>DOM模式</strong
+                >：通过页面操作实现自动化，更稳定，适合复杂页面
+              </li>
+              <li>
+                <strong>API模式</strong
+                >：直接通过API接口创建问卷，速度更快，适合批量操作
+              </li>
+            </ul>
+          </div>
+          <p>
+            <strong>💡 提示：</strong
+            >代码生成后会自动显示在上方的绿色区域中，点击复制按钮即可复制到剪贴板。
+          </p>
+        </div>
+      </div>
+
+      <!-- 日志区域 -->
+      <div class="log-container">
+        <h3>📝 操作日志</h3>
+        <div id="logContainer"></div>
+      </div>
+    </div>
+
+    <!-- Sheet选择模态框 -->
+    <div id="sheetModal" class="sheet-modal" style="display: none">
+      <div class="sheet-modal-content">
+        <h3>📋 选择Excel工作表</h3>
+
+        <div class="match-info" id="matchInfo">
+          <h4>🔍 匹配结果</h4>
+          <p id="matchMessage"></p>
+        </div>
+
+        <div class="sheet-selection">
+          <div class="sheet-list" id="sheetList">
+            <!-- Sheet列表将通过JavaScript动态生成 -->
+          </div>
+
+          <div class="sheet-preview" id="sheetPreview" style="display: none">
+            <h4>📊 数据预览</h4>
+            <div id="previewContent"></div>
+          </div>
+
+          <div class="remember-choice">
+            <label>
+              <input type="checkbox" id="rememberChoice" />
+              <span>记住我的选择（相同问卷类型时自动使用）</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-buttons">
+          <button class="modal-btn secondary" onclick="closeSheetModal()">
+            取消
+          </button>
+          <button
+            class="modal-btn primary"
+            id="confirmSheetBtn"
+            onclick="confirmSheetSelection()"
+            disabled
+          >
+            确认选择
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 引入必要的第三方库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+    <!-- 引入模块化的JavaScript文件 -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/data-processor.js"></script>
+    <script src="js/ui-manager.js"></script>
+    <script src="js/sheet-selector.js"></script>
+    <!-- <script src="js/automation-generator.js"></script> -->
+    <!-- <script src="js/automation-generator-optimized.js"></script> -->
+    <script src="js/automation-generator-enhanced.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>
