@@ -400,6 +400,96 @@ export default function QuestionnaireAutomationPage() {
                 </div>
               </div>
             </div>
+
+            {/* 日志区域 */}
+            <div className="log-container mb-6">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold mb-3 text-gray-700">
+                  📝 操作日志
+                </h3>
+                <div
+                  id="logContainer"
+                  className="bg-white border border-gray-200 rounded-lg p-3 h-64 overflow-y-auto font-mono text-sm"
+                  style={{ maxHeight: "16rem" }}
+                >
+                  {/* 日志内容将通过JavaScript动态添加 */}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Sheet选择模态框 */}
+      <div id="sheetModal" className="sheet-modal" style={{ display: "none" }}>
+        <div className="sheet-modal-content">
+          <h3 className="text-lg font-semibold mb-4">📋 选择Excel工作表</h3>
+
+          <div className="match-info mb-4" id="matchInfo">
+            <h4 className="font-medium mb-2">🔍 匹配结果</h4>
+            <p id="matchMessage" className="text-sm text-gray-600"></p>
+          </div>
+
+          <div className="sheet-selection">
+            <div className="sheet-list mb-4" id="sheetList">
+              {/* Sheet列表将通过JavaScript动态生成 */}
+            </div>
+
+            <div
+              className="sheet-preview mb-4"
+              id="sheetPreview"
+              style={{ display: "none" }}
+            >
+              <h4 className="font-medium mb-2">📊 数据预览</h4>
+              <div
+                id="previewContent"
+                className="bg-gray-50 p-3 rounded border text-sm font-mono"
+              ></div>
+            </div>
+
+            <div className="remember-choice mb-4">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="rememberChoice"
+                  className="text-blue-600"
+                />
+                <span className="text-sm">
+                  记住我的选择（相同问卷类型时自动使用）
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div className="modal-buttons flex gap-3 justify-end">
+            <button
+              className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-colors"
+              onClick={() => {
+                if (
+                  typeof window !== "undefined" &&
+                  (window as any).closeSheetModal
+                ) {
+                  (window as any).closeSheetModal();
+                }
+              }}
+            >
+              取消
+            </button>
+            <button
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              id="confirmSheetBtn"
+              onClick={() => {
+                if (
+                  typeof window !== "undefined" &&
+                  (window as any).confirmSheetSelection
+                ) {
+                  (window as any).confirmSheetSelection();
+                }
+              }}
+              disabled
+            >
+              确认选择
+            </button>
           </div>
         </div>
       </div>
@@ -433,6 +523,53 @@ export default function QuestionnaireAutomationPage() {
         src="/automation/js/sheet-selector.js"
         strategy="afterInteractive"
       />
+
+      {/* 引入重构后的自动化模块 */}
+      <Script
+        src="/automation/js/automation/questionnaire-logic/base-questionnaire.js"
+        strategy="afterInteractive"
+      />
+      <Script
+        src="/automation/js/automation/questionnaire-logic/xihuang-questionnaire.js"
+        strategy="afterInteractive"
+      />
+      <Script
+        src="/automation/js/automation/questionnaire-logic/niujie-questionnaire.js"
+        strategy="afterInteractive"
+      />
+      <Script
+        src="/automation/js/automation/questionnaire-logic/zhibai-questionnaire.js"
+        strategy="afterInteractive"
+      />
+      <Script
+        src="/automation/js/automation/questionnaire-logic/liuwei-questionnaire.js"
+        strategy="afterInteractive"
+      />
+      <Script
+        src="/automation/js/automation/questionnaire-logic/tiegao-questionnaire.js"
+        strategy="afterInteractive"
+      />
+      <Script
+        src="/automation/js/automation/template-manager.js"
+        strategy="afterInteractive"
+      />
+      <Script
+        src="/automation/js/automation/validation-manager.js"
+        strategy="afterInteractive"
+      />
+      <Script
+        src="/automation/js/automation/execution-logic.js"
+        strategy="afterInteractive"
+      />
+      <Script
+        src="/automation/js/automation/control-panel.js"
+        strategy="afterInteractive"
+      />
+      <Script
+        src="/automation/js/automation/code-generator.js"
+        strategy="afterInteractive"
+      />
+
       <Script
         src="/automation/js/main.js"
         strategy="afterInteractive"
