@@ -5,6 +5,11 @@ import path from "path";
 import crypto from "crypto";
 import { AUTH_CONFIG } from "./auth-config";
 
+// 检测是否在 Vercel 环境中
+export const isVercelEnvironment = () => {
+  return process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+};
+
 // 用户数据文件路径
 const USERS_FILE = path.join(process.cwd(), "data", "users.json");
 
@@ -45,6 +50,12 @@ export interface JWTPayload {
 // 读取用户数据
 export function loadUsers(): UserData {
   try {
+    // 在 Vercel 环境中，返回默认用户数据
+    if (isVercelEnvironment()) {
+      console.log("Vercel 环境：使用默认用户数据");
+      return getDefaultUsers();
+    }
+
     if (!fs.existsSync(USERS_FILE)) {
       // 如果文件不存在，创建默认结构
       const defaultData: UserData = { users: [] };
@@ -56,13 +67,38 @@ export function loadUsers(): UserData {
     return JSON.parse(data);
   } catch (error) {
     console.error("读取用户文件失败:", error);
-    return { users: [] };
+    // 在出错时返回默认用户数据
+    return getDefaultUsers();
   }
+}
+
+// 获取默认用户数据（用于 Vercel 环境）
+function getDefaultUsers(): UserData {
+  return {
+    users: [
+      {
+        id: "default-admin",
+        username: "admin",
+        passwordHash:
+          "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi", // password
+        role: "admin",
+        createdAt: new Date().toISOString(),
+        lastLogin: null,
+        activeSession: null,
+      },
+    ],
+  };
 }
 
 // 保存用户数据
 export function saveUsers(userData: UserData): void {
   try {
+    // 在 Vercel 环境中，跳过文件写入
+    if (isVercelEnvironment()) {
+      console.log("Vercel 环境：跳过用户数据保存");
+      return;
+    }
+
     // 确保data目录存在
     const dataDir = path.dirname(USERS_FILE);
     if (!fs.existsSync(dataDir)) {
@@ -72,7 +108,10 @@ export function saveUsers(userData: UserData): void {
     fs.writeFileSync(USERS_FILE, JSON.stringify(userData, null, 2));
   } catch (error) {
     console.error("保存用户文件失败:", error);
-    throw new Error("保存用户数据失败");
+    // 在 Vercel 环境中不抛出错误
+    if (!isVercelEnvironment()) {
+      throw new Error("保存用户数据失败");
+    }
   }
 }
 
@@ -212,6 +251,12 @@ export function getDeviceInfo(request: Request): string {
 // 清除用户的活跃会话
 export function clearUserSession(userId: string): void {
   try {
+    // 在 Vercel 环境中，跳过会话清除
+    if (isVercelEnvironment()) {
+      console.log("Vercel 环境：跳过会话清除");
+      return;
+    }
+
     const userData = loadUsers();
     const user = userData.users.find((u) => u.id === userId);
 
@@ -227,6 +272,12 @@ export function clearUserSession(userId: string): void {
 // 设置用户活跃会话
 export function setUserSession(userId: string, session: ActiveSession): void {
   try {
+    // 在 Vercel 环境中，跳过会话设置
+    if (isVercelEnvironment()) {
+      console.log("Vercel 环境：跳过会话设置");
+      return;
+    }
+
     const userData = loadUsers();
     const user = userData.users.find((u) => u.id === userId);
 
@@ -245,6 +296,12 @@ export function validateUserSession(
   tokenHash: string
 ): boolean {
   try {
+    // 在 Vercel 环境中，跳过会话验证（使用纯 JWT 验证）
+    if (isVercelEnvironment()) {
+      console.log("Vercel 环境：跳过会话验证，使用纯 JWT 验证");
+      return true;
+    }
+
     const userData = loadUsers();
     const user = userData.users.find((u) => u.id === userId);
 

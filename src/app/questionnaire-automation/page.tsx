@@ -50,8 +50,7 @@ export default function QuestionnaireAutomationPage() {
         <title>精灵蜂统一自动化脚本 - 问卷自动化工具</title>
       </Head>
 
-      {/* 引入CSS样式 */}
-      <link rel="stylesheet" href="/automation/style.css" />
+      {/* CSS 样式已移动到 questionnaire-automation.css 文件中 */}
 
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="questionnaire-automation-container">

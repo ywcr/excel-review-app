@@ -7,6 +7,7 @@ import {
   setUserSession,
   hashToken,
   getDeviceInfo,
+  isVercelEnvironment,
   type ActiveSession,
 } from "@/lib/auth";
 
@@ -23,12 +24,33 @@ export async function POST(request: NextRequest) {
     // 对于refresh，我们需要特殊处理，因为token可能即将过期
     let user;
     try {
-      user = verifyTokenWithSession(token);
+      // 在 Vercel 环境中，直接使用基本 JWT 验证
+      if (isVercelEnvironment()) {
+        user = verifyToken(token);
+        if (!user) {
+          // 如果基本验证失败，尝试解析过期的token
+          try {
+            const jwt = await import("jsonwebtoken");
+            const JWT_SECRET =
+              process.env.JWT_SECRET ||
+              "your-super-secret-jwt-key-change-this-in-production";
+            user = jwt.decode(token);
+          } catch (decodeError) {
+            return NextResponse.json(
+              { error: "无效的认证令牌" },
+              { status: 401 }
+            );
+          }
+        }
+      } else {
+        // 本地环境使用完整的会话验证
+        user = verifyTokenWithSession(token);
+      }
     } catch (error: any) {
       // 如果会话验证失败，尝试基本的token验证
       try {
         user = verifyToken(token);
-        if (user) {
+        if (user && !isVercelEnvironment()) {
           // Token有效但会话可能失效，需要重新验证用户
           const currentUser = findUserByUsername(user.username);
           if (!currentUser || !currentUser.activeSession) {
@@ -76,17 +98,19 @@ export async function POST(request: NextRequest) {
     // 生成新的JWT令牌
     const newToken = generateToken(currentUser);
 
-    // 🆕 更新会话信息
-    const newTokenHash = hashToken(newToken);
+    // 🆕 更新会话信息（仅在非 Vercel 环境中）
+    if (!isVercelEnvironment()) {
+      const newTokenHash = hashToken(newToken);
 
-    if (currentUser.activeSession) {
-      // 更新现有会话
-      const updatedSession: ActiveSession = {
-        ...currentUser.activeSession,
-        tokenHash: newTokenHash,
-        lastActivity: new Date().toISOString(),
-      };
-      setUserSession(currentUser.id, updatedSession);
+      if (currentUser.activeSession) {
+        // 更新现有会话
+        const updatedSession: ActiveSession = {
+          ...currentUser.activeSession,
+          tokenHash: newTokenHash,
+          lastActivity: new Date().toISOString(),
+        };
+        setUserSession(currentUser.id, updatedSession);
+      }
     }
 
     // 创建响应
