@@ -511,75 +511,74 @@ export default function QuestionnaireAutomationPage() {
         onLoad={() => console.log("CryptoJS loaded")}
       />
 
-      {/* 引入模块化的JavaScript文件 */}
-      <Script src="/automation/js/config.js" strategy="afterInteractive" />
-      <Script src="/automation/js/utils.js" strategy="afterInteractive" />
+      {/* 使用自定义脚本加载器确保正确的加载顺序 */}
       <Script
-        src="/automation/js/data-processor.js"
+        id="script-loader"
         strategy="afterInteractive"
-      />
-      <Script src="/automation/js/ui-manager.js" strategy="afterInteractive" />
-      <Script
-        src="/automation/js/sheet-selector.js"
-        strategy="afterInteractive"
-      />
+        dangerouslySetInnerHTML={{
+          __html: `
+            // 脚本加载器 - 确保按正确顺序加载所有脚本
+            (function() {
+              const scripts = [
+                '/automation/js/config.js',
+                '/automation/js/utils.js',
+                '/automation/js/data-processor.js',
+                '/automation/js/ui-manager.js',
+                '/automation/js/sheet-selector.js',
+                // 基础类必须先加载
+                '/automation/js/automation/questionnaire-logic/base-questionnaire.js',
+                // 然后加载继承类
+                '/automation/js/automation/questionnaire-logic/xihuang-questionnaire.js',
+                '/automation/js/automation/questionnaire-logic/niujie-questionnaire.js',
+                '/automation/js/automation/questionnaire-logic/zhibai-questionnaire.js',
+                '/automation/js/automation/questionnaire-logic/liuwei-questionnaire.js',
+                '/automation/js/automation/questionnaire-logic/tiegao-questionnaire.js',
+                // 其他模块
+                '/automation/js/automation/template-manager.js',
+                '/automation/js/automation/validation-manager.js',
+                '/automation/js/automation/execution-logic.js',
+                '/automation/js/automation/control-panel.js',
+                '/automation/js/automation/code-generator.js',
+                // 主应用程序
+                '/automation/js/main.js'
+              ];
 
-      {/* 引入重构后的自动化模块 */}
-      <Script
-        src="/automation/js/automation/questionnaire-logic/base-questionnaire.js"
-        strategy="afterInteractive"
-      />
-      <Script
-        src="/automation/js/automation/questionnaire-logic/xihuang-questionnaire.js"
-        strategy="afterInteractive"
-      />
-      <Script
-        src="/automation/js/automation/questionnaire-logic/niujie-questionnaire.js"
-        strategy="afterInteractive"
-      />
-      <Script
-        src="/automation/js/automation/questionnaire-logic/zhibai-questionnaire.js"
-        strategy="afterInteractive"
-      />
-      <Script
-        src="/automation/js/automation/questionnaire-logic/liuwei-questionnaire.js"
-        strategy="afterInteractive"
-      />
-      <Script
-        src="/automation/js/automation/questionnaire-logic/tiegao-questionnaire.js"
-        strategy="afterInteractive"
-      />
-      <Script
-        src="/automation/js/automation/template-manager.js"
-        strategy="afterInteractive"
-      />
-      <Script
-        src="/automation/js/automation/validation-manager.js"
-        strategy="afterInteractive"
-      />
-      <Script
-        src="/automation/js/automation/execution-logic.js"
-        strategy="afterInteractive"
-      />
-      <Script
-        src="/automation/js/automation/control-panel.js"
-        strategy="afterInteractive"
-      />
-      <Script
-        src="/automation/js/automation/code-generator.js"
-        strategy="afterInteractive"
-      />
+              let currentIndex = 0;
 
-      <Script
-        src="/automation/js/main.js"
-        strategy="afterInteractive"
-        onLoad={() => {
-          setScriptsLoaded(true);
-          // 初始化应用程序
-          if (typeof window !== "undefined" && (window as any).AutomationApp) {
-            const app = new (window as any).AutomationApp();
-            app.initialize();
-          }
+              function loadNextScript() {
+                if (currentIndex >= scripts.length) {
+                  // 所有脚本加载完成，初始化应用程序
+                  console.log('All scripts loaded, initializing AutomationApp...');
+                  setTimeout(() => {
+                    if (typeof window !== 'undefined' && window.AutomationApp) {
+                      const app = new window.AutomationApp();
+                      app.initialize();
+                    } else {
+                      console.error('AutomationApp not found on window object');
+                    }
+                  }, 100);
+                  return;
+                }
+
+                const script = document.createElement('script');
+                script.src = scripts[currentIndex];
+                script.onload = function() {
+                  console.log('Loaded:', scripts[currentIndex]);
+                  currentIndex++;
+                  loadNextScript();
+                };
+                script.onerror = function() {
+                  console.error('Failed to load:', scripts[currentIndex]);
+                  currentIndex++;
+                  loadNextScript();
+                };
+                document.head.appendChild(script);
+              }
+
+              // 开始加载脚本
+              loadNextScript();
+            })();
+          `,
         }}
       />
     </>
