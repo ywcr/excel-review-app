@@ -517,66 +517,83 @@ export default function QuestionnaireAutomationPage() {
         strategy="afterInteractive"
         dangerouslySetInnerHTML={{
           __html: `
-            // 脚本加载器 - 确保按正确顺序加载所有脚本
+            // 脚本加载器 - 等待第三方库加载完成后再加载应用脚本
             (function() {
-              const scripts = [
-                '/automation/js/config.js',
-                '/automation/js/utils.js',
-                '/automation/js/data-processor.js',
-                '/automation/js/ui-manager.js',
-                '/automation/js/sheet-selector.js',
-                // 基础类必须先加载
-                '/automation/js/automation/questionnaire-logic/base-questionnaire.js',
-                // 然后加载继承类
-                '/automation/js/automation/questionnaire-logic/xihuang-questionnaire.js',
-                '/automation/js/automation/questionnaire-logic/niujie-questionnaire.js',
-                '/automation/js/automation/questionnaire-logic/zhibai-questionnaire.js',
-                '/automation/js/automation/questionnaire-logic/liuwei-questionnaire.js',
-                '/automation/js/automation/questionnaire-logic/tiegao-questionnaire.js',
-                // 其他模块
-                '/automation/js/automation/template-manager.js',
-                '/automation/js/automation/validation-manager.js',
-                '/automation/js/automation/execution-logic.js',
-                '/automation/js/automation/control-panel.js',
-                '/automation/js/automation/code-generator.js',
-                // 主应用程序
-                '/automation/js/main.js'
-              ];
-
-              let currentIndex = 0;
-
-              function loadNextScript() {
-                if (currentIndex >= scripts.length) {
-                  // 所有脚本加载完成，初始化应用程序
-                  console.log('All scripts loaded, initializing AutomationApp...');
-                  setTimeout(() => {
-                    if (typeof window !== 'undefined' && window.AutomationApp) {
-                      const app = new window.AutomationApp();
-                      app.initialize();
-                    } else {
-                      console.error('AutomationApp not found on window object');
-                    }
-                  }, 100);
+              function waitForLibraries() {
+                // 检查所有必需的第三方库是否已加载
+                if (typeof XLSX === 'undefined' || typeof $ === 'undefined' || typeof CryptoJS === 'undefined') {
+                  console.log('Waiting for third-party libraries...');
+                  setTimeout(waitForLibraries, 100);
                   return;
                 }
 
-                const script = document.createElement('script');
-                script.src = scripts[currentIndex];
-                script.onload = function() {
-                  console.log('Loaded:', scripts[currentIndex]);
-                  currentIndex++;
-                  loadNextScript();
-                };
-                script.onerror = function() {
-                  console.error('Failed to load:', scripts[currentIndex]);
-                  currentIndex++;
-                  loadNextScript();
-                };
-                document.head.appendChild(script);
+                console.log('Third-party libraries loaded, starting app scripts...');
+                loadAppScripts();
               }
 
-              // 开始加载脚本
-              loadNextScript();
+              function loadAppScripts() {
+                const scripts = [
+                  '/automation/js/config.js',
+                  '/automation/js/utils.js',
+                  '/automation/js/data-processor.js',
+                  '/automation/js/ui-manager.js',
+                  '/automation/js/sheet-selector.js',
+                  // 基础类必须先加载
+                  '/automation/js/automation/questionnaire-logic/base-questionnaire.js',
+                  // 然后加载继承类
+                  '/automation/js/automation/questionnaire-logic/xihuang-questionnaire.js',
+                  '/automation/js/automation/questionnaire-logic/niujie-questionnaire.js',
+                  '/automation/js/automation/questionnaire-logic/zhibai-questionnaire.js',
+                  '/automation/js/automation/questionnaire-logic/liuwei-questionnaire.js',
+                  '/automation/js/automation/questionnaire-logic/tiegao-questionnaire.js',
+                  // 其他模块
+                  '/automation/js/automation/template-manager.js',
+                  '/automation/js/automation/validation-manager.js',
+                  '/automation/js/automation/execution-logic.js',
+                  '/automation/js/automation/control-panel.js',
+                  '/automation/js/automation/code-generator.js',
+                  // 主应用程序
+                  '/automation/js/main.js'
+                ];
+
+                let currentIndex = 0;
+
+                function loadNextScript() {
+                  if (currentIndex >= scripts.length) {
+                    // 所有脚本加载完成，初始化应用程序
+                    console.log('All scripts loaded, initializing AutomationApp...');
+                    setTimeout(() => {
+                      if (typeof window !== 'undefined' && window.AutomationApp) {
+                        const app = new window.AutomationApp();
+                        app.initialize();
+                      } else {
+                        console.error('AutomationApp not found on window object');
+                      }
+                    }, 100);
+                    return;
+                  }
+
+                  const script = document.createElement('script');
+                  script.src = scripts[currentIndex];
+                  script.onload = function() {
+                    console.log('Loaded:', scripts[currentIndex]);
+                    currentIndex++;
+                    loadNextScript();
+                  };
+                  script.onerror = function() {
+                    console.error('Failed to load:', scripts[currentIndex]);
+                    currentIndex++;
+                    loadNextScript();
+                  };
+                  document.head.appendChild(script);
+                }
+
+                // 开始加载脚本
+                loadNextScript();
+              }
+
+              // 开始等待第三方库
+              waitForLibraries();
             })();
           `,
         }}
