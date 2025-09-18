@@ -585,6 +585,8 @@ export default function QuestionnaireAutomationPage() {
                       if (typeof window !== 'undefined' && window.AutomationApp) {
                         const app = new window.AutomationApp();
                         app.initialize();
+                        // 保存实例到window对象供全局函数使用
+                        window.automationAppInstance = app;
                       } else {
                         console.error('AutomationApp not found on window object');
                       }

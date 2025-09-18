@@ -811,3 +811,18 @@ window.showHelp = function () {
 
 // 全局导出
 window.AutomationApp = AutomationApp;
+
+// 全局函数 - 供HTML按钮调用
+window.closeSheetModal = function () {
+  const app = window.automationAppInstance;
+  if (app && app.sheetSelector) {
+    app.sheetSelector.close();
+  }
+};
+
+window.confirmSheetSelection = function () {
+  const app = window.automationAppInstance;
+  if (app && app.sheetSelector) {
+    app.sheetSelector.confirm();
+  }
+};
