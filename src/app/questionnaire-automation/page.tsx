@@ -497,18 +497,27 @@ export default function QuestionnaireAutomationPage() {
       {/* 引入必要的第三方库和脚本 */}
       <Script
         src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"
-        strategy="beforeInteractive"
-        onLoad={() => console.log("XLSX loaded")}
+        strategy="afterInteractive"
+        onLoad={() => {
+          console.log("XLSX loaded");
+          (window as any).xlsxLoaded = true;
+        }}
       />
       <Script
         src="https://code.jquery.com/jquery-3.6.0.min.js"
-        strategy="beforeInteractive"
-        onLoad={() => console.log("jQuery loaded")}
+        strategy="afterInteractive"
+        onLoad={() => {
+          console.log("jQuery loaded");
+          (window as any).jqueryLoaded = true;
+        }}
       />
       <Script
         src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"
-        strategy="beforeInteractive"
-        onLoad={() => console.log("CryptoJS loaded")}
+        strategy="afterInteractive"
+        onLoad={() => {
+          console.log("CryptoJS loaded");
+          (window as any).cryptoLoaded = true;
+        }}
       />
 
       {/* 使用自定义脚本加载器确保正确的加载顺序 */}
@@ -521,9 +530,19 @@ export default function QuestionnaireAutomationPage() {
             (function() {
               function waitForLibraries() {
                 // 检查所有必需的第三方库是否已加载
-                if (typeof XLSX === 'undefined' || typeof $ === 'undefined' || typeof CryptoJS === 'undefined') {
+                const xlsxLoaded = typeof XLSX !== 'undefined' && window.xlsxLoaded;
+                const jqueryLoaded = typeof $ !== 'undefined' && window.jqueryLoaded;
+                const cryptoLoaded = typeof CryptoJS !== 'undefined' && window.cryptoLoaded;
+
+                console.log('Library status:', {
+                  XLSX: xlsxLoaded,
+                  jQuery: jqueryLoaded,
+                  CryptoJS: cryptoLoaded
+                });
+
+                if (!xlsxLoaded || !jqueryLoaded || !cryptoLoaded) {
                   console.log('Waiting for third-party libraries...');
-                  setTimeout(waitForLibraries, 100);
+                  setTimeout(waitForLibraries, 500);
                   return;
                 }
 
