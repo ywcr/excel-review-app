@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { 
-  isVercelEnvironment, 
-  loadUsers, 
+import {
+  isVercelEnvironment,
+  loadUsers,
   verifyToken,
   generateToken,
-  findUserByUsername 
+  findUserByUsername,
 } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const environment = isVercelEnvironment() ? "Vercel/Production" : "Local/Development";
+    const environment = isVercelEnvironment()
+      ? "Vercel/Production"
+      : "Local/Development";
     const users = loadUsers();
-    
+
     // 测试用户查找
     const adminUser = findUserByUsername("admin");
-    
+
     // 测试 JWT 生成和验证
     let tokenTest = null;
     if (adminUser) {
@@ -23,7 +25,7 @@ export async function GET(request: NextRequest) {
       tokenTest = {
         generated: !!testToken,
         verified: !!verifiedToken,
-        username: verifiedToken?.username
+        username: verifiedToken?.username,
       };
     }
 
@@ -34,21 +36,35 @@ export async function GET(request: NextRequest) {
       tests: {
         userDataLoaded: users.users.length > 0,
         adminUserExists: !!adminUser,
-        jwtTest: tokenTest
+        jwtTest: tokenTest,
+      },
+      users: {
+        count: users.users.length,
+        usernames: users.users.map((u) => u.username),
+        details: users.users.map((u) => ({
+          id: u.id,
+          username: u.username,
+          role: u.role,
+          createdAt: u.createdAt,
+          lastLogin: u.lastLogin,
+          hasActiveSession: !!u.activeSession,
+        })),
       },
       config: {
         nodeEnv: process.env.NODE_ENV,
         vercelEnv: process.env.VERCEL,
-        hasJwtSecret: !!process.env.JWT_SECRET
-      }
+        hasJwtSecret: !!process.env.JWT_SECRET,
+      },
     });
   } catch (error) {
     console.error("认证测试失败:", error);
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         error: error instanceof Error ? error.message : "Unknown error",
-        environment: isVercelEnvironment() ? "Vercel/Production" : "Local/Development"
+        environment: isVercelEnvironment()
+          ? "Vercel/Production"
+          : "Local/Development",
       },
       { status: 500 }
     );

@@ -74,15 +74,52 @@ export function loadUsers(): UserData {
 
 // 获取默认用户数据（用于 Vercel 环境）
 function getDefaultUsers(): UserData {
+  // 在 Vercel 环境中，尝试读取实际的用户文件
+  try {
+    if (fs.existsSync(USERS_FILE)) {
+      const data = fs.readFileSync(USERS_FILE, "utf8");
+      const userData = JSON.parse(data);
+      // 清除所有活跃会话（因为无法在 Vercel 中管理会话状态）
+      userData.users.forEach((user: User) => {
+        user.activeSession = null;
+      });
+      console.log(`Vercel 环境：成功读取 ${userData.users.length} 个用户`);
+      return userData;
+    }
+  } catch (error) {
+    console.error("Vercel 环境：读取用户文件失败，使用备用用户数据", error);
+  }
+
+  // 如果无法读取文件，返回备用用户数据
   return {
     users: [
       {
-        id: "default-admin",
+        id: "admin",
         username: "admin",
         passwordHash:
-          "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi", // password
+          "$2b$10$/JytYerFSGHWqCZYUV/3sOzamNGd5n9JtpzLNbn07uFW2Wmomf6h6",
         role: "admin",
-        createdAt: new Date().toISOString(),
+        createdAt: "2025-09-13T04:06:51.641Z",
+        lastLogin: null,
+        activeSession: null,
+      },
+      {
+        id: "chenrong",
+        username: "chenrong",
+        passwordHash:
+          "$2b$10$Y3ogbpUBg6u.Ww6uyHldEerHpAD4ouKZKyHO2VQXG4TI/EzJ5fiqC",
+        role: "admin",
+        createdAt: "2025-09-13T04:37:21.805Z",
+        lastLogin: null,
+        activeSession: null,
+      },
+      {
+        id: "yaowei",
+        username: "yaowei",
+        passwordHash:
+          "$2b$10$lGQLdVxm159LLZKEnqXQEuPx305P7QHSrtpnL8MMl8y0KMT4GNdmG",
+        role: "admin",
+        createdAt: "2025-09-18T03:29:25.098Z",
         lastLogin: null,
         activeSession: null,
       },

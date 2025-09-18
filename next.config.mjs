@@ -27,6 +27,15 @@ const nextConfig = {
       },
     });
 
+    // 处理 .json 文件（确保 data 目录中的文件被包含）
+    config.module.rules.push({
+      test: /\.json$/,
+      type: "asset/resource",
+      generator: {
+        filename: "static/data/[name][ext]",
+      },
+    });
+
     // 忽略有问题的模块
     config.resolve.fallback = {
       ...config.resolve.fallback,
