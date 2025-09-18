@@ -266,9 +266,7 @@ export default function QuestionnaireAutomationPage() {
                   />
                   <button
                     className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
-                    onClick={() =>
-                      document.getElementById("fileInput")?.click()
-                    }
+                    type="button"
                   >
                     选择文件
                   </button>
