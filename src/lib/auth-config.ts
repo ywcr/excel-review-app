@@ -9,6 +9,9 @@ export const AUTH_CONFIG = {
   JWT_EXPIRES_IN:
     process.env.JWT_EXPIRES_IN ||
     (process.env.NODE_ENV === "production" ? "365d" : "24h"),
+  
+  // 单设备登录控制
+  SINGLE_DEVICE_LOGIN: process.env.SINGLE_DEVICE_LOGIN !== "false", // 默认启用
 
   // 自动刷新设置
   AUTO_REFRESH_ENABLED: process.env.AUTO_REFRESH_ENABLED !== "false", // 默认启用

@@ -20,6 +20,7 @@ export interface ActiveSession {
   deviceInfo: string; // 设备信息
   loginTime: string;
   lastActivity: string;
+  loginTimestamp?: number; // 添加登录时间戳用于比较
 }
 
 // 用户接口定义
@@ -72,18 +73,30 @@ export function loadUsers(): UserData {
   }
 }
 
+// 全局内存缓存用于Vercel环境
+let memoryUserCache: UserData | null = null;
+let memoryCacheTimestamp: number = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
+
 // 获取默认用户数据（用于 Vercel 环境）
 function getDefaultUsers(): UserData {
+  // 检查内存缓存
+  if (memoryUserCache && Date.now() - memoryCacheTimestamp < CACHE_DURATION) {
+    return memoryUserCache;
+  }
+  
   // 在 Vercel 环境中，尝试读取实际的用户文件
   try {
     if (fs.existsSync(USERS_FILE)) {
       const data = fs.readFileSync(USERS_FILE, "utf8");
       const userData = JSON.parse(data);
-      // 清除所有活跃会话（因为无法在 Vercel 中管理会话状态）
-      userData.users.forEach((user: User) => {
-        user.activeSession = null;
-      });
+      // 不再清除活跃会话，保留会话信息用于验证
       console.log(`Vercel 环境：成功读取 ${userData.users.length} 个用户`);
+      
+      // 更新内存缓存
+      memoryUserCache = userData;
+      memoryCacheTimestamp = Date.now();
+      
       return userData;
     }
   } catch (error) {
@@ -288,9 +301,15 @@ export function getDeviceInfo(request: Request): string {
 // 清除用户的活跃会话
 export function clearUserSession(userId: string): void {
   try {
-    // 在 Vercel 环境中，跳过会话清除
+    // 在 Vercel 环境中，更新内存缓存
     if (isVercelEnvironment()) {
-      console.log("Vercel 环境：跳过会话清除");
+      if (memoryUserCache) {
+        const user = memoryUserCache.users.find((u) => u.id === userId);
+        if (user) {
+          user.activeSession = null;
+          console.log(`Vercel 环境：清除用户 ${userId} 的内存会话`);
+        }
+      }
       return;
     }
 
@@ -309,18 +328,29 @@ export function clearUserSession(userId: string): void {
 // 设置用户活跃会话
 export function setUserSession(userId: string, session: ActiveSession): void {
   try {
-    // 在 Vercel 环境中，跳过会话设置
-    if (isVercelEnvironment()) {
-      console.log("Vercel 环境：跳过会话设置");
-      return;
-    }
-
     const userData = loadUsers();
     const user = userData.users.find((u) => u.id === userId);
 
     if (user) {
+      // 添加时间戳到会话信息
+      session.loginTimestamp = new Date(session.loginTime).getTime();
       user.activeSession = session;
-      saveUsers(userData);
+      
+      // 在 Vercel 环境中，虽然无法持久化到文件，但更新内存缓存
+      if (isVercelEnvironment()) {
+        if (!memoryUserCache) {
+          memoryUserCache = userData;
+        }
+        const cachedUser = memoryUserCache.users.find((u) => u.id === userId);
+        if (cachedUser) {
+          cachedUser.activeSession = session;
+        }
+        memoryCacheTimestamp = Date.now();
+        console.log(`Vercel 环境：设置用户 ${userId} 的会话信息`);
+      } else {
+        // 非Vercel环境，保存到文件
+        saveUsers(userData);
+      }
     }
   } catch (error) {
     console.error("设置用户会话失败:", error);
@@ -330,21 +360,39 @@ export function setUserSession(userId: string, session: ActiveSession): void {
 // 验证用户会话 - 持久化会话管理（移除自动过期）
 export function validateUserSession(
   userId: string,
-  tokenHash: string
+  tokenHash: string,
+  sessionId?: string,
+  loginTime?: number
 ): boolean {
   try {
-    // 在 Vercel 环境中，跳过会话验证（使用纯 JWT 验证）
-    if (isVercelEnvironment()) {
-      console.log("Vercel 环境：跳过会话验证，使用纯 JWT 验证");
+    // 如果禁用了单设备登录，直接返回 true
+    if (!AUTH_CONFIG.SINGLE_DEVICE_LOGIN) {
       return true;
     }
-
+    
     const userData = loadUsers();
     const user = userData.users.find((u) => u.id === userId);
-
-    // 检查用户是否存在（支持服务端账户删除检测）
+    
+    // 检查用户是否存在
     if (!user) {
-      console.log(`用户 ${userId} 不存在，会话无效`);
+      console.log(`用户 ${userId} 不存在`);
+      return false;
+    }
+    
+    // 在 Vercel 环境中，基于sessionId和tokenHash的简单验证
+    if (isVercelEnvironment()) {
+      // 如果没有活跃会话，允许登录
+      if (!user.activeSession) {
+        return true;
+      }
+      
+      // 检查sessionId和tokenHash是否匹配
+      if (user.activeSession.sessionId === sessionId && 
+          user.activeSession.tokenHash === tokenHash) {
+        return true;
+      }
+      
+      console.log(`Vercel 环境：用户 ${userId} 会话不匹配，可能在其他设备登录`);
       return false;
     }
 
@@ -409,10 +457,15 @@ export function verifyTokenWithSession(token: string): JWTPayload | null {
 
     // 验证会话是否有效（包含账户存在性检查）
     const tokenHash = hashToken(token);
-    const isValidSession = validateUserSession(decoded.userId, tokenHash);
+    const isValidSession = validateUserSession(
+      decoded.userId, 
+      tokenHash, 
+      decoded.sessionId,
+      decoded.loginTime
+    );
 
     if (!isValidSession) {
-      console.log(`用户 ${decoded.userId} 会话验证失败，可能账户已被删除`);
+      console.log(`用户 ${decoded.userId} 会话验证失败，可能账户已被删除或在其他设备登录`);
       return null;
     }
 

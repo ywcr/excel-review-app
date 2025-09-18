@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 🆕 检查是否已有活跃会话，如果有则清除（实现互踢）
-    // 仅在非 Vercel 环境中进行会话管理
-    if (!isVercelEnvironment() && user.activeSession) {
+    // 在所有环境中都进行会话管理
+    if (user.activeSession) {
       console.log(`用户 ${username} 在其他设备登录，清除之前的会话`);
       clearUserSession(user.id);
     }
@@ -44,21 +44,20 @@ export async function POST(request: NextRequest) {
     // 生成JWT令牌（包含会话ID）
     const token = generateToken(user, sessionId);
 
-    if (!isVercelEnvironment()) {
-      const deviceInfo = getDeviceInfo(request);
-      const tokenHash = hashToken(token);
+    // 在所有环境中都保存会话信息
+    const deviceInfo = getDeviceInfo(request);
+    const tokenHash = hashToken(token);
 
-      const newSession: ActiveSession = {
-        sessionId,
-        tokenHash,
-        deviceInfo,
-        loginTime: new Date().toISOString(),
-        lastActivity: new Date().toISOString(),
-      };
+    const newSession: ActiveSession = {
+      sessionId,
+      tokenHash,
+      deviceInfo,
+      loginTime: new Date().toISOString(),
+      lastActivity: new Date().toISOString(),
+    };
 
-      // 🆕 保存会话信息
-      setUserSession(user.id, newSession);
-    }
+    // 🆕 保存会话信息（Vercel环境会保存在内存中）
+    setUserSession(user.id, newSession);
 
     // 创建响应（不返回敏感信息）
     const response = NextResponse.json({

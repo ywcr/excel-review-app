@@ -6,13 +6,13 @@
       "passwordHash": "$2b$10$/JytYerFSGHWqCZYUV/3sOzamNGd5n9JtpzLNbn07uFW2Wmomf6h6",
       "role": "admin",
       "createdAt": "2025-09-13T04:06:51.641Z",
-      "lastLogin": "2025-09-18T07:27:39.892Z",
+      "lastLogin": "2025-09-18T09:26:18.758Z",
       "activeSession": {
-        "sessionId": "fd844808-2028-4cc6-b50a-1132f9dcb5d2",
-        "tokenHash": "8636a7886e6dadf757780a0a69a8178342492b5f9bf2e1d2efd4fd271debfb61",
+        "sessionId": "52108fe2-f057-4123-9166-7f71517d66fa",
+        "tokenHash": "a43b4a126b64938ca5825dad30d0d2e8784faedef95d33121444cf9777f9e2f6",
         "deviceInfo": "Mozilla/5.0 (::1.xxx)",
-        "loginTime": "2025-09-18T07:27:39.895Z",
-        "lastActivity": "2025-09-18T07:27:39.895Z"
+        "loginTime": "2025-09-18T09:26:18.781Z",
+        "lastActivity": "2025-09-18T09:26:18.781Z"
       }
     },
     {
