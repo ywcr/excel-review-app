@@ -74,15 +74,16 @@ export function useAuth() {
         });
       } else if (response.status === 401) {
         // 尝试刷新令牌
-        const refreshed = await refreshToken();
-        if (!refreshed) {
-          // refreshToken 函数已经处理了重定向，这里只需要设置状态
-          setAuthState({
-            user: null,
-            isLoading: false,
-            isAuthenticated: false,
-          });
-        }
+        // const refreshed = await refreshToken();
+        // if (!refreshed) {
+        //   // refreshToken 函数已经处理了重定向，这里只需要设置状态
+        setAuthState({
+          user: null,
+          isLoading: false,
+          isAuthenticated: false,
+        });
+        router.push("/login?message=session_expired");
+        // }
       } else {
         setAuthState({
           user: null,
@@ -162,6 +163,7 @@ export function useAuth() {
           isLoading: false,
           isAuthenticated: false,
         });
+        router.push("/login?message=session_expired");
         return false;
       }
     } catch (error) {
