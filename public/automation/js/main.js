@@ -370,7 +370,10 @@ class AutomationApp {
       Logger.logInfo(`✅ 找到匹配数据：${filteredData.length} 条`);
 
       // 生成自动化代码
-      const generator = new AutomationCodeGeneratorEnhanced({...config, mode: this.useApiMode ? 'api' : 'dom'});
+      const generator = new AutomationCodeGenerator({
+        ...config,
+        mode: this.useApiMode ? "api" : "dom",
+      });
       const automationCode = generator.generateCode(
         filteredData,  // 使用已过滤的数据，只包含当前指派人和当前日期的数据
         assignee,
@@ -448,7 +451,10 @@ class AutomationApp {
       );
 
       // 生成包含所有日期的完整自动化代码
-      const generator = new AutomationCodeGeneratorEnhanced({...config, mode: this.useApiMode ? 'api' : 'dom'});
+      const generator = new AutomationCodeGenerator({
+        ...config,
+        mode: this.useApiMode ? "api" : "dom",
+      });
       const allDatesCode = generator.generateAllDatesCode(
         assigneeData,
         assignee,

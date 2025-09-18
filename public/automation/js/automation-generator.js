@@ -1526,17 +1526,6 @@ async function createDynamicsSalt() {
     try {
         const response = await fetch(\`\${API_BASE_URL}/lgb/payMerge/createDynamicsSalt?methodName=%2Fxfzwj%2Fadd\`, {
             method: 'GET',
-            headers: {
-                'accept': '*/*',
-                'accept-language': 'zh-CN,zh;q=0.9',
-                'sec-ch-ua': '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
-                'sec-ch-ua-mobile': '?0',
-                'sec-ch-ua-platform': '"macOS"',
-                'sec-fetch-dest': 'empty',
-                'sec-fetch-mode': 'cors',
-                'sec-fetch-site': 'same-origin',
-                'x-requested-with': 'XMLHttpRequest'
-            },
             credentials: 'include'
         });
         
@@ -1683,20 +1672,6 @@ async function submitQuestionnaire(name, sex, answers) {
         // 4. 提交数据
         const response = await fetch(\`\${API_BASE_URL}/lgb/xfzwj/add\`, {
             method: 'POST',
-            headers: {
-                'accept': '*/*',
-                'accept-language': 'zh-CN,zh;q=0.9',
-                'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'sec-ch-ua': '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
-                'sec-ch-ua-mobile': '?0',
-                'sec-ch-ua-platform': '"macOS"',
-                'sec-fetch-dest': 'empty',
-                'sec-fetch-mode': 'cors',
-                'sec-fetch-site': 'same-origin',
-                'sign': sign,
-                'signkey': signkey,
-                'x-requested-with': 'XMLHttpRequest'
-            },
             credentials: 'include',
             body: new URLSearchParams(questionnaireData)
         });
@@ -2017,17 +1992,6 @@ async function createDynamicsSalt() {
     try {
         const response = await fetch(\`\${API_BASE_URL}/lgb/payMerge/createDynamicsSalt?methodName=%2Fxfzwj%2Fadd\`, {
             method: 'GET',
-            headers: {
-                'accept': '*/*',
-                'accept-language': 'zh-CN,zh;q=0.9',
-                'sec-ch-ua': '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
-                'sec-ch-ua-mobile': '?0',
-                'sec-ch-ua-platform': '"macOS"',
-                'sec-fetch-dest': 'empty',
-                'sec-fetch-mode': 'cors',
-                'sec-fetch-site': 'same-origin',
-                'x-requested-with': 'XMLHttpRequest'
-            },
             credentials: 'include'
         });
         
@@ -2174,20 +2138,6 @@ async function submitQuestionnaire(name, sex, answers) {
         // 4. 提交数据
         const response = await fetch(\`\${API_BASE_URL}/lgb/xfzwj/add\`, {
             method: 'POST',
-            headers: {
-                'accept': '*/*',
-                'accept-language': 'zh-CN,zh;q=0.9',
-                'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'sec-ch-ua': '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
-                'sec-ch-ua-mobile': '?0',
-                'sec-ch-ua-platform': '"macOS"',
-                'sec-fetch-dest': 'empty',
-                'sec-fetch-mode': 'cors',
-                'sec-fetch-site': 'same-origin',
-                'sign': sign,
-                'signkey': signkey,
-                'x-requested-with': 'XMLHttpRequest'
-            },
             credentials: 'include',
             body: new URLSearchParams(questionnaireData)
         });
