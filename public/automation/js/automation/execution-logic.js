@@ -142,6 +142,102 @@ async function automatic(targetDate = null) {
 
 let currentIndex = 0;
 let isRunning = false;
+let apiRequestInterval = 5000; // 默认间隔5秒，可通过setApiInterval调整
+
+// 设置API请求间隔时间（毫秒）
+function setApiInterval(interval) {
+    if (interval < 200) {
+        console.warn('⚠️ 间隔时间不能小于200ms，已自动设置为500ms');
+        interval = 500;
+    }
+    apiRequestInterval = interval;
+    console.log(\`✅ API请求间隔已设置为: \${interval}ms (\${(interval/1000).toFixed(1)}秒)\`);
+    return interval;
+}
+
+// 获取当前API请求间隔
+function getApiInterval() {
+    return apiRequestInterval;
+}
+
+// Worker模式相关变量
+let apiWorker = null;
+let useWorkerMode = false;
+let workerReady = false;
+
+// 初始化Worker模式
+function initWorkerMode() {
+    if (typeof Worker !== 'undefined') {
+        try {
+            apiWorker = new Worker('/automation/js/api-worker.js');
+            
+            // 监听Worker消息
+            apiWorker.addEventListener('message', handleWorkerMessage);
+            
+            // 监听Worker错误
+            apiWorker.addEventListener('error', function(error) {
+                console.error('❌ Worker错误:', error);
+                useWorkerMode = false;
+            });
+            
+            console.log('✅ Worker模式已启用，API请求将在后台线程执行');
+            useWorkerMode = true;
+            return true;
+        } catch (error) {
+            console.error('❌ 初始化Worker失败:', error);
+            useWorkerMode = false;
+            return false;
+        }
+    } else {
+        console.warn('⚠️ 浏览器不支持Web Worker，使用传统模式');
+        useWorkerMode = false;
+        return false;
+    }
+}
+
+// 处理Worker消息
+function handleWorkerMessage(e) {
+    const { type, data } = e.data;
+    
+    switch(type) {
+        case 'WORKER_READY':
+            workerReady = true;
+            console.log('✅ Worker就绪:', e.data.message);
+            break;
+            
+        case 'TASK_COMPLETE':
+            console.log(\`✅ [Worker] 任务完成: \${data.taskData.name}\`);
+            break;
+            
+        case 'TASK_ERROR':
+            console.error(\`❌ [Worker] 任务失败: \${data.taskData.name}\`, data.error);
+            break;
+            
+        case 'BATCH_PROGRESS':
+            console.log(\`📋 [Worker] 进度: \${data.current}/\${data.total} (成功: \${data.successCount}, 失败: \${data.failCount})\`);
+            break;
+            
+        case 'BATCH_COMPLETE':
+            console.log(\`🎉 [Worker] 批量完成! 成功: \${data.successCount}, 失败: \${data.failCount}\`);
+            break;
+    }
+}
+
+// 切换Worker模式
+function toggleWorkerMode(enable) {
+    if (enable && !useWorkerMode) {
+        return initWorkerMode();
+    } else if (!enable && useWorkerMode) {
+        if (apiWorker) {
+            apiWorker.terminate();
+            apiWorker = null;
+        }
+        useWorkerMode = false;
+        console.log('⚠️ Worker模式已关闭');
+        return false;
+    }
+    return useWorkerMode;
+}
 
 // API创建任务
 async function createTaskApi(name, sex) {
@@ -333,7 +429,16 @@ async function startApi() {
 }
 
 // 自动执行所有任务（API模式）
-async function automaticApi(targetDate = null) {
+async function automaticApi(targetDate = null, useWorker = false) {
+    // 如果请求使用Worker模式
+    if (useWorker && !useWorkerMode) {
+        initWorkerMode();
+    }
+    
+    // 如果Worker模式可用，使用Worker执行
+    if (useWorkerMode && apiWorker && workerReady) {
+        return automaticApiWithWorker(targetDate);
+    }
     if (isRunning) {
         console.log('⚠️ 已有任务在运行中');
         return;
@@ -374,8 +479,9 @@ async function automaticApi(targetDate = null) {
 
             successCount++;
 
-            // 添加延迟避免请求过快
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            // 添加延迟避免请求过快（使用可配置的间隔）
+            console.log(\`⏱️ 等待 \${(apiRequestInterval/1000).toFixed(1)}秒 后处理下一个任务...\`);
+            await new Promise(resolve => setTimeout(resolve, apiRequestInterval));
         } catch (error) {
             console.error(\`❌ 处理失败: \${item.name}\`, error);
             failCount++;
@@ -390,6 +496,94 @@ async function automaticApi(targetDate = null) {
         console.log('🔍 开始自动验证...');
         await validateData();
     }
+}
+
+// 使用Worker模式自动执行任务
+async function automaticApiWithWorker(targetDate = null) {
+    if (isRunning) {
+        console.log('⚠️ 已有任务在运行中');
+        return;
+    }
+    
+    // 如果指定了日期，只处理该日期的数据
+    let dataToProcess = data;
+    if (targetDate) {
+        dataToProcess = data.filter(item => item.time === targetDate);
+        console.log(\`📅 仅处理日期 \${targetDate} 的数据，共 \${dataToProcess.length} 条\`);
+    }
+    
+    if (dataToProcess.length === 0) {
+        console.log('❌ 没有需要处理的数据');
+        return;
+    }
+    
+    isRunning = true;
+    console.log(\`🚀 [Worker模式] 开始API自动执行，共 \${dataToProcess.length} 个任务\`);
+    console.log(\`⏱️ 使用间隔: \${(apiRequestInterval/1000).toFixed(1)}秒\`);
+    
+    // 准备任务数据
+    const tasks = dataToProcess.map(item => ({
+        name: item.name,
+        sex: item.sex,
+        date: \`\${year}-\${date.replace('.', '-')}\`,
+        answers: getAnswersArray()
+    }));
+    
+    // 发送批量任务到Worker
+    apiWorker.postMessage({
+        type: 'BATCH_CREATE',
+        data: {
+            tasks: tasks,
+            config: {
+                apiEndpoint: config.apiEndpoint || '/lgb/project/submitOne',
+                projectId: config.projectId || '1756460958725101',
+                corpId: config.corpId || '1749721838789101',
+                projectTpl: config.projectTpl || '1756451075934101',
+                sponsorProjectId: config.sponsorProjectId || '1756451241652103',
+                title: config.title || '问卷调查',
+                memo: config.memo || ''
+            },
+            interval: apiRequestInterval
+        }
+    });
+    
+    // 等待Worker完成
+    return new Promise((resolve) => {
+        const handleComplete = (e) => {
+            if (e.data.type === 'BATCH_COMPLETE') {
+                isRunning = false;
+                apiWorker.removeEventListener('message', handleComplete);
+                
+                console.log(\`📊 [Worker] 执行完成: 成功 \${e.data.successCount} 个, 失败 \${e.data.failCount} 个\`);
+                
+                // 自动验证
+                if (typeof validateData === 'function') {
+                    console.log('🔍 开始自动验证...');
+                    validateData();
+                }
+                
+                resolve({
+                    success: e.data.successCount,
+                    fail: e.data.failCount,
+                    total: e.data.total
+                });
+            }
+        };
+        
+        apiWorker.addEventListener('message', handleComplete);
+    });
+}
+
+// 获取答案数组
+function getAnswersArray() {
+    const answersArray = [];
+    for (let i = 0; i < 10; i++) {
+        const answerFunc = window[\`_answer\${i}\`];
+        if (typeof answerFunc === 'function') {
+            answersArray[i] = answerFunc();
+        }
+    }
+    return answersArray;
 }
 `;
   }

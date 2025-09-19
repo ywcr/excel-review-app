@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Worker Fetch测试</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section { 
+            margin: 20px 0; 
+            padding: 20px; 
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-title { 
+            font-size: 20px; 
+            font-weight: bold; 
+            color: #333; 
+            margin-bottom: 15px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .test-result { 
+            margin: 10px 0; 
+            padding: 15px; 
+            background: #f8f9fa; 
+            border-radius: 5px; 
+            font-family: 'Consolas', 'Monaco', monospace; 
+            white-space: pre-wrap; 
+            max-height: 400px; 
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+        }
+        .success { 
+            background: #d4edda; 
+            border-color: #c3e6cb;
+            color: #155724; 
+        }
+        .error { 
+            background: #f8d7da; 
+            border-color: #f5c6cb;
+            color: #721c24; 
+        }
+        .warning {
+            background: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+        button { 
+            padding: 10px 20px; 
+            margin: 5px; 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        button:hover { 
+            background: #0056b3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        input, select { 
+            padding: 8px 12px; 
+            margin: 5px; 
+            border: 1px solid #ced4da; 
+            border-radius: 4px; 
+            width: 200px;
+        }
+        .config-row {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .config-label {
+            width: 120px;
+            font-weight: bold;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .status-active { background: #28a745; }
+        .status-inactive { background: #dc3545; }
+        .status-loading { background: #ffc107; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Worker Fetch模式测试</h1>
+        <p>测试Worker中的fetch请求是否能正确模拟浏览器的请求格式</p>
+
+        <!-- 配置部分 -->
+        <div class="test-section">
+            <div class="test-title">⚙️ 配置设置</div>
+            <div class="config-row">
+                <span class="config-label">基础URL:</span>
+                <input type="text" id="baseUrl" value="https://zxyy.ltd" style="width: 300px;">
+            </div>
+            <div class="config-row">
+                <span class="config-label">API端点:</span>
+                <input type="text" id="apiEndpoint" value="/lgb/xfzwj/add" style="width: 300px;">
+            </div>
+            <div class="config-row">
+                <span class="config-label">盐值端点:</span>
+                <input type="text" id="saltEndpoint" value="/lgb/payMerge/createDynamicsSalt?methodName=/xfzwj/add" style="width: 400px;">
+            </div>
+            <div class="config-row">
+                <span class="config-label">执行模式:</span>
+                <select id="executionMode">
+                    <option value="direct">直接Fetch（主线程）</option>
+                    <option value="worker">Worker Fetch</option>
+                    <option value="jquery">jQuery Ajax</option>
+                    <option value="compare">对比测试</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- 测试1: 盐值获取 -->
+        <div class="test-section">
+            <div class="test-title">1️⃣ 动态盐值获取测试</div>
+            <div class="button-group">
+                <button onclick="testSaltDirect()">直接Fetch获取</button>
+                <button onclick="testSaltWorker()">Worker获取</button>
+                <button onclick="testSaltjQuery()">jQuery获取</button>
+                <button onclick="compareSaltMethods()">对比三种方式</button>
+            </div>
+            <div id="saltResult" class="test-result"></div>
+        </div>
+
+        <!-- 测试2: API请求 -->
+        <div class="test-section">
+            <div class="test-title">2️⃣ API请求测试</div>
+            <div class="config-row">
+                <span class="config-label">测试姓名:</span>
+                <input type="text" id="testName" value="测试用户">
+                <span class="config-label">性别:</span>
+                <select id="testSex">
+                    <option value="男">男</option>
+                    <option value="女">女</option>
+                </select>
+            </div>
+            <div class="button-group">
+                <button onclick="testApiDirect()">直接Fetch请求</button>
+                <button onclick="testApiWorker()">Worker请求</button>
+                <button onclick="testApijQuery()">jQuery请求</button>
+            </div>
+            <div id="apiResult" class="test-result"></div>
+        </div>
+
+        <!-- 测试3: Worker状态 -->
+        <div class="test-section">
+            <div class="test-title">3️⃣ Worker状态测试</div>
+            <div class="button-group">
+                <button onclick="initWorker()">初始化Worker</button>
+                <button onclick="testWorkerMessage()">测试消息传递</button>
+                <button onclick="terminateWorker()">终止Worker</button>
+            </div>
+            <div id="workerStatus" class="test-result"></div>
+        </div>
+
+        <!-- 测试4: 性能对比 -->
+        <div class="test-section">
+            <div class="test-title">4️⃣ 性能对比测试</div>
+            <div class="config-row">
+                <span class="config-label">测试次数:</span>
+                <input type="number" id="testCount" value="10" min="1" max="100">
+            </div>
+            <div class="button-group">
+                <button onclick="performanceTest()">开始性能测试</button>
+                <button onclick="clearPerformanceResults()">清空结果</button>
+            </div>
+            <div id="performanceResult" class="test-result"></div>
+        </div>
+    </div>
+
+    <!-- 加载jQuery和CryptoJS -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+    <script>
+        let worker = null;
+        let testResults = {};
+
+        // 获取配置
+        function getConfig() {
+            return {
+                baseUrl: document.getElementById('baseUrl').value,
+                apiEndpoint: document.getElementById('apiEndpoint').value,
+                saltEndpoint: document.getElementById('saltEndpoint').value,
+                referrer: window.location.href
+            };
+        }
+
+        // 1. 直接Fetch获取盐值
+        async function testSaltDirect() {
+            const result = document.getElementById('saltResult');
+            const config = getConfig();
+            const startTime = Date.now();
+
+            try {
+                result.innerHTML = '⏳ 正在通过直接Fetch获取盐值...\n';
+                
+                const response = await fetch(config.baseUrl + config.saltEndpoint, {
+                    headers: {
+                        "accept": "*/*",
+                        "accept-language": "zh-CN,zh;q=0.9",
+                        "x-requested-with": "XMLHttpRequest"
+                    },
+                    method: "GET",
+                    mode: "cors",
+                    credentials: "include"
+                });
+
+                const data = await response.json();
+                const elapsed = Date.now() - startTime;
+
+                result.innerHTML = `✅ 直接Fetch成功 (耗时: ${elapsed}ms)\n`;
+                result.innerHTML += `响应数据:\n${JSON.stringify(data, null, 2)}\n`;
+                
+                if (data.code === 0 || data.code === 200) {
+                    result.innerHTML += `\n盐值: ${data.data}`;
+                    result.className = 'test-result success';
+                }
+
+                testResults.directSalt = { success: true, time: elapsed, data: data };
+                
+            } catch (error) {
+                result.innerHTML = `❌ 直接Fetch失败: ${error.message}`;
+                result.className = 'test-result error';
+                testResults.directSalt = { success: false, error: error.message };
+            }
+        }
+
+        // 2. Worker获取盐值
+        async function testSaltWorker() {
+            const result = document.getElementById('saltResult');
+            
+            if (!worker) {
+                await initWorker();
+            }
+
+            const config = getConfig();
+            const startTime = Date.now();
+            
+            result.innerHTML = '⏳ 正在通过Worker获取盐值...\n';
+
+            worker.postMessage({
+                type: 'GET_SALT',
+                data: {
+                    config: config,
+                    requestId: `salt_test_${Date.now()}`
+                }
+            });
+
+            // 等待Worker响应
+            return new Promise(resolve => {
+                const handler = (e) => {
+                    if (e.data.type === 'SALT_RESPONSE' || e.data.type === 'SALT_ERROR') {
+                        const elapsed = Date.now() - startTime;
+                        
+                        if (e.data.success) {
+                            result.innerHTML = `✅ Worker获取成功 (耗时: ${elapsed}ms)\n`;
+                            result.innerHTML += `响应数据:\n${JSON.stringify(e.data.saltData, null, 2)}`;
+                            result.className = 'test-result success';
+                            testResults.workerSalt = { success: true, time: elapsed, data: e.data.saltData };
+                        } else {
+                            result.innerHTML = `❌ Worker获取失败: ${e.data.error}`;
+                            result.className = 'test-result error';
+                            testResults.workerSalt = { success: false, error: e.data.error };
+                        }
+                        
+                        worker.removeEventListener('message', handler);
+                        resolve();
+                    }
+                };
+                
+                worker.addEventListener('message', handler);
+            });
+        }
+
+        // 3. jQuery获取盐值
+        async function testSaltjQuery() {
+            const result = document.getElementById('saltResult');
+            const config = getConfig();
+            const startTime = Date.now();
+
+            result.innerHTML = '⏳ 正在通过jQuery获取盐值...\n';
+
+            $.ajax({
+                url: config.baseUrl + config.saltEndpoint,
+                type: "GET",
+                success: function(data) {
+                    const elapsed = Date.now() - startTime;
+                    result.innerHTML = `✅ jQuery获取成功 (耗时: ${elapsed}ms)\n`;
+                    result.innerHTML += `响应数据:\n${JSON.stringify(data, null, 2)}`;
+                    
+                    if (data.code === 0 || data.code === 200) {
+                        result.innerHTML += `\n\n盐值: ${data.data}`;
+                    }
+                    result.className = 'test-result success';
+                    testResults.jquerySalt = { success: true, time: elapsed, data: data };
+                },
+                error: function(xhr, status, error) {
+                    result.innerHTML = `❌ jQuery获取失败: ${status} - ${error}`;
+                    result.className = 'test-result error';
+                    testResults.jquerySalt = { success: false, error: error };
+                }
+            });
+        }
+
+        // 对比三种方式
+        async function compareSaltMethods() {
+            const result = document.getElementById('saltResult');
+            result.innerHTML = '⏳ 开始对比测试...\n';
+            
+            testResults = {};
+            
+            await testSaltDirect();
+            await new Promise(r => setTimeout(r, 500));
+            
+            await testSaltWorker();
+            await new Promise(r => setTimeout(r, 500));
+            
+            await testSaltjQuery();
+            await new Promise(r => setTimeout(r, 500));
+            
+            // 显示对比结果
+            result.innerHTML = '📊 对比结果:\n\n';
+            result.innerHTML += '| 方法 | 状态 | 耗时 | 结果一致性 |\n';
+            result.innerHTML += '|------|------|------|------------|\n';
+            
+            const directData = testResults.directSalt?.data?.data;
+            const workerData = testResults.workerSalt?.data;
+            const jqueryData = testResults.jquerySalt?.data?.data;
+            
+            result.innerHTML += `| 直接Fetch | ${testResults.directSalt?.success ? '✅' : '❌'} | ${testResults.directSalt?.time || '-'}ms | 基准 |\n`;
+            result.innerHTML += `| Worker | ${testResults.workerSalt?.success ? '✅' : '❌'} | ${testResults.workerSalt?.time || '-'}ms | ${workerData === directData ? '✅ 一致' : '❌ 不一致'} |\n`;
+            result.innerHTML += `| jQuery | ${testResults.jquerySalt?.success ? '✅' : '❌'} | ${testResults.jquerySalt?.time || '-'}ms | ${jqueryData === directData ? '✅ 一致' : '❌ 不一致'} |\n`;
+            
+            result.className = 'test-result';
+        }
+
+        // 初始化Worker
+        async function initWorker() {
+            const result = document.getElementById('workerStatus');
+            
+            try {
+                if (worker) {
+                    worker.terminate();
+                }
+                
+                worker = new Worker('/automation/js/api-worker.js');
+                
+                result.innerHTML = '✅ Worker初始化成功\n';
+                result.innerHTML += '等待Worker就绪信号...\n';
+                
+                worker.addEventListener('message', function(e) {
+                    if (e.data.type === 'WORKER_READY') {
+                        result.innerHTML += `✅ ${e.data.message}\n`;
+                        result.className = 'test-result success';
+                    }
+                });
+                
+                worker.addEventListener('error', function(error) {
+                    result.innerHTML += `❌ Worker错误: ${error.message}\n`;
+                    result.className = 'test-result error';
+                });
+                
+            } catch (error) {
+                result.innerHTML = `❌ Worker初始化失败: ${error.message}`;
+                result.className = 'test-result error';
+            }
+        }
+
+        // 测试Worker消息传递
+        function testWorkerMessage() {
+            if (!worker) {
+                document.getElementById('workerStatus').innerHTML = '❌ 请先初始化Worker';
+                return;
+            }
+            
+            const result = document.getElementById('workerStatus');
+            result.innerHTML = '测试消息传递...\n';
+            
+            worker.postMessage({
+                type: 'TEST',
+                data: { message: 'Hello from main thread!' }
+            });
+            
+            result.innerHTML += '✅ 消息已发送\n';
+            result.className = 'test-result success';
+        }
+
+        // 终止Worker
+        function terminateWorker() {
+            if (worker) {
+                worker.terminate();
+                worker = null;
+                document.getElementById('workerStatus').innerHTML = '✅ Worker已终止';
+                document.getElementById('workerStatus').className = 'test-result warning';
+            }
+        }
+
+        // 性能测试
+        async function performanceTest() {
+            const count = parseInt(document.getElementById('testCount').value);
+            const result = document.getElementById('performanceResult');
+            
+            result.innerHTML = `⏳ 开始性能测试（${count}次请求）...\n\n`;
+            
+            // 测试直接Fetch
+            const directTimes = [];
+            for (let i = 0; i < count; i++) {
+                const start = Date.now();
+                await testSaltDirect();
+                directTimes.push(Date.now() - start);
+            }
+            
+            // 测试Worker
+            const workerTimes = [];
+            for (let i = 0; i < count; i++) {
+                const start = Date.now();
+                await testSaltWorker();
+                workerTimes.push(Date.now() - start);
+            }
+            
+            // 计算统计
+            const avg = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
+            const min = (arr) => Math.min(...arr);
+            const max = (arr) => Math.max(...arr);
+            
+            result.innerHTML = '📊 性能测试结果:\n\n';
+            result.innerHTML += `直接Fetch:\n`;
+            result.innerHTML += `  平均耗时: ${avg(directTimes).toFixed(2)}ms\n`;
+            result.innerHTML += `  最小耗时: ${min(directTimes)}ms\n`;
+            result.innerHTML += `  最大耗时: ${max(directTimes)}ms\n\n`;
+            
+            result.innerHTML += `Worker Fetch:\n`;
+            result.innerHTML += `  平均耗时: ${avg(workerTimes).toFixed(2)}ms\n`;
+            result.innerHTML += `  最小耗时: ${min(workerTimes)}ms\n`;
+            result.innerHTML += `  最大耗时: ${max(workerTimes)}ms\n\n`;
+            
+            const improvement = ((avg(directTimes) - avg(workerTimes)) / avg(directTimes) * 100).toFixed(1);
+            if (improvement > 0) {
+                result.innerHTML += `✅ Worker比直接Fetch快 ${improvement}%`;
+                result.className = 'test-result success';
+            } else {
+                result.innerHTML += `⚠️ Worker比直接Fetch慢 ${Math.abs(improvement)}%`;
+                result.className = 'test-result warning';
+            }
+        }
+
+        // 清空性能测试结果
+        function clearPerformanceResults() {
+            document.getElementById('performanceResult').innerHTML = '';
+        }
+
+        // 页面加载时自动初始化
+        window.addEventListener('load', function() {
+            console.log('测试页面已加载');
+        });
+    </script>
+</body>
+</html>
