@@ -378,6 +378,7 @@ class AutomationApp {
         return;
       }
       Logger.logInfo(`✅ 找到匹配数据：${filteredData.length} 条`);
+      //过滤数据，不允许创建今日之后的日期
 
       // 生成自动化代码
       const generator = new AutomationCodeGenerator({
@@ -452,12 +453,75 @@ class AutomationApp {
         return;
       }
 
-      // 获取该指派人的所有日期
+      // 过滤掉今天之后的日期
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // 解析多种日期格式的工具，支持：
+      // - MM.DD（如 09.25）→ 默认当前年
+      // - MM-DD / MM/DD → 默认当前年
+      // - YYYY-MM-DD / YYYY/MM/DD / YYYY.MM.DD
+      function parseDateFromValue(value) {
+        if (!value) return null;
+        if (value instanceof Date && !isNaN(value)) return value;
+        if (typeof value !== "string") return null;
+
+        const s = value.trim();
+        const y = today.getFullYear();
+
+        // MM.DD
+        let m;
+        let d;
+        let match = s.match(/^(\d{1,2})\.(\d{1,2})$/);
+        if (match) {
+          m = parseInt(match[1], 10);
+          d = parseInt(match[2], 10);
+          if (m >= 1 && m <= 12 && d >= 1 && d <= 31)
+            return new Date(y, m - 1, d);
+        }
+
+        // MM-DD 或 MM/DD
+        match = s.match(/^(\d{1,2})[-\/](\d{1,2})$/);
+        if (match) {
+          m = parseInt(match[1], 10);
+          d = parseInt(match[2], 10);
+          if (m >= 1 && m <= 12 && d >= 1 && d <= 31)
+            return new Date(y, m - 1, d);
+        }
+
+        // YYYY-MM-DD / YYYY/MM/DD / YYYY.MM.DD
+        match = s.match(/^(\d{4})[.\/-](\d{1,2})[.\/-](\d{1,2})$/);
+        if (match) {
+          const yy = parseInt(match[1], 10);
+          m = parseInt(match[2], 10);
+          d = parseInt(match[3], 10);
+          if (m >= 1 && m <= 12 && d >= 1 && d <= 31)
+            return new Date(yy, m - 1, d);
+        }
+
+        // 兜底：尝试原生Date解析（不可靠，仅作为最后手段）
+        const fallback = new Date(s);
+        return isNaN(fallback) ? null : fallback;
+      }
+
+      const pastOrTodayData = assigneeData.filter((item) => {
+        const date = parseDateFromValue(item.time);
+        if (!date || isNaN(date)) return false;
+        date.setHours(0, 0, 0, 0);
+        return date.getTime() <= today.getTime();
+      });
+
+      if (pastOrTodayData.length === 0) {
+        Toast.error(`❌ 指派人"${assignee}"没有今天及之前的可用数据`);
+        return;
+      }
+
+      // 获取该指派人的所有有效日期（仅包含今天及之前）
       const assigneeDates = [
-        ...new Set(assigneeData.map((item) => item.time)),
+        ...new Set(pastOrTodayData.map((item) => item.time)),
       ].sort();
       Logger.logInfo(
-        `✅ 找到指派人"${assignee}"的数据：${assigneeData.length}条，涵盖${assigneeDates.length}个日期`
+        `✅ 找到指派人"${assignee}"的有效数据：${pastOrTodayData.length}条，涵盖${assigneeDates.length}个日期（已过滤未来日期）`
       );
 
       // 生成包含所有日期的完整自动化代码
@@ -466,7 +530,7 @@ class AutomationApp {
         mode: this.useApiMode ? "api" : "dom",
       });
       const allDatesCode = generator.generateAllDatesCode(
-        assigneeData,
+        pastOrTodayData,
         assignee,
         assigneeDates,
         this.useApiMode
@@ -482,10 +546,10 @@ class AutomationApp {
       this.showUsageInstructions();
 
       Logger.logSuccess(
-        `✅ 已生成包含${assigneeDates.length}个日期的完整自动化代码`
+        `✅ 已生成包含${assigneeDates.length}个日期的完整自动化代码（未来日期已忽略）`
       );
       Toast.success(
-        `✅ 已生成全部日期自动化代码！包含${assigneeDates.length}个日期，请查看下方绿色区域复制代码`
+        `✅ 已生成全部日期自动化代码！包含${assigneeDates.length}个日期（不含未来），请查看下方绿色区域复制代码`
       );
     } catch (error) {
       Logger.logError(`批量代码生成失败: ${error.message}`);
