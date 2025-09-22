@@ -19,6 +19,9 @@ class SheetSelector {
         this.currentConfig = null;
         this.onConfirm = null;
         
+        // 调试辅助：暴露到全局以便排查
+        try { window.sheetSelectorInstance = this; } catch (_) {}
+        
         this.initializeEvents();
     }
 
@@ -32,9 +35,21 @@ class SheetSelector {
                 this.close();
             }
             if (e.key === 'Enter' && this.modal.isShowing() && this.selectedSheetName) {
+                console.info('[SheetSelector] Enter pressed with selection, confirming');
                 this.confirm();
             }
         });
+
+        // 确认按钮点击（直接绑定，避免依赖全局函数）
+        if (this.confirmBtn) {
+            console.info('[SheetSelector] Binding confirm button click handler');
+            this.confirmBtn.addEventListener('click', () => {
+                console.info('[SheetSelector] Confirm button clicked');
+                this.confirm();
+            });
+        } else {
+            console.warn('[SheetSelector] confirmBtn not found in DOM');
+        }
     }
 
     /**
@@ -43,6 +58,8 @@ class SheetSelector {
     show(config, sheets, reason) {
         this.currentConfig = config;
         this.currentSheets = sheets;
+        
+        console.info('[SheetSelector] show modal', { reason, sheetCount: Object.keys(sheets || {}).length });
         
         // 显示匹配失败原因
         if (this.matchMessage) {
@@ -66,6 +83,7 @@ class SheetSelector {
 
         const sheetNames = Object.keys(this.currentSheets);
         this.sheetList.innerHTML = '';
+        console.info('[SheetSelector] generateSheetList', { count: sheetNames.length, sheetNames });
 
         sheetNames.forEach(sheetName => {
             const sheetData = this.currentSheets[sheetName];
@@ -98,6 +116,7 @@ class SheetSelector {
      * 选择Sheet
      */
     selectSheet(sheetName) {
+        console.info('[SheetSelector] selectSheet', sheetName);
         // 更新选中状态
         DOMUtils.querySelectorAll('.sheet-item').forEach(item => {
             DOMUtils.removeClass(item, 'selected');
@@ -153,7 +172,18 @@ class SheetSelector {
      */
     updateConfirmButton() {
         if (this.confirmBtn) {
-            this.confirmBtn.disabled = !this.selectedSheetName;
+            const shouldEnable = !!this.selectedSheetName;
+            if (shouldEnable) {
+                this.confirmBtn.disabled = false;
+                try { this.confirmBtn.removeAttribute('disabled'); } catch (_) {}
+                console.info('[SheetSelector] confirm button enabled');
+            } else {
+                this.confirmBtn.disabled = true;
+                try { this.confirmBtn.setAttribute('disabled', 'true'); } catch (_) {}
+                console.info('[SheetSelector] confirm button disabled');
+            }
+        } else {
+            console.warn('[SheetSelector] updateConfirmButton: confirmBtn not found');
         }
     }
 
@@ -161,8 +191,10 @@ class SheetSelector {
      * 确认选择
      */
     confirm() {
+        console.info('[SheetSelector] confirm called', { selected: this.selectedSheetName, hasOnConfirm: !!this.onConfirm });
         if (!this.selectedSheetName) {
             Toast.error('❌ 请选择一个工作表');
+            console.warn('[SheetSelector] confirm aborted: no sheet selected');
             return;
         }
 
@@ -182,7 +214,10 @@ class SheetSelector {
         // 执行回调
         if (this.onConfirm) {
             Logger.logSuccess(`✅ 用户选择工作表: ${this.selectedSheetName}`);
+            console.info('[SheetSelector] invoking onConfirm');
             this.onConfirm(this.selectedSheetName, this.currentSheets[this.selectedSheetName]);
+        } else {
+            console.warn('[SheetSelector] onConfirm not set');
         }
     }
 

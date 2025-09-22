@@ -566,33 +566,41 @@ class AutomationApp {
 
     // 在页面上显示代码和复制按钮
     const resultsDiv = DOMUtils.getElementById("questionnaireCreationResults");
+    // 如果存在生成结果的details容器，自动展开
+    const detailsEl = document.querySelector('#questionnaireCreationSection details');
+    if (detailsEl && !detailsEl.open) {
+      detailsEl.open = true;
+    }
     if (resultsDiv) {
       const codeBlock = DOMUtils.createElement("div", "code-result");
       codeBlock.innerHTML = `
-                <div class="code-header">
+                <details class="code-accordion">
+                  <summary class="code-header">
                     <h4>🤖 ${title}</h4>
                     <button class="copy-btn" onclick="copyToClipboard(this)" data-code="${encodeURIComponent(
                       code
-                    )}">
-                        📋 复制代码
-                    </button>
-                </div>
-                <div class="code-info">
+                    )}">📋 复制代码</button>
+                  </summary>
+                  <div class="code-info">
                     <p>✅ 自动化代码已生成！请复制以下代码到问卷页面的控制台中执行：</p>
-                </div>
-                <pre><code>${this.escapeHtml(code)}</code></pre>
-                <div class="code-footer">
+                  </div>
+                  <pre class="code-content"><code>${this.escapeHtml(code)}</code></pre>
+                  <div class="code-footer">
                     <p><strong>使用说明：</strong></p>
                     <ol>
-                        <li>点击上方"📋 复制代码"按钮复制代码</li>
-                        <li>打开问卷创建页面</li>
-                        <li>按F12打开开发者工具，切换到source（源代码）标签</li>
-                        <li>选中该标签下的代码片段（snippet）</li>
-                        <li>粘贴代码并执行</li>
-                        <li>根据提示调用相应的执行函数</li>
+                      <li>点击上方"📋 复制代码"按钮复制代码</li>
+                      <li>打开问卷创建页面</li>
+                      <li>按F12打开开发者工具，切换到source（源代码）标签</li>
+                      <li>选中该标签下的代码片段（snippet）</li>
+                      <li>粘贴代码并执行</li>
+                      <li>根据提示调用相应的执行函数</li>
                     </ol>
-                </div>
+                  </div>
+                </details>
             `;
+      // 明确设置每条结果默认折叠
+      const innerDetails = codeBlock.querySelector('details');
+      if (innerDetails) innerDetails.open = false;
       resultsDiv.appendChild(codeBlock);
 
       // 滚动到结果区域

@@ -27,10 +27,81 @@ export default function QuestionnaireAutomationPage() {
     }
   }, [isLoading, isAuthenticated, user, router]);
 
+  // 选中态与空态提示的非侵入式增强（不改变业务逻辑）
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // 指派人选中态（fallback）
+    const assigneeList = document.getElementById("assigneeList");
+    const onAssigneeClick = (e: Event) => {
+      const target = e.target as HTMLElement;
+      const item = target.closest(".assignee-item") as HTMLElement | null;
+      if (item && assigneeList && assigneeList.contains(item)) {
+        assigneeList.querySelectorAll(".assignee-item.active").forEach((el) => el.classList.remove("active"));
+        item.classList.add("active");
+        item.setAttribute("aria-selected", "true");
+      }
+    };
+    assigneeList?.addEventListener("click", onAssigneeClick);
+
+    // 日期选中态（fallback）
+    const dateContainer = document.getElementById("dateManagement");
+    const onDateClick = (e: Event) => {
+      const target = e.target as HTMLElement;
+      const item = target.closest(".date-item") as HTMLElement | null;
+      if (item && dateContainer && dateContainer.contains(item)) {
+        dateContainer.querySelectorAll(".date-item.active").forEach((el) => el.classList.remove("active"));
+        item.classList.add("active");
+        item.setAttribute("aria-selected", "true");
+      }
+    };
+    dateContainer?.addEventListener("click", onDateClick);
+
+    // Sheet 列表空态与选中态（fallback）
+    const sheetList = document.getElementById("sheetList");
+    const sheetEmpty = document.getElementById("sheetEmpty");
+    const confirmBtn = document.getElementById("confirmSheetBtn") as HTMLButtonElement | null;
+
+    const updateSheetEmpty = () => {
+      if (!sheetList || !sheetEmpty) return;
+      const hasItems = !!sheetList.querySelector(".sheet-item");
+      sheetEmpty.classList.toggle("hidden", hasItems);
+    };
+
+    const sheetObserver = sheetList
+      ? new MutationObserver(() => {
+          updateSheetEmpty();
+        })
+      : null;
+
+    if (sheetList && sheetObserver) {
+      updateSheetEmpty();
+      sheetObserver.observe(sheetList, { childList: true });
+    }
+
+    const onSheetClick = (e: Event) => {
+      const target = e.target as HTMLElement;
+      const item = target.closest(".sheet-item") as HTMLElement | null;
+      if (item && sheetList && sheetList.contains(item)) {
+        sheetList.querySelectorAll(".sheet-item.selected").forEach((el) => el.classList.remove("selected"));
+        item.classList.add("selected");
+        if (confirmBtn) confirmBtn.disabled = false;
+      }
+    };
+    sheetList?.addEventListener("click", onSheetClick);
+
+    return () => {
+      assigneeList?.removeEventListener("click", onAssigneeClick);
+      dateContainer?.removeEventListener("click", onDateClick);
+      sheetList?.removeEventListener("click", onSheetClick);
+      sheetObserver?.disconnect();
+    };
+  }, []);
+
   // 显示加载状态
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
           <p className="mt-4 text-gray-600">加载中...</p>
@@ -44,6 +115,7 @@ export default function QuestionnaireAutomationPage() {
     return null; // 重定向处理中
   }
 
+
   return (
     <>
       <Head>
@@ -53,46 +125,20 @@ export default function QuestionnaireAutomationPage() {
       {/* CSS 样式已移动到 questionnaire-automation.css 文件中 */}
 
       <div className="min-h-screen bg-gray-50 py-8">
-        <div className="questionnaire-automation-container">
-          <div className="container mx-auto max-w-7xl">
-            {/* 页面头部 */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-                  <svg
-                    className="w-8 h-8 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                </div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                  问卷自动化工具
-                </h1>
-                <p className="text-gray-600 max-w-2xl mx-auto">
-                  高效的问卷数据处理和自动化代码生成工具，支持多种问卷类型的批量处理和智能化管理
-                </p>
-              </div>
-            </div>
+        <div className="questionnaire-automation-container qa-container">
+          <div className="container mx-auto max-w-7xl px-4 md:px-6">
 
             {/* API配置区域 */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <div className="card mb-6">
               <div className="api-toggle">
                 <div
                   className="mode-switch"
                   role="group"
                   aria-label="选择执行模式"
                 >
-                  <h3 className="text-lg font-semibold mb-4 text-gray-900 flex items-center">
+                  <h3 className="section-title flex items-center">
                     <svg
-                      className="w-5 h-5 mr-2 text-blue-600"
+                      className="w-5 h-5 mr-2 text-gray-900"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -106,14 +152,14 @@ export default function QuestionnaireAutomationPage() {
                     </svg>
                     执行模式选择
                   </h3>
-                  <div className="flex gap-6">
-                    <label className="flex items-center space-x-3 cursor-pointer p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors">
+                  <div className="segmented">
+                    <label className="segmented-option">
                       <input
                         type="radio"
                         name="execMode"
                         value="dom"
                         defaultChecked
-                        className="text-blue-600 focus:ring-blue-500"
+                        className="text-gray-900 focus:ring-gray-900"
                       />
                       <div>
                         <span className="text-sm font-medium text-gray-900">
@@ -124,12 +170,12 @@ export default function QuestionnaireAutomationPage() {
                         </p>
                       </div>
                     </label>
-                    <label className="flex items-center space-x-3 cursor-pointer p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors">
+                    <label className="segmented-option">
                       <input
                         type="radio"
                         name="execMode"
                         value="api"
-                        className="text-blue-600 focus:ring-blue-500"
+                        className="text-gray-900 focus:ring-gray-900"
                       />
                       <div>
                         <span className="text-sm font-medium text-gray-900">
@@ -142,7 +188,7 @@ export default function QuestionnaireAutomationPage() {
                     </label>
                   </div>
                   <div
-                    className="api-info mt-3 p-3 bg-green-50 border border-green-200 rounded-lg"
+                    className="note success mt-3"
                     id="modeHint"
                   >
                     <div className="flex items-center text-sm text-green-700">
@@ -168,12 +214,12 @@ export default function QuestionnaireAutomationPage() {
 
             {/* 自动化功能配置 */}
             <div className="auto-features mb-6">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-lg font-semibold mb-3 text-gray-700">
+              <div className="card">
+                <h3 className="section-title">
                   🤖 自动化功能配置
                 </h3>
                 <details className="group">
-                  <summary className="cursor-pointer text-blue-600 hover:text-blue-800 font-medium">
+                  <summary className="cursor-pointer text-gray-900 hover:text-gray-950 font-medium">
                     ⚙️ 高级选项
                   </summary>
                   <div className="mt-4 space-y-4">
@@ -183,7 +229,7 @@ export default function QuestionnaireAutomationPage() {
                           type="checkbox"
                           id="autoNextDate"
                           defaultChecked
-                          className="text-blue-600"
+                          className="text-gray-900"
                         />
                         <span className="text-sm font-medium">
                           📅 自动切换日期
@@ -201,7 +247,7 @@ export default function QuestionnaireAutomationPage() {
                           type="checkbox"
                           id="autoValidation"
                           defaultChecked
-                          className="text-blue-600"
+                          className="text-gray-900"
                         />
                         <span className="text-sm font-medium">
                           🔍 自动数据验证
@@ -218,7 +264,7 @@ export default function QuestionnaireAutomationPage() {
                           type="checkbox"
                           id="consoleSnippetMode"
                           defaultChecked
-                          className="text-blue-600"
+                          className="text-gray-900"
                         />
                         <span className="text-sm font-medium">
                           📦 控制台代码片段模式
@@ -236,8 +282,8 @@ export default function QuestionnaireAutomationPage() {
 
             {/* 问卷类型选择 */}
             <div className="questionnaire-selector mb-6">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-lg font-semibold mb-3 text-gray-700">
+              <div className="card">
+                <h3 className="section-title">
                   📋 选择问卷类型
                 </h3>
                 <div
@@ -251,7 +297,7 @@ export default function QuestionnaireAutomationPage() {
 
             {/* 文件上传区域 */}
             <div className="file-upload mb-6" id="fileUpload">
-              <div className="bg-gray-50 p-6 rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors">
+              <div className="card dropzone">
                 <div className="text-center">
                   <div className="text-4xl mb-2">📁</div>
                   <p className="text-gray-600 mb-2">
@@ -264,14 +310,14 @@ export default function QuestionnaireAutomationPage() {
                     className="hidden"
                   />
                   <button
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+                    className="btn btn-primary"
                     type="button"
                   >
                     选择文件
                   </button>
                 </div>
                 <textarea
-                  className="w-full h-64 mt-4 p-3 border border-gray-300 rounded-lg resize-none font-mono text-sm"
+                  className="code-textarea"
                   id="dataPreview"
                   placeholder="Excel数据预览将显示在这里..."
                   readOnly
@@ -284,8 +330,8 @@ export default function QuestionnaireAutomationPage() {
               className="assignee-management mb-6 hidden"
               id="assigneeManagement"
             >
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-lg font-semibold mb-3 text-gray-700">
+              <div className="card">
+                <h3 className="section-title">
                   👥 指派人管理
                 </h3>
                 <div className="assignee-list" id="assigneeList"></div>
@@ -294,8 +340,8 @@ export default function QuestionnaireAutomationPage() {
 
             {/* 日期管理 */}
             <div className="date-management mb-6 hidden" id="dateManagement">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-lg font-semibold mb-3 text-gray-700">
+              <div className="card">
+                <h3 className="section-title">
                   📅 <span id="selectedAssigneeName">选择指派人</span>{" "}
                   的日期管理
                 </h3>
@@ -312,20 +358,20 @@ export default function QuestionnaireAutomationPage() {
               className="generation-buttons mb-6 hidden"
               id="generationButtons"
             >
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-lg font-semibold mb-3 text-gray-700">
+              <div className="card">
+                <h3 className="section-title">
                   🚀 生成自动化代码
                 </h3>
                 <div className="validation-buttons flex gap-4">
                   <button
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    className="btn btn-primary"
                     id="createQuestionnairesBtn"
                     disabled
                   >
                     📝 生成并复制 当前日期代码
                   </button>
                   <button
-                    className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    className="btn btn-success"
                     id="createAllQuestionnairesBtn"
                     disabled
                   >
@@ -341,15 +387,15 @@ export default function QuestionnaireAutomationPage() {
               className="validation-section mb-6 hidden"
               id="validationSection"
             >
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="text-lg font-semibold mb-3 text-gray-700">
+              <div className="card">
+                <h3 className="section-title">
                   🔍 数据验证工具
                 </h3>
                 <p className="text-gray-700 mb-3">
                   ⚠️
                   数据验证功能已集成到生成的代码片段中，请在控制台中使用以下命令：
                 </p>
-                <div className="bg-gray-100 p-4 rounded-lg space-y-2">
+                <div className="code-block">
                   <code className="block text-sm text-gray-800">
                     validateData() - 验证当前数据集创建情况并给出缺失列表
                   </code>
@@ -372,41 +418,43 @@ export default function QuestionnaireAutomationPage() {
               className="questionnaire-creation-section hidden"
               id="questionnaireCreationSection"
             >
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-lg font-semibold mb-3 text-gray-700">
-                  📦 生成结果
-                </h3>
-                <div id="questionnaireCreationResults">
-                  {/* 生成的代码将显示在这里，包含复制按钮 */}
-                </div>
-
-                {/* 使用说明 */}
-                <div
-                  className="usage-instructions mt-4 p-4 bg-blue-50 rounded-lg hidden"
-                  id="usageInstructions"
-                >
-                  <h4 className="font-semibold text-blue-800 mb-2">
-                    📖 使用说明
-                  </h4>
-                  <div className="text-sm text-blue-700 space-y-1">
-                    <p>1. 复制生成的代码到浏览器控制台</p>
-                    <p>2. 在目标网站页面中粘贴并执行</p>
-                    <p>3. 代码将自动创建问卷数据</p>
-                    <p>4. 使用验证命令检查创建结果</p>
+              <div className="card">
+                <details className="group" id="creationDetails">
+                  <summary className="cursor-pointer text-gray-900 hover:text-gray-950 font-medium">
+                    📦 生成结果
+                  </summary>
+                  <div id="questionnaireCreationResults">
+                    {/* 生成的代码将显示在这里，包含复制按钮 */}
                   </div>
-                </div>
+
+                  {/* 使用说明 */}
+                  <div
+                    className="usage-instructions note info mt-4 hidden"
+                    id="usageInstructions"
+                  >
+                    <h4 className="font-semibold text-gray-900 mb-2">
+                      📖 使用说明
+                    </h4>
+                    <div className="text-sm text-gray-700 space-y-1">
+                      <p>1. 复制生成的代码到浏览器控制台</p>
+                      <p>2. 在目标网站页面中粘贴并执行</p>
+                      <p>3. 代码将自动创建问卷数据</p>
+                      <p>4. 使用验证命令检查创建结果</p>
+                    </div>
+                  </div>
+                </details>
               </div>
             </div>
 
             {/* 日志区域 */}
-            <div className="log-container mb-6">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-lg font-semibold mb-3 text-gray-700">
+            <div className="log-container mb-6 hidden">
+              <div className="card">
+                <h3 className="section-title">
                   📝 操作日志
                 </h3>
                 <div
                   id="logContainer"
-                  className="bg-white border border-gray-200 rounded-lg p-3 h-64 overflow-y-auto font-mono text-sm"
+                  className="log-box"
                   style={{ maxHeight: "16rem" }}
                 >
                   {/* 日志内容将通过JavaScript动态添加 */}
@@ -431,6 +479,12 @@ export default function QuestionnaireAutomationPage() {
             <div className="sheet-list mb-4" id="sheetList">
               {/* Sheet列表将通过JavaScript动态生成 */}
             </div>
+            <div className="empty-state hidden" id="sheetEmpty">
+              <div className="text-center text-gray-500">
+                <div className="text-3xl mb-2">📄</div>
+                <div className="text-sm">未找到可用的工作表</div>
+              </div>
+            </div>
 
             <div
               className="sheet-preview mb-4"
@@ -449,7 +503,7 @@ export default function QuestionnaireAutomationPage() {
                 <input
                   type="checkbox"
                   id="rememberChoice"
-                  className="text-blue-600"
+                  className="text-gray-900"
                 />
                 <span className="text-sm">
                   记住我的选择（相同问卷类型时自动使用）
@@ -458,9 +512,9 @@ export default function QuestionnaireAutomationPage() {
             </div>
           </div>
 
-          <div className="modal-buttons flex gap-3 justify-end">
+          <div className="modal-buttons">
             <button
-              className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-colors"
+              className="btn btn-ghost"
               onClick={() => {
                 if (
                   typeof window !== "undefined" &&
@@ -473,14 +527,18 @@ export default function QuestionnaireAutomationPage() {
               取消
             </button>
             <button
-              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="btn btn-primary"
               id="confirmSheetBtn"
+              type="button"
               onClick={() => {
-                if (
-                  typeof window !== "undefined" &&
-                  (window as any).confirmSheetSelection
-                ) {
-                  (window as any).confirmSheetSelection();
+                if (typeof window !== "undefined") {
+                  const w = window as any;
+                  const app = w.automationAppInstance || w.app;
+                  if (app && app.sheetSelector && typeof app.sheetSelector.confirm === "function") {
+                    app.sheetSelector.confirm();
+                  } else if (typeof w.confirmSheetSelection === "function") {
+                    w.confirmSheetSelection();
+                  }
                 }
               }}
               disabled
