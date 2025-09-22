@@ -32,7 +32,14 @@ function LoginFormContent({ onSuccess }: LoginFormProps) {
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await response.json();
+      let data: any = {};
+      try {
+        const text = await response.text();
+        data = text ? JSON.parse(text) : {};
+      } catch (_) {
+        // 如果不是有效的JSON，保持为空对象，避免抛错
+        data = {};
+      }
 
       if (response.ok) {
         // 登录成功

@@ -36,6 +36,12 @@ class AutomationApp {
    * 初始化应用程序
    */
   initialize() {
+    // 防止重复初始化
+    if (this.initialized) {
+      console.log("AutomationApp already initialized, skipping...");
+      return;
+    }
+
     Logger.logInfo("🚀 正在初始化统一自动化脚本...");
 
     this.initializeComponents();
@@ -43,6 +49,7 @@ class AutomationApp {
     this.loadPreferences();
     this.showWelcomeMessage();
 
+    this.initialized = true;
     Logger.logInfo("✅ 统一自动化脚本初始化完成");
   }
 
@@ -81,10 +88,10 @@ class AutomationApp {
       const previousType = this.currentQuestionnaireType;
       this.currentQuestionnaireType = type;
       this.dataParser = new DataParser(config);
-      
+
       // 如果已经有上传的文件数据，重新处理
       if (previousType && this.lastLoadedExcelData) {
-        Logger.logInfo('🔄 问卷类型已更改，重新解析数据...');
+        Logger.logInfo("🔄 问卷类型已更改，重新解析数据...");
         this.handleExcelData(this.lastLoadedExcelData);
       }
     };
@@ -116,18 +123,18 @@ class AutomationApp {
   initializeEventListeners() {
     // 执行模式单选（DOM / API）
     const modeRadios = document.querySelectorAll('input[name="execMode"]');
-    const savedMode = localStorage.getItem('automation_mode') || 'dom';
-    this.useApiMode = savedMode === 'api';
+    const savedMode = localStorage.getItem("automation_mode") || "dom";
+    this.useApiMode = savedMode === "api";
 
     if (modeRadios && modeRadios.length) {
       modeRadios.forEach((r) => {
         if (r.value === savedMode) r.checked = true;
-        r.addEventListener('change', (e) => {
+        r.addEventListener("change", (e) => {
           const mode = e.target.value;
-          this.useApiMode = mode === 'api';
-          localStorage.setItem('automation_mode', mode);
+          this.useApiMode = mode === "api";
+          localStorage.setItem("automation_mode", mode);
           this.updateModeHint(mode);
-          Logger.logInfo(`🔄 切换到${this.useApiMode ? 'API' : 'DOM'}模式`);
+          Logger.logInfo(`🔄 切换到${this.useApiMode ? "API" : "DOM"}模式`);
         });
       });
     }
@@ -156,12 +163,12 @@ class AutomationApp {
     }
 
     // 生成按钮事件绑定（生成并复制）
-    const singleBtn = DOMUtils.getElementById('createQuestionnairesBtn');
+    const singleBtn = DOMUtils.getElementById("createQuestionnairesBtn");
     if (singleBtn) {
-      singleBtn.addEventListener('click', async () => {
+      singleBtn.addEventListener("click", async () => {
         const oldText = singleBtn.textContent;
         singleBtn.disabled = true;
-        singleBtn.textContent = '⏳ 生成中...';
+        singleBtn.textContent = "⏳ 生成中...";
         try {
           await this.createQuestionnaires();
         } finally {
@@ -171,12 +178,12 @@ class AutomationApp {
       });
     }
 
-    const allBtn = DOMUtils.getElementById('createAllQuestionnairesBtn');
+    const allBtn = DOMUtils.getElementById("createAllQuestionnairesBtn");
     if (allBtn) {
-      allBtn.addEventListener('click', async () => {
+      allBtn.addEventListener("click", async () => {
         const oldText = allBtn.textContent;
         allBtn.disabled = true;
-        allBtn.textContent = '⏳ 生成中...';
+        allBtn.textContent = "⏳ 生成中...";
         try {
           await this.createAllQuestionnaires();
         } finally {
@@ -286,7 +293,7 @@ class AutomationApp {
       DOMUtils.show("dateManagement");
       DOMUtils.show("assigneeManagement");
       DOMUtils.show("validationSection");
-      DOMUtils.show("generationButtons");  // 显示生成按钮区域
+      DOMUtils.show("generationButtons"); // 显示生成按钮区域
       DOMUtils.show("questionnaireCreationSection");
 
       // 启用生成按钮并展示摘要
@@ -294,10 +301,13 @@ class AutomationApp {
       this.updateDataSummaryFromState();
 
       // 滚动到指派人管理区域
-      const assigneeSection = document.getElementById('assigneeManagement');
+      const assigneeSection = document.getElementById("assigneeManagement");
       if (assigneeSection) {
         setTimeout(() => {
-          assigneeSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          assigneeSection.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
         }, 100);
       }
     } catch (error) {
@@ -375,7 +385,7 @@ class AutomationApp {
         mode: this.useApiMode ? "api" : "dom",
       });
       const automationCode = generator.generateCode(
-        filteredData,  // 使用已过滤的数据，只包含当前指派人和当前日期的数据
+        filteredData, // 使用已过滤的数据，只包含当前指派人和当前日期的数据
         assignee,
         this.currentDate,
         this.useApiMode
@@ -596,8 +606,8 @@ class AutomationApp {
    * 设置生成按钮的可用状态
    */
   setGenerateButtonsEnabled(enabled) {
-    const singleBtn = DOMUtils.getElementById('createQuestionnairesBtn');
-    const allBtn = DOMUtils.getElementById('createAllQuestionnairesBtn');
+    const singleBtn = DOMUtils.getElementById("createQuestionnairesBtn");
+    const allBtn = DOMUtils.getElementById("createAllQuestionnairesBtn");
     if (singleBtn) singleBtn.disabled = !enabled;
     if (allBtn) allBtn.disabled = !enabled;
   }
@@ -606,29 +616,33 @@ class AutomationApp {
    * 更新模式提示文案
    */
   updateModeHint(mode) {
-    const hintEl = DOMUtils.getElementById('modeHint');
+    const hintEl = DOMUtils.getElementById("modeHint");
     if (!hintEl) return;
-    hintEl.innerHTML = mode === 'api'
-      ? '✅ API模式：直接通过接口创建，速度更快；注意错误重试与去重逻辑已内置'
-      : '✅ DOM模式：通过页面操作实现自动化，更稳定';
+    hintEl.innerHTML =
+      mode === "api"
+        ? "✅ API模式：直接通过接口创建，速度更快；注意错误重试与去重逻辑已内置"
+        : "✅ DOM模式：通过页面操作实现自动化，更稳定";
   }
 
   /**
    * 根据当前状态更新数据摘要
    */
   updateDataSummaryFromState() {
-    const p = DOMUtils.getElementById('dataSummary');
+    const p = DOMUtils.getElementById("dataSummary");
     if (!p) return;
 
     const assignees = Object.keys(this.assigneeData || {}).length;
     const dates = (this.allDates || []).length;
     let rows = 0;
     try {
-      rows = Object.values(this.assigneeData || {}).reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
+      rows = Object.values(this.assigneeData || {}).reduce(
+        (sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0),
+        0
+      );
     } catch (_) {}
 
     p.textContent = `已加载：指派人 ${assignees} 人 ｜ 日期 ${dates} 天 ｜ 记录 ${rows} 条`;
-    p.style.display = 'block';
+    p.style.display = "block";
   }
 
   /**
@@ -797,3 +811,18 @@ window.showHelp = function () {
 
 // 全局导出
 window.AutomationApp = AutomationApp;
+
+// 全局函数 - 供HTML按钮调用
+window.closeSheetModal = function () {
+  const app = window.automationAppInstance;
+  if (app && app.sheetSelector) {
+    app.sheetSelector.close();
+  }
+};
+
+window.confirmSheetSelection = function () {
+  const app = window.automationAppInstance;
+  if (app && app.sheetSelector) {
+    app.sheetSelector.confirm();
+  }
+};

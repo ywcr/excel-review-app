@@ -253,6 +253,10 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
         parseOptions = {
           type: "array",
         };
+        // 无论文件大小，只要指定了工作表，就仅解析该工作表
+        if (selectedSheet) {
+          parseOptions.sheets = [selectedSheet];
+        }
       } else {
         // 普通文件：使用优化的解析选项
         ImageDebugLogger.info(
@@ -277,8 +281,8 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
           raw: false,
         };
 
-        // 对于大文件（>100MB），只解析目标工作表以节省内存
-        if (selectedSheet && fileBuffer.byteLength > 100 * 1024 * 1024) {
+        // 无论文件大小，只要指定了工作表，就仅解析该工作表
+        if (selectedSheet) {
           parseOptions.sheets = [selectedSheet];
         }
       }
@@ -542,6 +546,7 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
         headerValidation,
         errors: [],
         summary: { totalRows: 0, validRows: 0, errorCount: 0 },
+        usedSheetName: sheetName,
       };
     }
 
@@ -587,6 +592,7 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
         validRows,
         errorCount,
       },
+      usedSheetName: sheetName,
     };
   } catch (error) {
     throw new Error(`验证失败: ${error.message}`);
@@ -1683,10 +1689,12 @@ async function validateExcel(data) {
     // 如果需要包含图片验证
     if (includeImages && result) {
       try {
+        // 优先使用解析流程最终确定的工作表名称
+        const sheetForImages = (result && result.usedSheetName) ? result.usedSheetName : selectedSheet;
         sendProgress("🚀 前端解析：正在验证图片...", 85);
         const imageValidationResult = await validateImagesInternal(
           actualFileBuffer,
-          selectedSheet
+          sheetForImages || null
         );
         result.imageValidation = imageValidationResult;
       } catch (imageError) {
@@ -1781,6 +1789,58 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
       selectedSheet
     );
     ImageDebugLogger.endTimer("POSITION_MAP", "图片位置映射");
+
+    // 针对常见任务类型做一次位置合理性过滤，避免误解析到非目标列
+    (function applyExpectedColumnFilter() {
+      try {
+        if (!selectedSheet) return;
+        const sheet = String(selectedSheet);
+        let expectedCols = null;
+        if (sheet.includes("药店") || sheet.includes("藥店")) {
+          expectedCols = ["M", "N"]; // 门头/内部
+        } else if (sheet.includes("医院") || sheet.includes("醫院")) {
+          expectedCols = ["O", "P"]; // 医院门头照/科室照片
+        } else if (sheet.includes("科室")) {
+          expectedCols = ["N", "O"]; // 科室拜访
+        }
+        if (!expectedCols) return;
+
+        // 仅当过滤后仍有结果时才覆盖，避免误删全部映射
+        let filteredCount = 0;
+        let originalCount = 0;
+        const filtered = new Map();
+        imagePositions.forEach((list, key) => {
+          const safeList = Array.isArray(list) ? list : [];
+          originalCount += safeList.length;
+          const newList = safeList.filter(
+            (p) => p && typeof p.column === "string" && expectedCols.includes(p.column)
+          );
+          if (newList.length > 0) {
+            filtered.set(key, newList);
+            filteredCount += newList.length;
+          }
+        });
+        if (filtered.size > 0 && filteredCount > 0) {
+          // 只有当过滤掉了可疑列且仍保留了大部分期望列时才应用
+          if (filteredCount <= originalCount && filteredCount / Math.max(1, originalCount) >= 0.5) {
+            imagePositions.clear();
+            filtered.forEach((v, k) => imagePositions.set(k, v));
+            ImageDebugLogger.info(
+              ImageDebugLogger.STAGES.POSITION_MAP,
+              "已按任务类型过滤图片列",
+              {
+                selectedSheet,
+                expectedCols,
+                originalCount,
+                filteredCount,
+              }
+            );
+          }
+        }
+      } catch (e) {
+        console.warn("应用图片列过滤失败:", e);
+      }
+    })();
 
     ImageDebugLogger.info(
       ImageDebugLogger.STAGES.POSITION_MAP,
@@ -3337,13 +3397,13 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
     if (selectedSheet) {
       const targetSheetFile = await getSheetFileName(selectedSheet);
       if (targetSheetFile) {
-        targetSheetFiles = sheetFiles.filter(
-          (file) => file === targetSheetFile
-        );
+        targetSheetFiles = sheetFiles.filter((file) => file === targetSheetFile);
       } else {
         console.warn(
-          `⚠️ 无法找到工作表 "${selectedSheet}" 对应的文件，将处理所有工作表`
+          `⚠️ 无法找到工作表 "${selectedSheet}" 对应的文件，已跳过其他工作表的图片解析`
         );
+        // 严格模式：当指定了工作表但无法映射到具体文件时，不解析其它工作表
+        return imagePositions; // 为空
       }
     }
 
@@ -3780,15 +3840,9 @@ async function extractFromCellImagesWorker(
         positionInfo.confidence = "high";
       }
 
-      // 如果指定了selectedSheet，检查估算位置是否在合理范围内
-      if (selectedSheet && positionInfo.method === "index_estimation") {
-        // 对于药店拜访模式，图片应该在M、N列，第4行开始
-        const isValidPosition =
-          (positionInfo.column === "M" || positionInfo.column === "N") &&
-          positionInfo.row >= 4;
-        if (!isValidPosition) {
-          continue;
-        }
+      // 如果指定了 selectedSheet，但无法通过 DISPIMG 精确定位到该工作表，则不接受估算位置，直接跳过
+      if (selectedSheet && positionInfo && positionInfo.method !== "dispimg_formula") {
+        continue;
       }
 
       const list = imagePositions.get(mediaKey) || [];
@@ -3958,6 +4012,8 @@ async function getPositionFromDISPIMGWorker(
             console.warn(
               `⚠️ Worker无法找到工作表 "${selectedSheet}" 对应的文件`
             );
+            // 当明确指定了工作表但无法映射时，避免跨表扫描，直接放弃定位
+            return null;
           }
         }
       } catch (error) {
