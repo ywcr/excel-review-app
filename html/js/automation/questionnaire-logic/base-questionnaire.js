@@ -52,6 +52,41 @@ function getSame(name, sex) {
     });
 }
 
+// 查询已存在联系人性别（按姓名+类型）
+function getContactSexByName(name, lxrType) {
+    return new Promise((resolve) => {
+        $.ajax({
+            url: "/lgb/lxrgl/getList",
+            type: "POST",
+            data: {
+                page: 1,
+                key: name,
+                lxrType: lxrType,
+                way: "myLinker",
+                hospitalName: "",
+                departmentName: "",
+                orderKey: 3
+            },
+            traditional: true,
+            success: function(res) {
+                try {
+                    if ((res.code === 0 || res.code === '0') && Array.isArray(res.data) && res.data.length > 0) {
+                        // 优先精确匹配姓名和类型
+                        var match = res.data.find(function(item){ return item && item.name === name && item.lxrType === lxrType; });
+                        var target = match || res.data[0];
+                        resolve(target && target.sex ? target.sex : null);
+                    } else {
+                        resolve(null);
+                    }
+                } catch (e) {
+                    resolve(null);
+                }
+            },
+            error: function() { resolve(null); }
+        });
+    });
+}
+
 // 创建${this.contactType}
 function addContact(name, sex) {
     return new Promise((resolve, reject) => {
@@ -94,7 +129,14 @@ async function startAddContact() {
                 console.log('[' + (i + 1) + '/' + data.length + '] 添加成功：' + name);
                 successCount++;
             } else {
-                console.log('[' + (i + 1) + '/' + data.length + '] ${this.contactType}已存在：' + name);
+                // 已存在 -> 调用列表接口校验性别并修正本地数据
+                const fetchedSex = await getContactSexByName(name, "${this.contactType}");
+                if (fetchedSex && fetchedSex !== sex) {
+                    console.log('[' + (i + 1) + '/' + data.length + '] ${this.contactType}已存在：' + name + '，性别已由「' + sex + '」修正为「' + fetchedSex + '」');
+                    data[i].sex = fetchedSex;
+                } else {
+                    console.log('[' + (i + 1) + '/' + data.length + '] ${this.contactType}已存在：' + name + (fetchedSex ? '，性别一致：' + fetchedSex : '，未获取到性别'));
+                }
                 existCount++;
             }
         });
