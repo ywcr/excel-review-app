@@ -59,13 +59,13 @@ const RANGE_CORRECTION_CONFIG = {
 
 // Image duplicate detection configuration
 const IMAGE_DUP_CONFIG = {
-  BLOCKHASH_BITS: 12, // 提升 blockhash 精度（原为8）
-  HAMMING_THRESHOLD: 12, // 放宽相似阈值，捕获更多相似图片
-  NEAR_THRESHOLD_MARGIN: 4, // 扩大近阈值范围
-  MAD_SIZE: 64, // MAD 对比尺寸从32提升到64
-  USE_SSIM: true, // 启用SSIM作为补充
-  SSIM_GOOD: 0.7, // 放宽SSIM通过阈值
-  SSIM_STRICT: 0.85, // 放宽SSIM严格阈值
+  BLOCKHASH_BITS: 12,
+  HAMMING_THRESHOLD: 12,
+  NEAR_THRESHOLD_MARGIN: 4,
+  MAD_SIZE: 64,
+  USE_SSIM: true,
+  SSIM_GOOD: 0.7,
+  SSIM_STRICT: 0.85,
 };
 
 // Mobile-like dimension heuristics (configurable)
@@ -73,7 +73,7 @@ const MOBILE_DIMENSION_CONFIG = {
   ENABLED: true,
   MIN_SHORT_SIDE: 720,
   MIN_LONG_SIDE: 1280,
-  MIN_MEGAPIXELS: 2, // 约等于 1600x1200
+  MIN_MEGAPIXELS: 2,
   ALLOWED_ASPECTS: [
     { ratio: 4 / 3, tolerance: 0.08 },
     { ratio: 3 / 4, tolerance: 0.08 },
@@ -2262,6 +2262,22 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
               if (thumb) result.imageData = thumb;
             }
 
+            // 网图嫌疑度评分（不改变结果，只做提示）
+            try {
+              const exif = exifQuickScan(image.data, result.mimeType);
+              const webEval = scoreWebLikelihood({
+                mimeType: result.mimeType,
+                width: hashInfo.width,
+                height: hashInfo.height,
+                megapixels: result.megapixels || ((hashInfo.width * hashInfo.height) / 1_000_000),
+                exif,
+                sizeBytes: image.data.length,
+                hashFrequency: undefined,
+              });
+              result.webLikelihood = webEval.webLikelihood;
+              result.webReasons = webEval.reasons;
+            } catch {}
+
             results.push(result);
 
             ImageDebugLogger.debug(
@@ -2629,6 +2645,66 @@ async function calculateImageHash(imageData) {
     console.warn("感知哈希计算失败:", error);
     return { hash: "", width: 0, height: 0 }; // 返回空哈希，避免误判
   }
+}
+
+// 轻量EXIF快速扫描（仅JPEG）：查找APP1/Exif和常见标签关键字（近似）
+function exifQuickScan(imageData, mimeType) {
+  try {
+    const out = { hasExif: false, make: false, model: false, software: null, dateTimeOriginal: false };
+    if (!mimeType || !/jpe?g/i.test(mimeType)) return out;
+    // 为减少开销，仅扫描前256KB
+    const head = imageData.subarray(0, Math.min(imageData.length, 256 * 1024));
+    const td = new TextDecoder('latin1');
+    const txt = td.decode(head);
+    if (txt.includes('Exif\x00\x00')) out.hasExif = true;
+    if (/Make\x00|Make\u0000|Make/.test(txt)) out.make = true;
+    if (/Model\x00|Model\u0000|Model/.test(txt)) out.model = true;
+    const swMatch = txt.match(/Software[^\0]{0,40}/);
+    if (swMatch) out.software = swMatch[0];
+    if (/DateTimeOriginal/.test(txt)) out.dateTimeOriginal = true;
+    return out;
+  } catch {
+    return { hasExif: false, make: false, model: false, software: null, dateTimeOriginal: false };
+  }
+}
+
+// 网图嫌疑度评分（0~1）
+function scoreWebLikelihood({ mimeType, width, height, megapixels, exif, sizeBytes, hashFrequency }) {
+  let score = 0;
+  const reasons = [];
+
+  // EXIF
+  if (exif?.hasExif && (exif.make || exif.model) && exif.dateTimeOriginal) {
+    score -= 2; reasons.push('有EXIF(品牌/机型/拍摄时间)');
+  } else if (!exif?.hasExif) {
+    score += 2; reasons.push('无EXIF');
+  }
+  if (exif?.software && /photoshop|illustrator|adobe|meitu|美图|wechat|微信|qq/i.test(exif.software)) {
+    score += 1; reasons.push(`处理软件:${exif.software.slice(0,20)}`);
+  }
+
+  // 格式
+  if (/webp|gif/i.test(mimeType || '')) { score += 2; reasons.push(`格式:${mimeType}`); }
+  if (/png/i.test(mimeType || '') && (megapixels || 0) < 1) { score += 1; reasons.push('小像素PNG'); }
+
+  // 尺寸/比例
+  const longSide = Math.max(width||0, height||0), shortSide = Math.min(width||0, height||0);
+  const aspect = shortSide>0 ? longSide/shortSide : 0;
+  const approx = (x, y, tol) => Math.abs(x-y) <= tol*y;
+  const isPhoneAspect = approx(aspect, 4/3, 0.08) || approx(aspect, 16/9, 0.08) || approx(aspect, 9/16, 0.08) || approx(aspect, 3/4, 0.08);
+  if (!isPhoneAspect && (megapixels || 0) < 1.0) { score += 2; reasons.push(`非常见手机比例(${aspect.toFixed(2)}:1)+低像素`); }
+  else if ((megapixels || 0) >= 2.0 && isPhoneAspect) { score -= 1; reasons.push('像素/比例似手机'); }
+
+  // 压缩强度
+  if (megapixels && megapixels > 0) {
+    const kbPerMP = (sizeBytes/1024) / megapixels;
+    if (megapixels < 1.0 && kbPerMP < 120) { score += 1; reasons.push(`强压缩(${kbPerMP.toFixed(0)}KB/MP)`); }
+  }
+
+  if (hashFrequency && hashFrequency > 5) { score += 2; reasons.push(`高频重复hash(${hashFrequency})`); }
+
+  const webLikelihood = Math.max(0, Math.min(1, (score + 3) / 8));
+  return { webLikelihood, reasons };
 }
 
 // 生成小预览（避免内存暴涨），返回 Uint8Array 数据

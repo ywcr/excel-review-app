@@ -49,7 +49,10 @@ export interface ValidationResult {
       height?: number;
       megapixels?: number;
       dimensionOK?: boolean;
-      dimensionIssue?: string;
+        dimensionIssue?: string;
+        // 新增：疑似网图评分
+        webLikelihood?: number; // 0~1
+        webReasons?: string[];
     }>;
   };
   summary?: {
@@ -212,9 +215,26 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
           }
         };
 
-        worker.onerror = (error) => {
-          const msg = error instanceof Error ? error.message : String(error);
-          setError(toFriendlyError(msg));
+        worker.onerror = (e: ErrorEvent) => {
+          let msg = "";
+          try {
+            // 优先使用 ErrorEvent 的 message
+            msg = (e && (e as any).message) || "";
+            // 若存在原始 error 对象，取其 message
+            const rawErr = (e as any).error;
+            if (!msg && rawErr) {
+              msg = (rawErr && (rawErr.message || String(rawErr))) || "";
+            }
+            // 兜底：拼接位置信息
+            if (!msg && (e as any).filename) {
+              const fn = (e as any).filename;
+              const ln = (e as any).lineno || 0;
+              const cn = (e as any).colno || 0;
+              msg = `Worker error at ${fn}:${ln}:${cn}`;
+            }
+          } catch {}
+          console.error("Worker onerror:", e);
+          setError(toFriendlyError(msg || "验证进程发生错误（Worker）"));
           setIsValidating(false);
           setProgress(null);
           cleanupWorker();
@@ -229,7 +249,7 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
 
         if (isLargeFile) {
           // For large files, pass File object directly
-          workerRef.current!.postMessage({
+          worker.postMessage({
             type: MESSAGE_TYPES.VALIDATE_EXCEL,
             data: {
               file: file, // Pass File object directly
@@ -248,7 +268,7 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
           });
           const fileBuffer = await newFile.arrayBuffer();
 
-          workerRef.current!.postMessage({
+          worker.postMessage({
             type: MESSAGE_TYPES.VALIDATE_EXCEL,
             data: {
               fileBuffer,
@@ -319,9 +339,21 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
             break;
         }
       };
-      worker.onerror = (error) => {
-        const msg = error instanceof Error ? error.message : String(error);
-        setError(toFriendlyError(msg));
+      worker.onerror = (e: ErrorEvent) => {
+        let msg = "";
+        try {
+          msg = (e && (e as any).message) || "";
+          const rawErr = (e as any).error;
+          if (!msg && rawErr) msg = (rawErr.message || String(rawErr)) || "";
+          if (!msg && (e as any).filename) {
+            const fn = (e as any).filename;
+            const ln = (e as any).lineno || 0;
+            const cn = (e as any).colno || 0;
+            msg = `Worker error at ${fn}:${ln}:${cn}`;
+          }
+        } catch {}
+        console.error("Worker(onerror) for image validation:", e);
+        setError(toFriendlyError(msg || "图片验证进程发生错误（Worker）"));
         setIsValidating(false);
         setProgress(null);
         cleanupWorker();
@@ -333,7 +365,7 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
 
       if (isLargeFile) {
         // For large files, pass File object directly
-        workerRef.current!.postMessage({
+        worker.postMessage({
           type: MESSAGE_TYPES.VALIDATE_IMAGES,
           data: {
             file: file,
@@ -343,7 +375,7 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
       } else {
         // For small files, convert to ArrayBuffer
         const fileBuffer = await file.arrayBuffer();
-        workerRef.current!.postMessage({
+        worker.postMessage({
           type: MESSAGE_TYPES.VALIDATE_IMAGES,
           data: {
             fileBuffer,

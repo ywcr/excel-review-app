@@ -45,6 +45,9 @@ interface ValidationResult {
       megapixels?: number;
       dimensionOK?: boolean;
       dimensionIssue?: string;
+      // 网图嫌疑度
+      webLikelihood?: number;
+      webReasons?: string[];
     }>;
     warning?: string; // 图片解析警告（例如 .xls 不支持）
   };
@@ -82,7 +85,8 @@ export default function ValidationResults({
     blurry: boolean;
     duplicate: boolean;
     dimension: boolean;
-  }>({ blurry: true, duplicate: true, dimension: true });
+    web: boolean;
+  }>({ blurry: true, duplicate: true, dimension: true, web: true });
 
   // 行高亮定位：为图片问题行建立ref映射
   const imageRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
@@ -325,13 +329,16 @@ export default function ValidationResults({
                 </div>
                 <div className="text-center">
                   <p className="text-lg font-bold text-green-600">
-                    {(validation.imageValidation?.totalImages ?? 0) -
+{(validation.imageValidation?.totalImages ?? 0) -
                       (validation.imageValidation?.blurryImages ?? 0) -
                       (validation.imageValidation?.results ?? []).filter(
                         (r) => (r.duplicates?.length ?? 0) > 0
                       ).length -
                       (validation.imageValidation?.results ?? []).filter(
                         (r) => r.dimensionOK === false
+                      ).length -
+                      (validation.imageValidation?.results ?? []).filter(
+                        (r) => typeof r.webLikelihood === 'number' && r.webLikelihood >= 0.6
                       ).length}
                   </p>
                   <p className="text-xs text-gray-700">正常图片</p>
@@ -573,6 +580,15 @@ export default function ValidationResults({
                   />
                   显示尺寸异常
                 </label>
+                <label className="inline-flex items-center text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    className="mr-1"
+                    checked={imageFilter.web}
+                    onChange={(e) => setImageFilter((prev) => ({ ...prev, web: e.target.checked }))}
+                  />
+                  显示疑似网图
+                </label>
               </div>
             </div>
           </div>
@@ -606,17 +622,21 @@ export default function ValidationResults({
                     const isDup = (result.duplicates?.length ?? 0) > 0;
                     const isDimBad = result.dimensionOK === false;
                     const isBlur = !!result.isBlurry;
+                    const isWeb = typeof result.webLikelihood === 'number' && result.webLikelihood >= 0.6;
                     return (
                       (imageFilter.duplicate && isDup) ||
                       (imageFilter.dimension && isDimBad) ||
-                      (imageFilter.blurry && isBlur)
+                      (imageFilter.blurry && isBlur) ||
+                      (imageFilter.web && isWeb)
                     );
                   })
                 )
                   .sort((a, b) => {
-// 优先级排序：重复图片 > 尺寸异常 > 模糊图片
+// 优先级排序：重复图片 > 疑似网图 > 尺寸异常 > 模糊图片
 const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                     const bHasDuplicates = (b.duplicates?.length ?? 0) > 0;
+                    const aWeb = typeof a.webLikelihood === 'number' && a.webLikelihood >= 0.6;
+                    const bWeb = typeof b.webLikelihood === 'number' && b.webLikelihood >= 0.6;
                     const aDimBad = a.dimensionOK === false;
                     const bDimBad = b.dimensionOK === false;
 
@@ -624,11 +644,15 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                     if (aHasDuplicates && !bHasDuplicates) return -1;
                     if (!aHasDuplicates && bHasDuplicates) return 1;
 
-                    // 2. 其次显示尺寸异常
+// 2. 其次显示疑似网图
+                    if (aWeb && !bWeb) return -1;
+                    if (!aWeb && bWeb) return 1;
+
+                    // 3. 再显示尺寸异常
                     if (aDimBad && !bDimBad) return -1;
                     if (!aDimBad && bDimBad) return 1;
 
-                    // 3. 同类型内按位置排序（行号优先，然后列号）
+                    // 4. 同类型内按位置排序（行号优先，然后列号）
                     const aRow = a.row ?? 999999;
                     const bRow = b.row ?? 999999;
                     if (aRow !== bRow) return aRow - bRow;
@@ -709,6 +733,12 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                           {result.dimensionOK === false && (
                             <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
                               尺寸异常
+                            </span>
+                          )}
+                          {typeof result.webLikelihood === 'number' && result.webLikelihood >= 0.6 && (
+                            <span title={(result.webReasons || []).join('；')}
+                              className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
+                              疑似网图
                             </span>
                           )}
                         </div>
