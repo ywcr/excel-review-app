@@ -95,22 +95,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 生成新的JWT令牌
-    const newToken = generateToken(currentUser);
+    // 生成新的JWT令牌（复用现有 sessionId，避免会话不一致）
+    const sessionIdToUse = currentUser.activeSession?.sessionId;
+    const newToken = generateToken(currentUser, sessionIdToUse);
 
-    // 🆕 更新会话信息（仅在非 Vercel 环境中）
-    if (!isVercelEnvironment()) {
-      const newTokenHash = hashToken(newToken);
+    // 🆕 全环境更新会话信息（同步新的 tokenHash）
+    const newTokenHash = hashToken(newToken);
 
-      if (currentUser.activeSession) {
-        // 更新现有会话
-        const updatedSession: ActiveSession = {
-          ...currentUser.activeSession,
-          tokenHash: newTokenHash,
-          lastActivity: new Date().toISOString(),
-        };
-        setUserSession(currentUser.id, updatedSession);
-      }
+    if (currentUser.activeSession) {
+      // 更新现有会话
+      const updatedSession: ActiveSession = {
+        ...currentUser.activeSession,
+        tokenHash: newTokenHash,
+        lastActivity: new Date().toISOString(),
+      };
+      setUserSession(currentUser.id, updatedSession);
     }
 
     // 创建响应
