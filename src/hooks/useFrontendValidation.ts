@@ -44,6 +44,12 @@ export interface ValidationResult {
       position?: string; // Excel位置，如 "A4", "B5"
       row?: number; // Excel行号
       column?: string; // Excel列号
+      // 新增：尺寸/比例信息（手机拍摄启发式）
+      width?: number;
+      height?: number;
+      megapixels?: number;
+      dimensionOK?: boolean;
+      dimensionIssue?: string;
     }>;
   };
   summary?: {

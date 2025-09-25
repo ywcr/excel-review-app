@@ -39,6 +39,12 @@ interface ValidationResult {
       imageData?: number[]; // Worker传递的数组格式
       mimeType?: string;
       size?: number;
+      // 新增：尺寸/比例信息（手机拍摄启发式）
+      width?: number;
+      height?: number;
+      megapixels?: number;
+      dimensionOK?: boolean;
+      dimensionIssue?: string;
     }>;
     warning?: string; // 图片解析警告（例如 .xls 不支持）
   };
@@ -71,6 +77,12 @@ export default function ValidationResults({
     id: string;
     position?: string;
   } | null>(null);
+  // 图片问题过滤（默认全部显示）
+  const [imageFilter, setImageFilter] = useState<{
+    blurry: boolean;
+    duplicate: boolean;
+    dimension: boolean;
+  }>({ blurry: true, duplicate: true, dimension: true });
 
   // 行高亮定位：为图片问题行建立ref映射
   const imageRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
@@ -317,6 +329,9 @@ export default function ValidationResults({
                       (validation.imageValidation?.blurryImages ?? 0) -
                       (validation.imageValidation?.results ?? []).filter(
                         (r) => (r.duplicates?.length ?? 0) > 0
+                      ).length -
+                      (validation.imageValidation?.results ?? []).filter(
+                        (r) => r.dimensionOK === false
                       ).length}
                   </p>
                   <p className="text-xs text-gray-700">正常图片</p>
@@ -516,18 +531,49 @@ export default function ValidationResults({
       {/* 图片问题详情 */}
       {(validation.imageValidation?.results?.length ?? 0) > 0 && (
         <div className="mt-8">
-          <div className="flex items-center justify-between mb-4">
+<div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">
               图片问题详情
             </h3>
-            <div className="text-sm text-gray-500">
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 mr-2">
-                重复图片已分组
-              </span>
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2">
-                每组显示一条
-              </span>
-              按位置排序
+            <div className="flex flex-col items-end text-sm text-gray-500">
+              <div>
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 mr-2">
+                  重复图片已分组
+                </span>
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2">
+                  每组显示一条
+                </span>
+                按位置排序；包含“尺寸异常”
+              </div>
+              <div className="mt-2 flex items-center space-x-3">
+                <label className="inline-flex items-center text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    className="mr-1"
+                    checked={imageFilter.duplicate}
+                    onChange={(e) => setImageFilter((prev) => ({ ...prev, duplicate: e.target.checked }))}
+                  />
+                  显示重复
+                </label>
+                <label className="inline-flex items-center text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    className="mr-1"
+                    checked={imageFilter.blurry}
+                    onChange={(e) => setImageFilter((prev) => ({ ...prev, blurry: e.target.checked }))}
+                  />
+                  显示模糊
+                </label>
+                <label className="inline-flex items-center text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    className="mr-1"
+                    checked={imageFilter.dimension}
+                    onChange={(e) => setImageFilter((prev) => ({ ...prev, dimension: e.target.checked }))}
+                  />
+                  显示尺寸异常
+                </label>
+              </div>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -555,22 +601,34 @@ export default function ValidationResults({
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {deduplicateImageResults(
-                  (validation.imageValidation?.results ?? []).filter(
-                    (result) =>
-                      result.isBlurry || (result.duplicates?.length ?? 0) > 0
-                  )
+{deduplicateImageResults(
+                  (validation.imageValidation?.results ?? []).filter((result) => {
+                    const isDup = (result.duplicates?.length ?? 0) > 0;
+                    const isDimBad = result.dimensionOK === false;
+                    const isBlur = !!result.isBlurry;
+                    return (
+                      (imageFilter.duplicate && isDup) ||
+                      (imageFilter.dimension && isDimBad) ||
+                      (imageFilter.blurry && isBlur)
+                    );
+                  })
                 )
                   .sort((a, b) => {
-                    // 优先级排序：重复图片 > 模糊图片
-                    const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
+// 优先级排序：重复图片 > 尺寸异常 > 模糊图片
+const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                     const bHasDuplicates = (b.duplicates?.length ?? 0) > 0;
+                    const aDimBad = a.dimensionOK === false;
+                    const bDimBad = b.dimensionOK === false;
 
                     // 1. 重复图片优先显示
                     if (aHasDuplicates && !bHasDuplicates) return -1;
                     if (!aHasDuplicates && bHasDuplicates) return 1;
 
-                    // 2. 同类型内按位置排序（行号优先，然后列号）
+                    // 2. 其次显示尺寸异常
+                    if (aDimBad && !bDimBad) return -1;
+                    if (!aDimBad && bDimBad) return 1;
+
+                    // 3. 同类型内按位置排序（行号优先，然后列号）
                     const aRow = a.row ?? 999999;
                     const bRow = b.row ?? 999999;
                     if (aRow !== bRow) return aRow - bRow;
@@ -638,7 +696,7 @@ export default function ValidationResults({
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex space-x-2">
-                          {result.isBlurry && (
+{result.isBlurry && (
                             <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
                               模糊
                             </span>
@@ -646,6 +704,11 @@ export default function ValidationResults({
                           {(result.duplicates?.length ?? 0) > 0 && (
                             <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">
                               重复
+                            </span>
+                          )}
+                          {result.dimensionOK === false && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                              尺寸异常
                             </span>
                           )}
                         </div>

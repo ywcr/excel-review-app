@@ -51,6 +51,12 @@ const PERFORMANCE_CONFIG = {
   MAX_ROWS_IN_MEMORY: 10000, // 内存中最大行数
 };
 
+// 范围矫正配置（可随时调整阈值）
+const RANGE_CORRECTION_CONFIG = {
+  ENABLED: true,
+  ROW_THRESHOLD: 5000, // 超过该行数时尝试按实际单元格矫正
+};
+
 // Image duplicate detection configuration
 const IMAGE_DUP_CONFIG = {
   BLOCKHASH_BITS: 12, // 提升 blockhash 精度（原为8）
@@ -60,6 +66,21 @@ const IMAGE_DUP_CONFIG = {
   USE_SSIM: true, // 启用SSIM作为补充
   SSIM_GOOD: 0.7, // 放宽SSIM通过阈值
   SSIM_STRICT: 0.85, // 放宽SSIM严格阈值
+};
+
+// Mobile-like dimension heuristics (configurable)
+const MOBILE_DIMENSION_CONFIG = {
+  ENABLED: true,
+  MIN_SHORT_SIDE: 720,
+  MIN_LONG_SIDE: 1280,
+  MIN_MEGAPIXELS: 2, // 约等于 1600x1200
+  ALLOWED_ASPECTS: [
+    { ratio: 4 / 3, tolerance: 0.08 },
+    { ratio: 3 / 4, tolerance: 0.08 },
+    { ratio: 16 / 9, tolerance: 0.08 },
+    { ratio: 9 / 16, tolerance: 0.08 },
+    // { ratio: 1, tolerance: 0.02 }, // 如需允许正方形，可取消注释
+  ],
 };
 
 // Global state
@@ -470,15 +491,80 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
       data: { progress: 20, message: "分析工作表结构..." },
     });
 
-    // 转换为数组格式进行流式处理
+    // 转换为数组格式进行流式处理（自动矫正异常范围）
     let data;
     try {
-      data = XLSX.utils.sheet_to_json(worksheet, {
+      // 基础选项
+      const jsonOptions = {
         header: 1,
         defval: "", // 空单元格使用空字符串
         raw: false, // 不保留原始值
         dateNF: "yyyy-mm-dd", // 标准化日期格式
-      });
+      };
+
+      // 如果声明范围疑似覆盖整表（如 1048576 行或 XFD 列），或超过阈值，则按实际单元格纠正范围
+      try {
+        const declaredRef = worksheet["!ref"] || "";
+        const looksFullGrid = /1048576/.test(declaredRef) || /XFD/i.test(declaredRef);
+        let declaredRows = 0;
+        try {
+          if (declaredRef) {
+            const drTmp = XLSX.utils.decode_range(declaredRef);
+            declaredRows = drTmp.e.r - drTmp.s.r + 1;
+          }
+        } catch (_) {}
+
+        const needsCorrection = RANGE_CORRECTION_CONFIG.ENABLED && (
+          (declaredRef && looksFullGrid) || (declaredRows > RANGE_CORRECTION_CONFIG.ROW_THRESHOLD)
+        );
+
+        if (needsCorrection) {
+          // 计算实际存在的最小/最大行列（仅统计真正存在的单元格键，忽略以 ! 开头的元数据）
+          let minR = Number.POSITIVE_INFINITY,
+            minC = Number.POSITIVE_INFINITY,
+            maxR = -1,
+            maxC = -1;
+          for (const addr in worksheet) {
+            if (!Object.prototype.hasOwnProperty.call(worksheet, addr)) continue;
+            if (addr[0] === "!") continue;
+            const decoded = XLSX.utils.decode_cell(addr);
+            if (decoded.r < minR) minR = decoded.r;
+            if (decoded.c < minC) minC = decoded.c;
+            if (decoded.r > maxR) maxR = decoded.r;
+            if (decoded.c > maxC) maxC = decoded.c;
+          }
+          if (maxR >= 0 && maxC >= 0) {
+            // 以声明的起点作为下限，避免上方留白导致截断
+            let startR = 0;
+            let startC = 0;
+            try {
+              const dr = XLSX.utils.decode_range(declaredRef);
+              startR = dr.s.r;
+              startC = dr.s.c;
+            } catch (_) {}
+            const corrected = XLSX.utils.encode_range(
+              { r: Math.min(startR, isFinite(minR) ? minR : startR), c: Math.min(startC, isFinite(minC) ? minC : startC) },
+              { r: maxR, c: maxC }
+            );
+
+            jsonOptions.range = corrected;
+            ImageDebugLogger.warn(
+              ImageDebugLogger.STAGES.FILE_PARSE,
+              "检测到异常或超阈值的工作表声明范围，已自动按实际单元格矫正",
+              { declaredRef, declaredRows, threshold: RANGE_CORRECTION_CONFIG.ROW_THRESHOLD, correctedRef: corrected }
+            );
+          }
+        }
+      } catch (rangeFixErr) {
+        // 矫正失败不影响后续流程，继续按默认范围读取
+        ImageDebugLogger.debug(
+          ImageDebugLogger.STAGES.FILE_PARSE,
+          "范围矫正尝试失败，按原范围读取",
+          { error: rangeFixErr && rangeFixErr.message }
+        );
+      }
+
+      data = XLSX.utils.sheet_to_json(worksheet, jsonOptions);
     } catch (error) {
       if (error.message && error.message.includes("Invalid array length")) {
         throw new Error("工作表数据过大，请减少数据行数或简化内容");
@@ -2106,7 +2192,7 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
             );
 
             const sharpness = await calculateImageSharpness(image.data);
-            const hash = await calculateImageHash(image.data);
+            const hashInfo = await calculateImageHash(image.data);
 
             const processingTime = performance.now() - imageStartTime;
 
@@ -2114,7 +2200,7 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
               id: image.id,
               sharpness,
               isBlurry: sharpness < 60,
-              hash,
+              hash: hashInfo.hash,
               duplicates: [],
               position: image.position,
               row: image.row,
@@ -2127,7 +2213,55 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
                 ? "image/jpeg"
                 : "image/png",
               size: image.data.length,
+              width: hashInfo.width,
+              height: hashInfo.height,
             };
+            // 尺寸/比例校验（启发式判断是否像手机拍摄）
+            if (MOBILE_DIMENSION_CONFIG.ENABLED && hashInfo.width && hashInfo.height) {
+              const longSide = Math.max(hashInfo.width, hashInfo.height);
+              const shortSide = Math.min(hashInfo.width, hashInfo.height);
+              const megapixels = (hashInfo.width * hashInfo.height) / 1_000_000;
+              const aspect = longSide / shortSide;
+
+              const aspectOk = MOBILE_DIMENSION_CONFIG.ALLOWED_ASPECTS.some(({ ratio, tolerance }) => {
+                return Math.abs(aspect - ratio) <= tolerance * ratio;
+              });
+
+              const sizeOk =
+                shortSide >= MOBILE_DIMENSION_CONFIG.MIN_SHORT_SIDE &&
+                longSide >= MOBILE_DIMENSION_CONFIG.MIN_LONG_SIDE &&
+                megapixels >= MOBILE_DIMENSION_CONFIG.MIN_MEGAPIXELS;
+
+              result.megapixels = Number(megapixels.toFixed(2));
+              result.dimensionOK = !!(aspectOk && sizeOk);
+              if (!result.dimensionOK) {
+                const problems = [];
+                if (!aspectOk) problems.push(`非典型手机比例(≈${aspect.toFixed(2)}:1)`);
+                if (shortSide < MOBILE_DIMENSION_CONFIG.MIN_SHORT_SIDE || longSide < MOBILE_DIMENSION_CONFIG.MIN_LONG_SIDE)
+                  problems.push(`分辨率过低(${hashInfo.width}x${hashInfo.height})`);
+                if (megapixels < MOBILE_DIMENSION_CONFIG.MIN_MEGAPIXELS)
+                  problems.push(`像素不足(${result.megapixels}MP)`);
+                result.dimensionIssue = problems.join("; ");
+
+                // 为尺寸异常的图片生成小预览，便于前端查看
+                const thumb = await createThumbnail(image.data, 512, result.mimeType || "image/jpeg", 0.85);
+                if (thumb) {
+                  result.imageData = thumb; // Uint8Array，sendResult 会用 transferable 优化
+                }
+              }
+            }
+
+            // 额外：模糊图片也生成预览
+            if (result.isBlurry && !result.imageData) {
+              const thumb = await createThumbnail(
+                image.data,
+                512,
+                result.mimeType || "image/jpeg",
+                0.85
+              );
+              if (thumb) result.imageData = thumb;
+            }
+
             results.push(result);
 
             ImageDebugLogger.debug(
@@ -2136,7 +2270,7 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
               {
                 sharpness: sharpness.toFixed(2),
                 isBlurry: result.isBlurry,
-                hashLength: hash.length,
+                hashLength: (result.hash ? result.hash.length : 0),
                 processingTime: `${processingTime.toFixed(2)}ms`,
               }
             );
@@ -2238,6 +2372,26 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
     }
     await detectDuplicates(results, imageDataMap);
     ImageDebugLogger.endTimer("DUPLICATE_CHECK", "重复检测完成");
+
+    // 保障：对标记为重复的图片补充缩略图预览
+    try {
+      for (const r of results) {
+        if ((r.duplicates && r.duplicates.length > 0) && !r.imageData) {
+          const data = imageDataMap.get(r.id);
+          if (data) {
+            const thumb = await createThumbnail(
+              data,
+              512,
+              r.mimeType || "image/jpeg",
+              0.85
+            );
+            if (thumb) r.imageData = thumb;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("为重复图片生成缩略图失败:", e);
+    }
 
     // 调试：输出重复检测结果
     const duplicateResults = results.filter((r) => r.duplicates.length > 0);
@@ -2443,14 +2597,17 @@ async function calculateImageHash(imageData) {
       typeof OffscreenCanvas === "undefined" ||
       typeof createImageBitmap === "undefined"
     ) {
-      return "";
+      return { hash: "", width: 0, height: 0 };
     }
     const blob = new Blob([imageData]);
     const bitmap = await createImageBitmap(blob);
 
-    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const width = bitmap.width;
+    const height = bitmap.height;
+
+    const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return "";
+    if (!ctx) return { hash: "", width, height };
 
     ctx.drawImage(bitmap, 0, 0);
     bitmap.close(); // 立即释放bitmap资源
@@ -2467,10 +2624,41 @@ async function calculateImageHash(imageData) {
     canvas.width = 0;
     canvas.height = 0;
 
-    return hash;
+    return { hash, width, height };
   } catch (error) {
     console.warn("感知哈希计算失败:", error);
-    return ""; // 返回空哈希，避免误判
+    return { hash: "", width: 0, height: 0 }; // 返回空哈希，避免误判
+  }
+}
+
+// 生成小预览（避免内存暴涨），返回 Uint8Array 数据
+async function createThumbnail(imageData, maxSide = 512, mimeType = "image/jpeg", quality = 0.85) {
+  try {
+    if (
+      typeof OffscreenCanvas === "undefined" ||
+      typeof createImageBitmap === "undefined"
+    ) {
+      return null;
+    }
+    const blob = new Blob([imageData]);
+    const bitmap = await createImageBitmap(blob);
+    const scale = Math.min(maxSide / Math.max(bitmap.width, bitmap.height), 1);
+    const w = Math.max(1, Math.floor(bitmap.width * scale));
+    const h = Math.max(1, Math.floor(bitmap.height * scale));
+    const canvas = new OffscreenCanvas(w, h);
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const outBlob = await canvas.convertToBlob({ type: mimeType, quality });
+    const buf = await outBlob.arrayBuffer();
+    // 释放
+    canvas.width = 0;
+    canvas.height = 0;
+    return new Uint8Array(buf);
+  } catch (err) {
+    console.warn("缩略图生成失败:", err);
+    return null;
   }
 }
 
