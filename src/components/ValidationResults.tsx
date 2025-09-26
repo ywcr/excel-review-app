@@ -48,6 +48,7 @@ interface ValidationResult {
       // 网图嫌疑度
       webLikelihood?: number;
       webReasons?: string[];
+      isLowPixel?: boolean;
     }>;
     warning?: string; // 图片解析警告（例如 .xls 不支持）
   };
@@ -86,7 +87,8 @@ export default function ValidationResults({
     duplicate: boolean;
     dimension: boolean;
     web: boolean;
-  }>({ blurry: true, duplicate: true, dimension: true, web: true });
+    lowPixel: boolean;
+  }>({ blurry: true, duplicate: true, dimension: true, web: true, lowPixel: true });
 
   // 行高亮定位：为图片问题行建立ref映射
   const imageRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
@@ -550,7 +552,7 @@ export default function ValidationResults({
                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2">
                   每组显示一条
                 </span>
-                按位置排序；包含“尺寸异常”
+                按位置排序；包含“疑似非手机拍摄”
               </div>
               <div className="mt-2 flex items-center space-x-3">
                 <label className="inline-flex items-center text-xs text-gray-600">
@@ -578,7 +580,16 @@ export default function ValidationResults({
                     checked={imageFilter.dimension}
                     onChange={(e) => setImageFilter((prev) => ({ ...prev, dimension: e.target.checked }))}
                   />
-                  显示尺寸异常
+                  显示疑似非手机拍摄
+                </label>
+                <label className="inline-flex items-center text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    className="mr-1"
+                    checked={imageFilter.lowPixel}
+                    onChange={(e) => setImageFilter((prev) => ({ ...prev, lowPixel: e.target.checked }))}
+                  />
+                  显示低像素
                 </label>
                 <label className="inline-flex items-center text-xs text-gray-600">
                   <input
@@ -623,36 +634,50 @@ export default function ValidationResults({
                     const isDimBad = result.dimensionOK === false;
                     const isBlur = !!result.isBlurry;
                     const isWeb = typeof result.webLikelihood === 'number' && result.webLikelihood >= 0.6;
+                    const isLowPixel = !!result.isLowPixel;
                     return (
                       (imageFilter.duplicate && isDup) ||
                       (imageFilter.dimension && isDimBad) ||
                       (imageFilter.blurry && isBlur) ||
-                      (imageFilter.web && isWeb)
+                      (imageFilter.web && isWeb) ||
+                      (imageFilter.lowPixel && isLowPixel)
                     );
                   })
                 )
                   .sort((a, b) => {
-// 优先级排序：重复图片 > 疑似网图 > 尺寸异常 > 模糊图片
+// 优先级排序：重复图片 > 模糊图片 > 疑似网图 > 疑似非手机拍摄
 const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                     const bHasDuplicates = (b.duplicates?.length ?? 0) > 0;
+                    const aBlur = !!a.isBlurry;
+                    const bBlur = !!b.isBlurry;
                     const aWeb = typeof a.webLikelihood === 'number' && a.webLikelihood >= 0.6;
                     const bWeb = typeof b.webLikelihood === 'number' && b.webLikelihood >= 0.6;
                     const aDimBad = a.dimensionOK === false;
                     const bDimBad = b.dimensionOK === false;
+                    const aLowPixel = !!a.isLowPixel;
+                    const bLowPixel = !!b.isLowPixel;
 
                     // 1. 重复图片优先显示
                     if (aHasDuplicates && !bHasDuplicates) return -1;
                     if (!aHasDuplicates && bHasDuplicates) return 1;
 
-// 2. 其次显示疑似网图
+// 2. 其次显示模糊图片
+                    if (aBlur && !bBlur) return -1;
+                    if (!aBlur && bBlur) return 1;
+
+                    // 3. 再显示疑似网图
                     if (aWeb && !bWeb) return -1;
                     if (!aWeb && bWeb) return 1;
 
-                    // 3. 再显示尺寸异常
+                    // 4. 然后显示疑似非手机拍摄
                     if (aDimBad && !bDimBad) return -1;
                     if (!aDimBad && bDimBad) return 1;
 
-                    // 4. 同类型内按位置排序（行号优先，然后列号）
+                    // 5. 然后显示低像素
+                    if (aLowPixel && !bLowPixel) return -1;
+                    if (!aLowPixel && bLowPixel) return 1;
+
+                    // 6. 同类型内按位置排序（行号优先，然后列号）
                     const aRow = a.row ?? 999999;
                     const bRow = b.row ?? 999999;
                     if (aRow !== bRow) return aRow - bRow;
@@ -732,14 +757,27 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                           )}
                           {result.dimensionOK === false && (
                             <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                              尺寸异常
+                              疑似非手机拍摄
+                            </span>
+                          )}
+                          {result.isLowPixel && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                              低像素
                             </span>
                           )}
                           {typeof result.webLikelihood === 'number' && result.webLikelihood >= 0.6 && (
-                            <span title={(result.webReasons || []).join('；')}
-                              className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
-                              疑似网图
-                            </span>
+                            <>
+                              <span
+                                className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800"
+                              >
+                                疑似网图
+                              </span>
+                              {(result.webReasons?.length ?? 0) > 0 && (
+                                <span className="ml-2 text-xs text-purple-600 max-w-xs break-words">
+                                  {result.webReasons!.join('；')}
+                                </span>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>

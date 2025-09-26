@@ -2227,19 +2227,23 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
                 return Math.abs(aspect - ratio) <= tolerance * ratio;
               });
 
+              const isLowPixel = megapixels < MOBILE_DIMENSION_CONFIG.MIN_MEGAPIXELS;
               const sizeOk =
                 shortSide >= MOBILE_DIMENSION_CONFIG.MIN_SHORT_SIDE &&
                 longSide >= MOBILE_DIMENSION_CONFIG.MIN_LONG_SIDE &&
-                megapixels >= MOBILE_DIMENSION_CONFIG.MIN_MEGAPIXELS;
+                !isLowPixel;
 
               result.megapixels = Number(megapixels.toFixed(2));
               result.dimensionOK = !!(aspectOk && sizeOk);
+              if (isLowPixel) {
+                result.isLowPixel = true;
+              }
               if (!result.dimensionOK) {
                 const problems = [];
                 if (!aspectOk) problems.push(`非典型手机比例(≈${aspect.toFixed(2)}:1)`);
                 if (shortSide < MOBILE_DIMENSION_CONFIG.MIN_SHORT_SIDE || longSide < MOBILE_DIMENSION_CONFIG.MIN_LONG_SIDE)
                   problems.push(`分辨率过低(${hashInfo.width}x${hashInfo.height})`);
-                if (megapixels < MOBILE_DIMENSION_CONFIG.MIN_MEGAPIXELS)
+                if (isLowPixel)
                   problems.push(`像素不足(${result.megapixels}MP)`);
                 result.dimensionIssue = problems.join("; ");
 
@@ -2701,7 +2705,7 @@ function scoreWebLikelihood({ mimeType, width, height, megapixels, exif, sizeByt
     if (megapixels < 1.0 && kbPerMP < 120) { score += 1; reasons.push(`强压缩(${kbPerMP.toFixed(0)}KB/MP)`); }
   }
 
-  if (hashFrequency && hashFrequency > 5) { score += 2; reasons.push(`高频重复hash(${hashFrequency})`); }
+  // 重复图片不会再作为网图判断依据
 
   const webLikelihood = Math.max(0, Math.min(1, (score + 3) / 8));
   return { webLikelihood, reasons };

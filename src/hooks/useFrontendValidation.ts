@@ -53,6 +53,7 @@ export interface ValidationResult {
         // 新增：疑似网图评分
         webLikelihood?: number; // 0~1
         webReasons?: string[];
+        isLowPixel?: boolean;
     }>;
   };
   summary?: {
