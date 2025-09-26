@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { getTaskTemplate } from "@/lib/validationRules";
+import * as XLSX from "xlsx";
 
 export interface ValidationProgress {
   message: string;
@@ -268,6 +269,45 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
             lastModified: Date.now(),
           });
           const fileBuffer = await newFile.arrayBuffer();
+
+          // Pre-check sheet availability: if no sheet matches template.sheetNames, prompt user to select
+          try {
+            if (!selectedSheet && (template?.sheetNames?.length ?? 0) > 0) {
+              const wb = XLSX.read(fileBuffer, { type: "array" });
+              const names: string[] = wb.SheetNames || [];
+              const expected = new Set<string>((template.sheetNames || []).map((s: string) => String(s)));
+              const hasExpected = names.some((n) => expected.has(String(n)));
+              if (!hasExpected) {
+                // Build availableSheets with hasData heuristic
+                const availableSheets = names.map((name) => {
+                  const ws = wb.Sheets[name];
+                  const ref = ws && (ws as any)["!ref"];
+                  let hasData = false;
+                  try {
+                    if (ref) {
+                      const range = XLSX.utils.decode_range(ref);
+                      hasData = range.e && (range.e.r > range.s.r || range.e.c > range.s.c);
+                    }
+                  } catch {}
+                  return { name, hasData };
+                });
+
+                setResult({
+                  isValid: false,
+                  needSheetSelection: true,
+                  availableSheets,
+                  summary: { totalRows: 0, validRows: 0, errorCount: 0 },
+                });
+                setIsValidating(false);
+                setProgress(null);
+                cleanupWorker();
+                return; // Do not start worker until user selects a sheet
+              }
+            }
+          } catch (e) {
+            // If pre-check fails, fallback to worker
+            console.warn("Sheet pre-check failed, falling back to worker:", e);
+          }
 
           worker.postMessage({
             type: MESSAGE_TYPES.VALIDATE_EXCEL,

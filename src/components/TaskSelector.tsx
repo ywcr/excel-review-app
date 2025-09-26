@@ -2,6 +2,7 @@ interface TaskSelectorProps {
   tasks: string[];
   selectedTask: string;
   onTaskChange: (task: string) => void;
+  compact?: boolean;
 }
 
 // 核心已完成的任务类型（确保这些一定可用）
@@ -40,11 +41,31 @@ export default function TaskSelector({
   tasks,
   selectedTask,
   onTaskChange,
+  compact = false,
 }: TaskSelectorProps) {
   const handleTaskChange = (value: string) => {
     // 现在允许所有任务
     onTaskChange(value);
   };
+
+  if (compact) {
+    return (
+      <div className="flex items-center space-x-2 text-sm text-gray-700">
+        <span>任务:</span>
+        <select
+          value={selectedTask}
+          onChange={(e) => handleTaskChange(e.target.value)}
+          className="px-2 py-1 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {tasks.map((task) => (
+            <option key={task} value={task}>
+              {task}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
 
   return (
     <div>

@@ -16,10 +16,14 @@ import {
   AnimationProvider,
   GentleGradientBackground,
   WarmButton,
-  WarmProgressBar,
   SuccessAnimation,
 } from "@/components/LightweightAnimations";
+import BaiduResults from "@/components/BaiduResults";
+import Skin2Replica from "@/components/Skin2Replica";
+import BaiduSkinOverlay from "@/components/BaiduSkinOverlay";
+import { skin2HomeCssLinks, skin2HomeInlineStyles, skin2HomeBodyHtml } from "@/constants/skin2HomeSnapshot";
 import { usePerformanceMode } from "@/hooks/usePerformanceMode";
+import * as XLSX from "xlsx";
 
 function HomeContent() {
   const {
@@ -34,11 +38,20 @@ function HomeContent() {
   );
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [showSheetSelector, setShowSheetSelector] = useState(false);
-  const [includeImageValidation, setIncludeImageValidation] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [skin, setSkin] = useState<"classic" | "baidu">(() => {
+    if (typeof window === "undefined") return "classic";
+    const stored = window.localStorage.getItem("excel-review-skin");
+    return stored === "baidu" ? "baidu" : "classic";
+  });
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [showDebugLogs, setShowDebugLogs] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  // 审核运行批次与导出状态
+  const [runId, setRunId] = useState(0);
+  const [completedRunId, setCompletedRunId] = useState<number | null>(null);
+  const [reportUrl, setReportUrl] = useState<string | null>(null);
+  const [reportName, setReportName] = useState<string | null>(null);
 
   // 性能监控和动画控制
   const { updateMetrics, isAnimationEnabled } = usePerformanceMode();
@@ -66,13 +79,47 @@ function HomeContent() {
   //   onTaskEnd: () => console.log("Excel验证结束，延续会话保持10分钟"),
   // });
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("excel-review-skin", skin);
+    }
+  }, [skin]);
+
   // 监听验证结果，只有在真正成功时才显示成功动画
   useEffect(() => {
-    if (result && result.isValid && !isValidating) {
-      // 验证成功完成，显示成功动画
+    if (!result || isValidating) return;
+
+    const structErrors = (result.errors || []) as any[];
+    const hasStructIssues = structErrors.length > 0;
+    const imgList = result.imageValidation?.results ?? [];
+    const hasDuplicateIssues = imgList.some((img: any) => (img.duplicates?.length ?? 0) > 0);
+    const hasIssues = hasStructIssues || hasDuplicateIssues;
+
+    if (!hasIssues) {
+      // 完全通过（无结构错误且无重复图片）
       setShowSuccessAnimation(true);
+      return;
     }
-  }, [result, isValidating]);
+
+    // 有问题：构建报告（仅一次），不自动下载
+    if (completedRunId !== runId) {
+      try {
+        const { blob, filename } = buildValidationIssuesBlob();
+        if (blob) {
+          if (reportUrl) URL.revokeObjectURL(reportUrl);
+          const url = URL.createObjectURL(blob);
+          setReportUrl(url);
+          setReportName(filename);
+        }
+      } catch (e) {
+        console.error("Build report failed:", e);
+      } finally {
+        setCompletedRunId(runId);
+      }
+    }
+  }, [result, isValidating, runId]);
+
+  const isBaiduSkin = skin === "baidu";
 
   // 如果正在加载认证状态，显示加载界面
   if (authLoading) {
@@ -142,6 +189,14 @@ function HomeContent() {
 
   const handleValidate = async () => {
     if (!uploadedFile || !selectedTask) return;
+    // 启动新一轮审核：清除上一次报告
+    setRunId((id) => id + 1);
+    setCompletedRunId(null);
+    if (reportUrl) {
+      try { URL.revokeObjectURL(reportUrl); } catch {}
+    }
+    setReportUrl(null);
+    setReportName(null);
 
     // 验证前检查登录状态
     const isAuthValid = await ensureAuthenticated();
@@ -154,7 +209,7 @@ function HomeContent() {
       // 更新性能指标 - 开始处理
       updateMetrics({
         isProcessing: true,
-        imageCount: includeImageValidation ? 100 : 0, // 估算值，实际会在Worker中更新
+        imageCount: 100,
       });
 
       // 传递图片验证选项到validateExcel
@@ -162,7 +217,7 @@ function HomeContent() {
         uploadedFile,
         selectedTask,
         undefined,
-        includeImageValidation
+        true
       );
 
       // 验证完成 - 更新性能指标
@@ -178,6 +233,14 @@ function HomeContent() {
 
   const handleSheetSelect = async (sheetName: string) => {
     setShowSheetSelector(false);
+    // 新一轮：清理报告
+    setRunId((id) => id + 1);
+    setCompletedRunId(null);
+    if (reportUrl) {
+      try { URL.revokeObjectURL(reportUrl); } catch {}
+    }
+    setReportUrl(null);
+    setReportName(null);
 
     if (!uploadedFile || !selectedTask) return;
 
@@ -193,7 +256,7 @@ function HomeContent() {
         uploadedFile,
         selectedTask,
         sheetName,
-        includeImageValidation
+        true
       );
     } catch (err) {
       console.error("Validation with selected sheet failed:", err);
@@ -242,137 +305,83 @@ function HomeContent() {
       }
     : null;
 
-  const handleExportErrors = async () => {
-    if (
-      !result ||
-      (!result.errors?.length && !result.imageValidation?.results?.length)
-    )
-      return;
+  const baiduNavLinks: string[] = [
+    "新闻",
+    "hao123",
+    "地图",
+    "视频",
+    "图片",
+    "网盘",
+    "文库",
+    "AI+",
+  ];
 
-    setIsExporting(true);
-    try {
-      const csvRows = [];
+  const baiduAiTabs: string[] = [
+    "百度AI+",
+    "AI助手已支持DeepSeek",
+    "AI写作",
+    "生成视频",
+    "AI编程",
+    "AI阅读",
+  ];
 
-      // CSV标题行
-      csvRows.push(
-        [
-          "类型",
-          "位置/ID",
-          "列名",
-          "字段",
-          "错误类型",
-          "错误信息",
-          "值",
-          "清晰度分数",
-          "重复图片",
-        ].join(",")
-      );
+  const baiduHotList: string[] = [
+    "总书记心中‘很有意义’的一个事业",
+    "刘备物资荐考辨军成大学校长",
+    "尹锡悦密耳鼓出度要事 发软化白",
+    "这是我们的新疆！",
+    "这网友搞笑玩一天像上了十个班",
+    "美防长要求被百年后为将领导聚焦总结",
+    "净网：跑马机作影响成果产",
+    "女子租房6年房东多次主动降租",
+  ];
 
-      // 添加Excel验证错误
-      if (result.errors && result.errors.length > 0) {
-        result.errors.forEach((error) => {
-          csvRows.push(
-            [
-              "Excel验证",
-              error.row,
-              error.column,
-              error.field,
-              error.errorType,
-              `"${error.message.replace(/"/g, '""')}"`,
-              `"${String(error.value || "").replace(/"/g, '""')}"`,
-              "",
-              "",
-            ].join(",")
-          );
-        });
-      }
+  const baiduCommonTools: string[] = [
+    "Excel 模板下载",
+    "图片批量清理",
+    "任务切换",
+    "历史审核",
+  ];
 
-      // 添加图片验证错误
-      if (result.imageValidation && result.imageValidation.results) {
-        result.imageValidation.results
-          .filter(
-            (imgResult) => imgResult.isBlurry || imgResult.duplicates.length > 0
-          )
-          .forEach((imgResult) => {
-            const problemTypes = [];
-            if (imgResult.isBlurry) problemTypes.push("模糊");
-            if (imgResult.duplicates.length > 0) problemTypes.push("重复");
+  const baiduFooterLinks: string[] = [
+    "关于 Baidu",
+    "使用百家号前必读",
+    "帮助中心",
+    "企业推广",
+    "京公网安备11000000000001号",
+  ];
 
-            csvRows.push(
-              [
-                "图片验证",
-                `${imgResult.id}${
-                  imgResult.row ? ` (第${imgResult.row}行)` : ""
-                }`,
-                imgResult.position || "未知位置",
-                "",
-                problemTypes.join("+"),
-                imgResult.isBlurry ? "图片清晰度低于阈值" : "图片重复",
-                "",
-                imgResult.sharpness.toFixed(1),
-                imgResult.duplicates.length > 0
-                  ? `"${imgResult.duplicates
-                      .map((d) => {
-                        // 兼容性处理：支持旧格式(string)和新格式(object)
-                        if (typeof d === "string") {
-                          return d;
-                        }
-                        return `${d.id}${d.row ? ` (第${d.row}行)` : ""}`;
-                      })
-                      .join(", ")}"`
-                  : "",
-              ].join(",")
-            );
-          });
-      }
+  const renderProgressBar = () =>
+    progress ? (
+      <div className="mt-4">
+        <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-blue-500 transition-all duration-300"
+            style={{ width: `${Math.min(progress?.progress ?? 0, 100)}%` }}
+          ></div>
+        </div>
+        {progress?.message && (
+          <div className="text-xs text-gray-500 mt-2 text-center">
+            {progress.message}
+          </div>
+        )}
+      </div>
+    ) : null;
 
-      const csvContent = csvRows.join("\n");
-
-      const blob = new Blob(["\uFEFF" + csvContent], {
-        type: "text/csv;charset=utf-8;",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `验证错误_${uploadedFile?.name || "unknown"}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Export failed:", error);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  return (
+  const renderClassicLayout = () => (
     <GentleGradientBackground className="min-h-screen py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20">
-        <div className="text-center mb-8 relative">
-          {/* 用户菜单 */}
-          <div className="absolute top-0 right-0">
-            <UserMenu />
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Excel 审核系统 - 前端解析版 🚀
+            </h1>
+            <p className="text-gray-600 text-sm mt-1">
+              上传 Excel 文件，自动完成结构与图片审核
+            </p>
           </div>
-
-          <h1 className="text-3xl font-bold mb-2 text-gray-900">
-            Excel 审核系统 - 前端解析版 🚀
-          </h1>
-          <p className="text-gray-700">
-            上传您的 Excel 文件，选择对应任务进行自动审核
-          </p>
-          <div className="mt-2">
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-              👋 欢迎, {user.username}
-            </span>
-          </div>
-          <div className="mt-2 space-y-1">
-            <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-              🚀 当前使用：前端解析流程
-            </div>
-            <div className="text-xs text-gray-500">
-              更快、更安全、无需上传文件到服务器
-            </div>
+          <div className="flex items-center space-x-3">
+            <UserMenu isBaiduSkin={false} onSwitchSkin={(skin)=> setSkin(skin as any)} />
           </div>
         </div>
 
@@ -384,7 +393,6 @@ function HomeContent() {
                 selectedTask={selectedTask}
                 onTaskChange={(task) => {
                   setSelectedTask(task);
-                  // 切换任务类型时清除之前的验证结果
                   clearResult();
                 }}
               />
@@ -398,7 +406,6 @@ function HomeContent() {
             </div>
           </div>
 
-          {/* 文件上传状态显示 */}
           {uploadedFile && (
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
               <div className="flex items-center justify-between">
@@ -423,29 +430,8 @@ function HomeContent() {
             </div>
           )}
 
-          {/* 验证选项 */}
           {uploadedFile && (
-            <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">
-                验证选项
-              </h3>
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={includeImageValidation}
-                  onChange={(e) => setIncludeImageValidation(e.target.checked)}
-                  className="mr-3 text-blue-600"
-                />
-                <span className="text-gray-700 text-sm">
-                  包含图片验证（清晰度检测和重复检测）
-                </span>
-              </label>
-            </div>
-          )}
-
-          {/* 审核按钮 */}
-          {uploadedFile && (
-            <div className="mt-6 text-center">
+            <div className="mt-6 text-center flex flex-col items-center space-y-3">
               <WarmButton
                 onClick={() => handleValidate()}
                 disabled={!selectedTask || isValidating}
@@ -480,11 +466,11 @@ function HomeContent() {
                   "开始审核 ✨"
                 )}
               </WarmButton>
-
+              {renderProgressBar()}
               {isValidating && (
                 <button
                   onClick={cancelValidation}
-                  className="ml-4 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                 >
                   取消
                 </button>
@@ -493,19 +479,6 @@ function HomeContent() {
           )}
         </div>
 
-        {/* 进度显示 */}
-        {progress && (
-          <div className="mb-6">
-            <div className="bg-white border border-pink-200 rounded-lg p-6 shadow-sm">
-              <WarmProgressBar
-                progress={progress.progress}
-                message={progress.message}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* 错误显示 */}
         {(error || localError) && (
           <div className="mb-6">
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -534,7 +507,6 @@ function HomeContent() {
           </div>
         )}
 
-        {/* 验证要求显示 */}
         {selectedTask && (
           <ValidationRequirements
             taskName={selectedTask}
@@ -542,16 +514,10 @@ function HomeContent() {
           />
         )}
 
-        {/* 验证结果显示 */}
         {convertedValidationResult && (
-          <ValidationResults
-            result={convertedValidationResult}
-            onExportErrors={handleExportErrors}
-            isExporting={isExporting}
-          />
+          <ValidationResults result={convertedValidationResult} />
         )}
 
-        {/* 工作表选择器 */}
         {showSheetSelector && result?.availableSheets && (
           <FrontendSheetSelector
             availableSheets={result.availableSheets}
@@ -560,14 +526,12 @@ function HomeContent() {
           />
         )}
 
-        {/* 成功动画 */}
         <SuccessAnimation
           show={showSuccessAnimation}
           message="审核完成！✨"
           onComplete={() => setShowSuccessAnimation(false)}
         />
 
-        {/* 调试日志查看器 */}
         <DebugLogViewer
           logs={debugLogs}
           onClear={clearDebugLogs}
@@ -577,6 +541,244 @@ function HomeContent() {
       </div>
     </GentleGradientBackground>
   );
+
+
+  const renderBaiduLayout =  () => {
+    // 不再切换到结果页：始终显示首页外观
+    return (
+      <div className="min-h-screen bg-white relative">
+        <Skin2Replica
+          key="home"
+          bodyHtml={skin2HomeBodyHtml}
+          cssLinks={skin2HomeCssLinks}
+          inlineStyles={skin2HomeInlineStyles}
+        />
+
+        {/* Sheet 选择器（与原皮肤保持一致） */}
+        {showSheetSelector && result?.availableSheets && (
+          <div className="mt-4">
+            <FrontendSheetSelector
+              availableSheets={result.availableSheets}
+              onSheetSelect={handleSheetSelect}
+              onCancel={handleSheetSelectorCancel}
+            />
+          </div>
+        )}
+
+        {/* 任务选择器弹层（百度皮肤） */}
+        {showTaskPicker && (
+          <div className="fixed inset-0 z-[2147483648] flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/20" onClick={() => setShowTaskPicker(false)} />
+            <div className="relative bg-white rounded-lg shadow-lg border border-gray-200 p-4 w-[360px]">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-gray-800">选择任务类型</h3>
+                <button className="text-gray-500 hover:text-gray-700" onClick={() => setShowTaskPicker(false)}>✕</button>
+              </div>
+              <div className="max-h-[300px] overflow-auto">
+                <TaskSelector
+                  tasks={availableTasks}
+                  selectedTask={selectedTask}
+                  onTaskChange={(task) => {
+                    setSelectedTask(task);
+                    setShowTaskPicker(false);
+                    clearResult();
+                  }}
+                  compact
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 叠加交互层 */}
+        <BaiduSkinOverlay
+          onFileSelected={handleFileUpload}
+          onStartValidate={handleValidate}
+          progressPercent={progress?.progress ?? 0}
+          progressText={progress?.message || null}
+          isLoggedIn={Boolean(isAuthenticated && user)}
+          fileName={uploadedFile?.name || null}
+          isBaiduSkin={true}
+          onSwitchSkin={(skin)=> setSkin(skin as any)}
+          isDownloadAvailable={Boolean(reportUrl)}
+          onDownloadReport={() => {
+            if (!reportUrl) return;
+            const a = document.createElement('a');
+            a.href = reportUrl;
+            a.download = reportName || '审核问题.xlsx';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }}
+          onOpenTaskSelector={() => setShowTaskPicker(true)}
+          selectedTask={selectedTask}
+        />
+      </div>
+    );
+  };
+
+  // 导出到 Excel（未通过时自动下载）
+  // 构建问题Excel（不直接下载），返回 { blob, filename }
+  const buildValidationIssuesBlob = (): { blob: Blob | null; filename: string } => {
+    if (!result) return { blob: null, filename: "" };
+
+    // 结构问题：仅保留 单元格/问题类型/问题说明/当前值
+    const typeLabel: Record<string, string> = {
+      required: "必填项缺失",
+      enum: "类型不符",
+      timeRange: "时间范围错误",
+      duration: "时长不符",
+      dateInterval: "日期间隔冲突",
+      frequency: "频次超限",
+      unique: "重复值",
+      structure: "结构错误",
+      dateFormat: "日期格式错误",
+      prohibitedContent: "禁用内容",
+    };
+    const structHeader = [
+      "单元格",
+      "问题类型",
+      "问题说明",
+      "当前值",
+    ];
+    const structAOA: any[][] = [structHeader];
+    const structErrors = result.errors || [];
+    if (structErrors.length === 0) {
+      structAOA.push(["", "", "无结构问题", ""]);
+    } else {
+      for (const e of structErrors) {
+        const col = e.column ?? "";
+        const row = e.row ?? "";
+        const cell = col && row ? `${col}${row}` : "";
+        structAOA.push([
+          cell,
+          typeLabel[e.errorType] || e.errorType || "",
+          e.message ?? "",
+          e.value !== undefined ? String(e.value) : "",
+        ]);
+      }
+    }
+    const wsStruct = XLSX.utils.aoa_to_sheet(structAOA);
+    wsStruct['!cols'] = [
+      { wch: 10 }, // 单元格
+      { wch: 14 }, // 问题类型
+      { wch: 40 }, // 问题说明
+      { wch: 20 }, // 当前值
+    ];
+
+    // 图片问题：仅导出“重复”问题，遵循原版列表的去重与排序
+    const imgHeader = ["位置", "问题标签", "说明"];
+    const imgAOA: any[][] = [imgHeader];
+    const rawList = result.imageValidation?.results ?? [];
+
+    // 去重：与原版展示一致（保留代表项，并收集重复位置）
+    const dedupResults = (() => {
+      const processed: any[] = [];
+      const processedIds = new Set<string>();
+      for (const res of rawList) {
+        if (processedIds.has(res.id)) continue;
+        const dupCount = res.duplicates?.length ?? 0;
+        if (dupCount > 0) {
+          const duplicateIds = [
+            res.id,
+            ...((res.duplicates || [])
+              .map((d: any) => (typeof d === "string" ? d : d?.id))
+              .filter(Boolean) as string[]),
+          ];
+          const duplicateResults = rawList.filter((r) => duplicateIds.includes(r.id));
+          const representative = duplicateResults.sort((a, b) => {
+            const aRow = a.row ?? 999999;
+            const bRow = b.row ?? 999999;
+            if (aRow !== bRow) return aRow - bRow;
+            const aCol = a.column ?? "ZZ";
+            const bCol = b.column ?? "ZZ";
+            return aCol.localeCompare(bCol);
+          })[0];
+          const allDuplicates = duplicateResults
+            .filter((r) => r.id !== representative.id)
+            .map((r) => ({ id: r.id, position: r.position, row: r.row, column: r.column }));
+          const repCopy = { ...representative, duplicates: allDuplicates };
+          processed.push(repCopy);
+          duplicateIds.forEach((id) => processedIds.add(id));
+        } else {
+          // 只导出重复，非重复直接标记已处理
+          processedIds.add(res.id);
+        }
+      }
+      return processed;
+    })();
+
+    // 排序：与原版排序一致（重复>模糊>疑似网图>疑似非手机拍摄>低像素；再按行/列）
+    const sorted = dedupResults.sort((a: any, b: any) => {
+      const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
+      const bHasDuplicates = (b.duplicates?.length ?? 0) > 0;
+      if (aHasDuplicates && !bHasDuplicates) return -1;
+      if (!aHasDuplicates && bHasDuplicates) return 1;
+      const aBlur = !!a.isBlurry;
+      const bBlur = !!b.isBlurry;
+      if (aBlur && !bBlur) return -1;
+      if (!aBlur && bBlur) return 1;
+      const aWeb = typeof a.webLikelihood === "number" && a.webLikelihood >= 0.6;
+      const bWeb = typeof b.webLikelihood === "number" && b.webLikelihood >= 0.6;
+      if (aWeb && !bWeb) return -1;
+      if (!aWeb && bWeb) return 1;
+      const aDimBad = a.dimensionOK === false;
+      const bDimBad = b.dimensionOK === false;
+      if (aDimBad && !bDimBad) return -1;
+      if (!aDimBad && bDimBad) return 1;
+      const aLowPixel = !!a.isLowPixel;
+      const bLowPixel = !!b.isLowPixel;
+      if (aLowPixel && !bLowPixel) return -1;
+      if (!aLowPixel && bLowPixel) return 1;
+      const aRow = a.row ?? 999999;
+      const bRow = b.row ?? 999999;
+      if (aRow !== bRow) return aRow - bRow;
+      const aCol = a.column ?? "ZZ";
+      const bCol = b.column ?? "ZZ";
+      return aCol.localeCompare(bCol);
+    });
+
+    let imgIssueCount = 0;
+    for (const img of sorted) {
+      // 仅导出重复问题
+      const dupCount = img.duplicates?.length ?? 0;
+      if (dupCount <= 0) continue;
+      imgIssueCount++;
+      const basePos = img.position || `${img.column ?? ""}${img.row ?? ""}`;
+      const dupPositions = (img.duplicates || [])
+        .map((d: any) => (typeof d === "string" ? d : d?.position || `${d?.column ?? ""}${d?.row ?? ""}`))
+        .filter(Boolean);
+      const label = `重复${dupCount + 1}张`;
+      const desc = dupPositions.length ? `重复位置：${dupPositions.join("，")}` : "";
+      imgAOA.push([basePos, label, desc]);
+    }
+
+    if (imgIssueCount === 0) {
+      imgAOA.push(["", "无图片问题", ""]);
+    }
+
+    const wsImg = XLSX.utils.aoa_to_sheet(imgAOA);
+    wsImg['!cols'] = [
+      { wch: 14 }, // 位置
+      { wch: 20 }, // 问题标签（重复N张）
+      { wch: 40 }, // 说明（重复位置列表）
+    ];
+
+    // 组装工作簿（仅两张表）
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsStruct, "结构问题");
+    XLSX.utils.book_append_sheet(wb, wsImg, "图片问题");
+
+    // 返回 blob 与文件名
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const base = (uploadedFile?.name || "excel").replace(/\.[^.]+$/, "");
+    const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+    const filename = `${base}_审核问题_${ts}.xlsx`;
+    return { blob, filename };
+  };
+
+  return isBaiduSkin ? renderBaiduLayout() : renderClassicLayout();
 }
 
 // 导出包装了动画提供者的主组件

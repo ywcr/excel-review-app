@@ -481,9 +481,9 @@ export default function ValidationResults({
                       {error.sheet && `${error.sheet} - `}第{error.row}行
                       {error.column && ` ${error.column}列`}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 align-top w-28">
                       <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getErrorTypeColor(
+                        className={`block break-words whitespace-normal px-2 py-1 text-xs font-semibold rounded-full ${getErrorTypeColor(
                           error.errorType
                         )}`}
                       >
@@ -623,7 +623,7 @@ export default function ValidationResults({
                     清晰度分数
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    重复图片
+                    问题详细
                   </th>
                 </tr>
               </thead>
@@ -790,62 +790,27 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                         )}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
-                        {(result.duplicates?.length ?? 0) > 0 ? (
-                          <div>
-                            <div className="flex items-center space-x-2 mb-2">
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                重复组 ({result.duplicates.length + 1}张)
-                              </span>
-                            </div>
-                            <div className="text-xs text-gray-600 space-y-1">
-                              {/* 当前图片位置 */}
-                              <div className="text-gray-700 mb-1 font-medium">
-                                当前位置:{" "}
-                                {result.position ||
-                                  `${result.column}${result.row}`}
-                              </div>
-                              {/* 重复位置列表 */}
-                              <div className="text-gray-500 mb-1">
-                                其他重复位置：
-                              </div>
-                              <div
-                                className={`grid gap-x-4 gap-y-1 ${
-                                  result.duplicates.length > 4
-                                    ? "grid-cols-2"
-                                    : "grid-cols-1"
-                                }`}
-                              >
-                                {result.duplicates.map(
-                                  (duplicate: any, idx: number) => {
-                                    const renderPosText = () => {
-                                      if (typeof duplicate === "string")
-                                        return duplicate;
-                                      if (duplicate?.position)
-                                        return duplicate.position;
-                                      if (duplicate?.column && duplicate?.row)
-                                        return `${duplicate.column}${duplicate.row}`;
-                                      return duplicate?.id || "未知位置";
-                                    };
-
-                                    return (
-                                      <div
-                                        key={idx}
-                                        className="flex items-center space-x-1"
-                                      >
-                                        <span className="text-gray-400">•</span>
-                                        <span className="text-gray-600">
-                                          {renderPosText()}
-                                        </span>
-                                      </div>
-                                    );
-                                  }
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          "-"
-                        )}
+                        {(() => {
+                          const details: string[] = [];
+                          if (result.isBlurry) details.push("清晰度低");
+                          if (result.isLowPixel) details.push("像素不足");
+                          if (result.dimensionOK === false) details.push("疑似非手机拍摄");
+                          if (typeof result.webLikelihood === 'number' && result.webLikelihood >= 0.6) {
+                            const reasons = (result.webReasons || []).join('；');
+                            details.push(`疑似网图${reasons ? '：' + reasons : ''}`);
+                          }
+                          if (result.mimeType && !/jpe?g/i.test(result.mimeType)) {
+                            details.push('无EXIF');
+                          }
+                          const dupPositions = (result.duplicates || [])
+                            .map((d: any) => (typeof d === 'string' ? d : (d?.position || `${d?.column ?? ''}${d?.row ?? ''}`)))
+                            .filter(Boolean);
+                          if (dupPositions.length) {
+                            details.push(`重复位置：${dupPositions.join('，')}`);
+                          }
+                          const text = details.join('；');
+                          return text || '-';
+                        })()}
                       </td>
                     </tr>
                   ))}
