@@ -11642,22 +11642,6 @@ body{padding:0}
                     
                 </a></div>
                         </div>
-                        <div id="s_side_wrapper">
-                            <div class="side-entry aging-entry">
-                                <div class="aging-entry-inner"></div>
-                                <div class="c-color-text toast">辅助模式</div>
-                            </div>
-                            <div id="s_qrcode_nologin" class="qrcode-nologin side-entry">
-                                <div class="qrcode-layer icon-mask-wrapper"><img class="icon" src="https://pss.bdstatic.com/static/superman/img/qrcode/qrcode@2x-daf987ad02.png" /><img class="icon-hover" src="https://pss.bdstatic.com/static/superman/img/qrcode/qrcode-hover@2x-f9b106a848.png" /></div>
-                                <div
-                                    class="tooltip qrcode-tooltip">
-                                    <div class="text">
-                                        <div class="login-text"><i class="c-icon login-icon">&#xe602;</i>百度APP扫码登录</div>
-                                        <div class="login-info">百度一下&nbsp;生活更好</div>
-                                    </div>
-                                    <div id="qrcode-login-wrapper"></div>
-                            </div>
-                        </div>
                         </div>
                         <div id="wrapper_wrapper"></div>
                         </div>

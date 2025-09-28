@@ -50,6 +50,7 @@ export default function BaiduSkinOverlay({
   const hintTimer = useRef<number | null>(null);
   const [downloadHint, setDownloadHint] = useState<string | null>(null);
 
+
   const handleDownloadClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -120,9 +121,31 @@ export default function BaiduSkinOverlay({
       if (!src) return;
       try {
         const r = src.getBoundingClientRect();
-        setAnchorRect((prev) => (rectEquals(prev, r) ? prev : r));
+        setAnchorRect(prev => (rectEquals(prev, r) ? prev : r));
       } catch {}
     };
+
+    // 在滚动时更新定位（使用 rAF 节流）
+    let scrollScheduled = false;
+    const onScroll = () => {
+      if (scrollScheduled) return;
+      scrollScheduled = true;
+      try {
+        requestAnimationFrame(() => {
+          scrollScheduled = false;
+          updateRect();
+        });
+      } catch {
+        scrollScheduled = false;
+        updateRect();
+      }
+    };
+
+    // 监听页面滚动（窗口与文档）
+    try {
+      window.addEventListener('scroll', onScroll, { passive: true } as any);
+      document.addEventListener('scroll', onScroll, { passive: true, capture: true } as any);
+    } catch {}
 
     const isWithinSubmit = (target: EventTarget | null) => {
       if (!(target instanceof Element)) return false;
@@ -304,10 +327,14 @@ export default function BaiduSkinOverlay({
         if (handler)
           attached.leftToolEl.removeEventListener("click", handler, capture);
       }
-      if (attached.ro) attached.ro.disconnect();
-      else window.removeEventListener("resize", updateRect);
+      if (attached.ro) attached.ro.disconnect(); else window.removeEventListener('resize', updateRect);
+      try {
+        window.removeEventListener('scroll', onScroll as any, { passive: true } as any);
+        document.removeEventListener('scroll', onScroll as any, { capture: true } as any);
+      } catch {}
       // 清理注入的下载icon
-      // try { downloadBtnRef.current?.remove(); } catch {}
+      try { downloadBtnRef.current?.remove(); } catch {}
+      downloadBtnRef.current = null;
       // downloadBtnRef.current = null;
     };
   }, [inputSelectors, buttonSelectors, onStartValidate]);
@@ -325,6 +352,7 @@ export default function BaiduSkinOverlay({
   useEffect(() => {
     downloadCbRef.current = onDownloadReport || null;
   }, [onDownloadReport]);
+
 
   // 根据 isDownloadAvailable 注入/移除下载icon；当容器未准备好时自动重试一段时间
   useEffect(() => {
