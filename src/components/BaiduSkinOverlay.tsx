@@ -20,6 +20,8 @@ interface BaiduSkinOverlayProps {
   onOpenTaskSelector?: () => void;
   // 当前选中的任务类型（用于更新左侧工具显示）
   selectedTask?: string | null;
+  // 本轮审核是否已完成（非中间态）
+  isRunCompleted?: boolean;
 }
 
 /**
@@ -42,6 +44,7 @@ export default function BaiduSkinOverlay({
   onDownloadReport,
   onOpenTaskSelector,
   selectedTask = null,
+  isRunCompleted = false,
 }: BaiduSkinOverlayProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
@@ -56,7 +59,8 @@ export default function BaiduSkinOverlay({
     e.stopPropagation();
     const cb = downloadCbRef.current;
     if (!isDownloadAvailable || !cb) {
-      setDownloadHint("暂无审核结果，请先完成审核");
+      const msg = isRunCompleted ? "本次审核未发现问题，无需下载" : "暂无审核结果，请先完成审核";
+      setDownloadHint(msg);
       try {
         if (hintTimer.current) window.clearTimeout(hintTimer.current as any);
         hintTimer.current = window.setTimeout(
@@ -623,7 +627,7 @@ export default function BaiduSkinOverlay({
         <>
           <button
             onClick={handleDownloadClick}
-            title={isDownloadAvailable ? "下载审核结果" : "暂无审核结果"}
+            title={isDownloadAvailable ? "下载审核结果" : (isRunCompleted ? "未发现问题，无需下载" : "暂无审核结果")}
             className={`fixed bottom-6 right-6 z-[2147483649] pointer-events-auto inline-flex items-center gap-2 px-4 py-2 rounded-full shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
               isDownloadAvailable
                 ? "bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus-visible:ring-blue-500"

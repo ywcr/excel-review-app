@@ -695,19 +695,20 @@ function HomeContent() {
           isLoggedIn={Boolean(isAuthenticated && user)}
           fileName={uploadedFile?.name || null}
           isBaiduSkin={true}
-          onSwitchSkin={(skin) => setSkin(skin as any)}
+          onSwitchSkin={(skin)=> setSkin(skin as any)}
           isDownloadAvailable={Boolean(reportUrl)}
           onDownloadReport={() => {
             if (!reportUrl) return;
-            const a = document.createElement("a");
+            const a = document.createElement('a');
             a.href = reportUrl;
-            a.download = reportName || "审核问题.xlsx";
+            a.download = reportName || '审核问题.xlsx';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
           }}
           onOpenTaskSelector={() => setShowTaskPicker(true)}
           selectedTask={selectedTask}
+          isRunCompleted={Boolean(result) && !isValidating && !(result as any)?.needSheetSelection}
         />
       </div>
     );
