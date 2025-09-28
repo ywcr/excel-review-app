@@ -16,6 +16,7 @@ import {
   AnimationProvider,
   GentleGradientBackground,
   WarmButton,
+  WarmProgressBar,
   SuccessAnimation,
 } from "@/components/LightweightAnimations";
 import BaiduResults from "@/components/BaiduResults";
@@ -38,6 +39,7 @@ function HomeContent() {
   );
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [showSheetSelector, setShowSheetSelector] = useState(false);
+  const [includeImageValidation, setIncludeImageValidation] = useState(true);
   const [skin, setSkin] = useState<"classic" | "baidu">(() => {
     if (typeof window === "undefined") return "classic";
     const stored = window.localStorage.getItem("excel-review-skin");
@@ -52,6 +54,7 @@ function HomeContent() {
   const [completedRunId, setCompletedRunId] = useState<number | null>(null);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
   const [reportName, setReportName] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   // 性能监控和动画控制
   const { updateMetrics, isAnimationEnabled } = usePerformanceMode();
@@ -101,7 +104,7 @@ function HomeContent() {
       return;
     }
 
-    // 有问题：构建报告（仅一次），不自动下载
+    // 有问题：构建报告（仅一次），并在百度皮肤下自动下载
     if (completedRunId !== runId) {
       try {
         const { blob, filename } = buildValidationIssuesBlob();
@@ -207,9 +210,10 @@ function HomeContent() {
 
     try {
       // 更新性能指标 - 开始处理
+      const useImageValidation = isBaiduSkin ? true : includeImageValidation;
       updateMetrics({
         isProcessing: true,
-        imageCount: 100,
+        imageCount: useImageValidation ? 100 : 0,
       });
 
       // 传递图片验证选项到validateExcel
@@ -217,7 +221,7 @@ function HomeContent() {
         uploadedFile,
         selectedTask,
         undefined,
-        true
+        useImageValidation
       );
 
       // 验证完成 - 更新性能指标
@@ -252,11 +256,12 @@ function HomeContent() {
     }
 
     try {
+      const useImageValidation = isBaiduSkin ? true : includeImageValidation;
       await validateExcel(
         uploadedFile,
         selectedTask,
         sheetName,
-        true
+        useImageValidation
       );
     } catch (err) {
       console.error("Validation with selected sheet failed:", err);
@@ -431,6 +436,21 @@ function HomeContent() {
           )}
 
           {uploadedFile && (
+            <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">验证选项</h3>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={includeImageValidation}
+                  onChange={(e) => setIncludeImageValidation(e.target.checked)}
+                  className="mr-3 text-blue-600"
+                />
+                <span className="text-gray-700 text-sm">包含图片验证（清晰度检测和重复检测）</span>
+              </label>
+            </div>
+          )}
+
+          {uploadedFile && (
             <div className="mt-6 text-center flex flex-col items-center space-y-3">
               <WarmButton
                 onClick={() => handleValidate()}
@@ -466,7 +486,6 @@ function HomeContent() {
                   "开始审核 ✨"
                 )}
               </WarmButton>
-              {renderProgressBar()}
               {isValidating && (
                 <button
                   onClick={cancelValidation}
@@ -478,6 +497,14 @@ function HomeContent() {
             </div>
           )}
         </div>
+
+        {progress && (
+          <div className="mb-6">
+            <div className="bg-white border border-pink-200 rounded-lg p-6 shadow-sm">
+              <WarmProgressBar progress={progress.progress} message={progress.message || ""} />
+            </div>
+          </div>
+        )}
 
         {(error || localError) && (
           <div className="mb-6">
@@ -515,7 +542,28 @@ function HomeContent() {
         )}
 
         {convertedValidationResult && (
-          <ValidationResults result={convertedValidationResult} />
+          <ValidationResults 
+            result={convertedValidationResult} 
+            onExportErrors={async () => {
+              try {
+                setIsExporting(true);
+                const { blob, filename } = buildValidationIssuesBlob();
+                if (blob) {
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = filename || '验证问题.xlsx';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  setTimeout(() => URL.revokeObjectURL(url), 0);
+                }
+              } finally {
+                setIsExporting(false);
+              }
+            }}
+            isExporting={isExporting}
+          />
         )}
 
         {showSheetSelector && result?.availableSheets && (
@@ -666,12 +714,12 @@ function HomeContent() {
       { wch: 20 }, // 当前值
     ];
 
-    // 图片问题：仅导出“重复”问题，遵循原版列表的去重与排序
+    // 图片问题：导出“重复/模糊/尺寸异常/低像素/疑似网图”等标签，代表项+重复位置列表
     const imgHeader = ["位置", "问题标签", "说明"];
     const imgAOA: any[][] = [imgHeader];
     const rawList = result.imageValidation?.results ?? [];
 
-    // 去重：与原版展示一致（保留代表项，并收集重复位置）
+    // 去重：按代表项输出（带重复位置列表），非重复保留原项
     const dedupResults = (() => {
       const processed: any[] = [];
       const processedIds = new Set<string>();
@@ -701,14 +749,14 @@ function HomeContent() {
           processed.push(repCopy);
           duplicateIds.forEach((id) => processedIds.add(id));
         } else {
-          // 只导出重复，非重复直接标记已处理
+          processed.push(res);
           processedIds.add(res.id);
         }
       }
       return processed;
     })();
 
-    // 排序：与原版排序一致（重复>模糊>疑似网图>疑似非手机拍摄>低像素；再按行/列）
+    // 排序：重复 > 模糊 > 疑似网图 > 尺寸异常 > 低像素 > 位置
     const sorted = dedupResults.sort((a: any, b: any) => {
       const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
       const bHasDuplicates = (b.duplicates?.length ?? 0) > 0;
@@ -740,17 +788,33 @@ function HomeContent() {
 
     let imgIssueCount = 0;
     for (const img of sorted) {
-      // 仅导出重复问题
+      const labels: string[] = [];
       const dupCount = img.duplicates?.length ?? 0;
-      if (dupCount <= 0) continue;
+      if (dupCount > 0) labels.push(`重复${dupCount + 1}张`);
+      if (img.isBlurry) labels.push("模糊");
+      if (img.dimensionOK === false) labels.push("尺寸异常");
+      if (img.isLowPixel) labels.push("低像素");
+      if (typeof img.webLikelihood === "number" && img.webLikelihood >= 0.6) labels.push("疑似网图");
+
+      // 仅导出有问题的图片
+      if (labels.length === 0) continue;
+
       imgIssueCount++;
       const basePos = img.position || `${img.column ?? ""}${img.row ?? ""}`;
-      const dupPositions = (img.duplicates || [])
-        .map((d: any) => (typeof d === "string" ? d : d?.position || `${d?.column ?? ""}${d?.row ?? ""}`))
-        .filter(Boolean);
-      const label = `重复${dupCount + 1}张`;
-      const desc = dupPositions.length ? `重复位置：${dupPositions.join("，")}` : "";
-      imgAOA.push([basePos, label, desc]);
+
+      // 说明：重复位置 + 网图原因
+      const parts: string[] = [];
+      if (dupCount > 0) {
+        const dupPositions = (img.duplicates || [])
+          .map((d: any) => (typeof d === "string" ? d : d?.position || `${d?.column ?? ""}${d?.row ?? ""}`))
+          .filter(Boolean);
+        if (dupPositions.length) parts.push(`重复位置：${dupPositions.join("，")}`);
+      }
+      if (typeof img.webLikelihood === "number" && img.webLikelihood >= 0.6 && (img.webReasons?.length ?? 0) > 0) {
+        parts.push(`网图原因：${img.webReasons!.join('；')}`);
+      }
+
+      imgAOA.push([basePos || "", labels.join("；"), parts.join("；")]);
     }
 
     if (imgIssueCount === 0) {
@@ -772,9 +836,17 @@ function HomeContent() {
     // 返回 blob 与文件名
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const base = (uploadedFile?.name || "excel").replace(/\.[^.]+$/, "");
-    const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
-    const filename = `${base}_审核问题_${ts}.xlsx`;
+
+    // 本地时间 + 任务类型命名（替换原“审核问题”）
+    const sanitize = (s: string) => (s || "").replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim();
+    const base = sanitize((uploadedFile?.name || "excel").replace(/\.[^.]+$/, ""));
+    const typeSegment = sanitize(selectedTask || "审核问题");
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    // 使用全角冒号“：”分隔时分秒，兼顾 Windows 文件名合法性
+    const timeStr = `${pad(now.getHours())}：${pad(now.getMinutes())}：${pad(now.getSeconds())}`;
+    const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${timeStr}`;
+    const filename = `${base}_${typeSegment}_${ts}.xlsx`;
     return { blob, filename };
   };
 

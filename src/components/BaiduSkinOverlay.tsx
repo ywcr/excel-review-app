@@ -47,6 +47,26 @@ export default function BaiduSkinOverlay({
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const downloadBtnRef = useRef<HTMLElement | null>(null);
   const downloadCbRef = useRef<(() => void) | null>(null);
+  const hintTimer = useRef<number | null>(null);
+  const [downloadHint, setDownloadHint] = useState<string | null>(null);
+
+  const handleDownloadClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const cb = downloadCbRef.current;
+    if (!isDownloadAvailable || !cb) {
+      setDownloadHint("暂无审核结果，请先完成审核");
+      try {
+        if (hintTimer.current) window.clearTimeout(hintTimer.current as any);
+        hintTimer.current = window.setTimeout(
+          () => setDownloadHint(null),
+          1800
+        ) as any;
+      } catch {}
+      return;
+    }
+    cb();
+  };
 
   // 选择器集合，兼容首页与结果页
   const inputSelectors = useMemo(
@@ -69,7 +89,7 @@ export default function BaiduSkinOverlay({
       "#chat-submit-button",
       "#su",
       'input[type=submit][value*="百度一下"]',
-      'button[type=submit]'
+      "button[type=submit]",
     ],
     []
   );
@@ -88,7 +108,10 @@ export default function BaiduSkinOverlay({
     const rectEquals = (a: DOMRect | null, b: DOMRect | null) => {
       if (!a && !b) return true;
       if (!a || !b) return false;
-      const toKey = (r: DOMRect) => [r.left, r.top, r.width, r.height].map(v => Number(v.toFixed(2))).join(',');
+      const toKey = (r: DOMRect) =>
+        [r.left, r.top, r.width, r.height]
+          .map((v) => Number(v.toFixed(2)))
+          .join(",");
       return toKey(a) === toKey(b);
     };
 
@@ -97,16 +120,21 @@ export default function BaiduSkinOverlay({
       if (!src) return;
       try {
         const r = src.getBoundingClientRect();
-        setAnchorRect(prev => (rectEquals(prev, r) ? prev : r));
+        setAnchorRect((prev) => (rectEquals(prev, r) ? prev : r));
       } catch {}
     };
 
     const isWithinSubmit = (target: EventTarget | null) => {
       if (!(target instanceof Element)) return false;
-      if (target.closest('#chat-submit-button')) return true;
+      if (target.closest("#chat-submit-button")) return true;
       if (attached.btnEl && attached.btnEl.contains(target)) return true;
       // 兜底：常见的提交按钮选择器
-      if (target.closest('#su, input[type=submit][value*="百度一下"], button[type=submit]')) return true;
+      if (
+        target.closest(
+          '#su, input[type=submit][value*="百度一下"], button[type=submit]'
+        )
+      )
+        return true;
       return false;
     };
 
@@ -115,7 +143,9 @@ export default function BaiduSkinOverlay({
         // 放行给按钮处理
         return;
       }
-      try { (e as any).stopImmediatePropagation?.(); } catch {}
+      try {
+        (e as any).stopImmediatePropagation?.();
+      } catch {}
       e.preventDefault();
       e.stopPropagation();
       fileInputRef.current?.click();
@@ -128,6 +158,12 @@ export default function BaiduSkinOverlay({
     const onBtnClick = (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
+      // 若尚未选择任务，先弹出任务选择器
+      const task = (selectedTask || "").trim();
+      if (!task) {
+        onOpenTaskSelector?.();
+        return;
+      }
       onStartValidate();
     };
 
@@ -139,11 +175,18 @@ export default function BaiduSkinOverlay({
 
       // 容器优先：.chat-input-container
       if (!attached.containerEl) {
-        const cont = document.querySelector<HTMLElement>('.chat-input-container');
+        const cont = document.querySelector<HTMLElement>(
+          ".chat-input-container"
+        );
         const isVisible = (el: HTMLElement) => {
           const style = window.getComputedStyle(el);
           const r = el.getBoundingClientRect();
-          return style.display !== 'none' && style.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+          return (
+            style.display !== "none" &&
+            style.visibility !== "hidden" &&
+            r.width > 0 &&
+            r.height > 0
+          );
         };
         if (cont && isVisible(cont)) {
           attached.containerEl = cont;
@@ -152,11 +195,10 @@ export default function BaiduSkinOverlay({
             attached.ro = new ResizeObserver(() => updateRect());
             attached.ro.observe(cont);
           } else {
-            window.addEventListener('resize', updateRect);
+            window.addEventListener("resize", updateRect);
           }
         }
       }
-
 
       if (!attached.kwEl) {
         // 选取第一个可见且不在 #form 内部的候选
@@ -166,35 +208,44 @@ export default function BaiduSkinOverlay({
         const isVisible = (el: HTMLElement) => {
           const style = window.getComputedStyle(el);
           const r = el.getBoundingClientRect();
-          return style.display !== 'none' && style.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+          return (
+            style.display !== "none" &&
+            style.visibility !== "hidden" &&
+            r.width > 0 &&
+            r.height > 0
+          );
         };
-        const notInHiddenForm = (el: HTMLElement) => !el.closest('#form');
-        const kwEl = (candidates.find((el) => isVisible(el) && notInHiddenForm(el))) || null;
+        const notInHiddenForm = (el: HTMLElement) => !el.closest("#form");
+        const kwEl =
+          candidates.find((el) => isVisible(el) && notInHiddenForm(el)) || null;
         if (kwEl) {
           attached.kwEl = kwEl;
-          try { kwEl.style.cursor = 'pointer'; } catch {}
+          try {
+            kwEl.style.cursor = "pointer";
+          } catch {}
           // 捕获阶段阻止默认，让 textarea 不获取焦点
-          kwEl.addEventListener('pointerdown', onKwPointerDown, capture);
-          kwEl.addEventListener('mousedown', onKwMouseDown, capture);
-          kwEl.addEventListener('click', onKwClick, capture);
+          kwEl.addEventListener("pointerdown", onKwPointerDown, capture);
+          kwEl.addEventListener("mousedown", onKwMouseDown, capture);
+          kwEl.addEventListener("click", onKwClick, capture);
           // 如果尚未有容器，使用输入框定位
           if (!attached.containerEl) updateRect();
         }
       }
 
       if (!attached.btnEl) {
-        const btnEl = (buttonSelectors
-          .map((sel) => document.querySelector<HTMLElement>(sel))
-          .find(Boolean)) || null;
+        const btnEl =
+          buttonSelectors
+            .map((sel) => document.querySelector<HTMLElement>(sel))
+            .find(Boolean) || null;
         if (btnEl) {
           attached.btnEl = btnEl;
-          btnEl.addEventListener('click', onBtnClick, capture);
+          btnEl.addEventListener("click", onBtnClick, capture);
         }
       }
 
       // 左侧工具：任务选择触发
       if (!attached.leftToolEl) {
-        const lt = document.querySelector<HTMLElement>('.left-tool_12WeH');
+        const lt = document.querySelector<HTMLElement>(".left-tool_12WeH");
         if (lt) {
           attached.leftToolEl = lt;
           const onLtClick = (e: Event) => {
@@ -202,7 +253,7 @@ export default function BaiduSkinOverlay({
             e.stopPropagation();
             onOpenTaskSelector?.();
           };
-          lt.addEventListener('click', onLtClick, capture);
+          lt.addEventListener("click", onLtClick, capture);
           // 把清理函数绑到 el 上，便于卸载
           (lt as any).__skin2_onLtClick = onLtClick;
         }
@@ -210,16 +261,21 @@ export default function BaiduSkinOverlay({
 
       // 隐藏右上角的“登录/设置”（避免与 UserMenu 重叠）
       if (!attached.hidHeader) {
-        const candidates = Array.from(document.querySelectorAll<HTMLElement>('a,button'));
+        const candidates = Array.from(
+          document.querySelectorAll<HTMLElement>("a,button")
+        );
         const isTopRight = (el: HTMLElement) => {
           const r = el.getBoundingClientRect();
-          return r.top < 160 && r.left > (window.innerWidth * 0.6);
+          return r.top < 160 && r.left > window.innerWidth * 0.6;
         };
         let hidAny = false;
         for (const el of candidates) {
-          const txt = (el.innerText || '').trim();
-          if ((txt === '登录' || txt === '设置') && isTopRight(el)) {
-            try { el.style.display = 'none'; hidAny = true; } catch {}
+          const txt = (el.innerText || "").trim();
+          if ((txt === "登录" || txt === "设置") && isTopRight(el)) {
+            try {
+              el.style.display = "none";
+              hidAny = true;
+            } catch {}
           }
         }
         if (hidAny) attached.hidHeader = true;
@@ -233,19 +289,26 @@ export default function BaiduSkinOverlay({
     return () => {
       clearInterval(timer);
       if (attached.kwEl) {
-        attached.kwEl.removeEventListener('pointerdown', onKwPointerDown, capture);
-        attached.kwEl.removeEventListener('mousedown', onKwMouseDown, capture);
-        attached.kwEl.removeEventListener('click', onKwClick, capture);
+        attached.kwEl.removeEventListener(
+          "pointerdown",
+          onKwPointerDown,
+          capture
+        );
+        attached.kwEl.removeEventListener("mousedown", onKwMouseDown, capture);
+        attached.kwEl.removeEventListener("click", onKwClick, capture);
       }
-      if (attached.btnEl) attached.btnEl.removeEventListener('click', onBtnClick, capture);
+      if (attached.btnEl)
+        attached.btnEl.removeEventListener("click", onBtnClick, capture);
       if (attached.leftToolEl) {
         const handler = (attached.leftToolEl as any).__skin2_onLtClick as any;
-        if (handler) attached.leftToolEl.removeEventListener('click', handler, capture);
+        if (handler)
+          attached.leftToolEl.removeEventListener("click", handler, capture);
       }
-      if (attached.ro) attached.ro.disconnect(); else window.removeEventListener('resize', updateRect);
+      if (attached.ro) attached.ro.disconnect();
+      else window.removeEventListener("resize", updateRect);
       // 清理注入的下载icon
-      try { downloadBtnRef.current?.remove(); } catch {}
-      downloadBtnRef.current = null;
+      // try { downloadBtnRef.current?.remove(); } catch {}
+      // downloadBtnRef.current = null;
     };
   }, [inputSelectors, buttonSelectors, onStartValidate]);
 
@@ -259,39 +322,106 @@ export default function BaiduSkinOverlay({
   const clamped = Math.max(0, Math.min(progressPercent || 0, 100));
 
   // 保持最新下载回调
-  useEffect(() => { downloadCbRef.current = onDownloadReport || null; }, [onDownloadReport]);
-
-  // 根据 isDownloadAvailable 注入/移除下载icon，避免轮询重复注入
   useEffect(() => {
-    const rt = document.getElementById('right-tool');
-    if (!rt) return;
-    const existing = rt.querySelector('[data-skin2-download]') as HTMLElement | null;
-    if (isDownloadAvailable) {
-      if (!existing) {
-        const exemplar = rt.querySelector('button, a, span, i, svg');
-        const el = document.createElement('button');
-        el.type = 'button';
-        el.setAttribute('data-skin2-download', '');
-        el.setAttribute('title', '下载审核结果');
-        const baseClass = exemplar && (exemplar as HTMLElement).className
+    downloadCbRef.current = onDownloadReport || null;
+  }, [onDownloadReport]);
+
+  // 根据 isDownloadAvailable 注入/移除下载icon；当容器未准备好时自动重试一段时间
+  useEffect(() => {
+    let disposed = false;
+    let attempts = 0;
+    let injected = false;
+    let timer: any | null = null;
+
+    const tryInject = () => {
+      const rt = document.getElementById("right-tool");
+      if (!rt) return false;
+      const existing = rt.querySelector(
+        "[data-skin2-download]"
+      ) as HTMLElement | null;
+      if (!isDownloadAvailable) {
+        if (existing) {
+          try {
+            existing.remove();
+          } catch {}
+        }
+        downloadBtnRef.current = null;
+        return true;
+      }
+      if (existing) {
+        injected = true;
+        downloadBtnRef.current = existing as any;
+        return true;
+      }
+      // 注入新的按钮
+      const exemplar = rt.querySelector("button, a, span, i, svg");
+      const el = document.createElement("button");
+      el.type = "button";
+      el.setAttribute("data-skin2-download", "");
+      el.setAttribute("title", "下载审核结果");
+      el.style.marginLeft = "8px";
+      el.style.marginRight = "8px";
+      el.style.cursor = "pointer";
+      const baseClass =
+        exemplar && (exemplar as HTMLElement).className
           ? (exemplar as HTMLElement).className
-          : 's-toolbar-icon';
-        el.className = baseClass;
-        el.style.marginLeft = '8px';
-        el.style.marginRight = '8px';
-        el.innerHTML = '<svg t="1758876825249" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1483" width="20" height="20"><path d="M896 672c-17.066667 0-32 14.933333-32 32v128c0 6.4-4.266667 10.666667-10.666667 10.666667H170.666667c-6.4 0-10.666667-4.266667-10.666667-10.666667v-128c0-17.066667-14.933333-32-32-32s-32 14.933333-32 32v128c0 40.533333 34.133333 74.666667 74.666667 74.666667h682.666666c40.533333 0 74.666667-34.133333 74.666667-74.666667v-128c0-17.066667-14.933333-32-32-32z" fill="#666666" p-id="1484"></path><path d="M488.533333 727.466667c6.4 6.4 14.933333 8.533333 23.466667 8.533333s17.066667-2.133333 23.466667-8.533333l213.333333-213.333334c12.8-12.8 12.8-32 0-44.8-12.8-12.8-32-12.8-44.8 0l-157.866667 157.866667V170.666667c0-17.066667-14.933333-32-32-32s-34.133333 14.933333-34.133333 32v456.533333L322.133333 469.333333c-12.8-12.8-32-12.8-44.8 0-12.8 12.8-12.8 32 0 44.8l211.2 213.333334z" fill="#666666" p-id="1485"></path></svg>';
-        el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); downloadCbRef.current && downloadCbRef.current(); });
-        rt.appendChild(el);
-        downloadBtnRef.current = el;
+          : "s-toolbar-icon";
+      el.className = baseClass;
+      el.innerHTML =
+        '<svg t="1758876825249" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1483" width="20" height="20"><path d="M896 672c-17.066667 0-32 14.933333-32 32v128c0 6.4-4.266667 10.666667-10.666667 10.666667H170.666667c-6.4 0-10.666667-4.266667-10.666667-10.666667v-128c0-17.066667-14.933333-32-32-32s-32 14.933333-32 32v128c0 40.533333 34.133333 74.666667 74.666667 74.666667h682.666666c40.533333 0 74.666667-34.133333 74.666667-74.666667v-128c0-17.066667-14.933333-32-32-32z" fill="#666666" p-id="1484"></path><path d="M488.533333 727.466667c6.4 6.4 14.933333 8.533333 23.466667 8.533333s17.066667-2.133333 23.466667-8.533333l213.333333-213.333334c12.8-12.8 12.8-32 0-44.8-12.8-12.8-32-12.8-44.8 0l-157.866667 157.866667V170.666667c0-17.066667-14.933333-32-32-32s-34.133333 14.933333-34.133333 32v456.533333L322.133333 469.333333c-12.8-12.8-32-12.8-44.8 0-12.8 12.8-12.8 32 0 44.8l211.2 213.333334z" fill="#666666" p-id="1485"></path></svg>';
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        downloadCbRef.current && downloadCbRef.current();
+      });
+      rt.appendChild(el);
+      downloadBtnRef.current = el;
+      injected = true;
+      return true;
+    };
+
+    if (isDownloadAvailable) {
+      // 立即尝试一次
+      tryInject();
+      // 若容器尚未准备好，则轮询等待出现
+      if (!injected) {
+        timer = setInterval(() => {
+          if (disposed) {
+            if (timer) clearInterval(timer);
+            return;
+          }
+          attempts++;
+          if (tryInject()) {
+            if (timer) clearInterval(timer);
+          } else if (attempts > 40) {
+            if (timer) clearInterval(timer);
+          }
+        }, 300);
       }
     } else {
-      if (existing) { try { existing.remove(); } catch {} }
+      // 不可用时清理按钮
+      const ex = document
+        .getElementById("right-tool")
+        ?.querySelector("[data-skin2-download]") as HTMLElement | null;
+      if (ex) {
+        try {
+          ex.remove();
+        } catch {}
+      }
       downloadBtnRef.current = null;
     }
 
     return () => {
-      const ex = document.getElementById('right-tool')?.querySelector('[data-skin2-download]') as HTMLElement | null;
-      if (ex) { try { ex.remove(); } catch {} }
+      disposed = true;
+      if (timer) clearInterval(timer);
+      const ex = document
+        .getElementById("right-tool")
+        ?.querySelector("[data-skin2-download]") as HTMLElement | null;
+      if (ex) {
+        try {
+          ex.remove();
+        } catch {}
+      }
       downloadBtnRef.current = null;
     };
   }, [isDownloadAvailable]);
@@ -299,35 +429,52 @@ export default function BaiduSkinOverlay({
   useEffect(() => {
     if (!isLoggedIn) return;
     try {
-      const el = document.querySelector<HTMLElement>('.s-top-right.s-isindex-wrap');
-      if (el) el.style.display = 'none';
+      const el = document.querySelector<HTMLElement>(
+        ".s-top-right.s-isindex-wrap"
+      );
+      if (el) el.style.display = "none";
     } catch {}
   }, [isLoggedIn]);
 
+  // 清理提示定时器
+  useEffect(() => {
+    return () => {
+      try {
+        if (hintTimer.current) window.clearTimeout(hintTimer.current as any);
+      } catch {}
+    };
+  }, []);
+
   // 文件名变化时，回填到可见的输入控件
   useEffect(() => {
-    const name = fileName || '';
+    const name = fileName || "";
     const selectors = [
-      '#chat-input-area input',
-      '#chat-input-area textarea',
-      '#maiU input',
-      '#maiU textarea',
+      "#chat-input-area input",
+      "#chat-input-area textarea",
+      "#maiU input",
+      "#maiU textarea",
       '#maiU [contenteditable="true"]',
       '#chat-input-area [contenteditable="true"]',
-      '#kw',
-      'input[name=wd]'
+      "#kw",
+      "input[name=wd]",
     ];
     const isVisible = (el: HTMLElement) => {
       const style = window.getComputedStyle(el);
       const r = el.getBoundingClientRect();
-      return style.display !== 'none' && style.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+      return (
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        r.width > 0 &&
+        r.height > 0
+      );
     };
-    const notInHiddenForm = (el: HTMLElement) => !el.closest('#form');
+    const notInHiddenForm = (el: HTMLElement) => !el.closest("#form");
 
-    const target = (selectors
-      .map((sel) => document.querySelector<HTMLElement>(sel))
-      .filter(Boolean) as HTMLElement[])
-      .find((el) => isVisible(el) && notInHiddenForm(el));
+    const target = (
+      selectors
+        .map((sel) => document.querySelector<HTMLElement>(sel))
+        .filter(Boolean) as HTMLElement[]
+    ).find((el) => isVisible(el) && notInHiddenForm(el));
 
     if (!target) return;
 
@@ -335,7 +482,7 @@ export default function BaiduSkinOverlay({
       if ((target as HTMLInputElement).value !== undefined) {
         const inp = target as HTMLInputElement;
         inp.value = name;
-        inp.setAttribute('value', name);
+        inp.setAttribute("value", name);
         return;
       }
     } catch {}
@@ -347,7 +494,7 @@ export default function BaiduSkinOverlay({
       }
     } catch {}
     try {
-      if (target.hasAttribute('contenteditable')) {
+      if (target.hasAttribute("contenteditable")) {
         target.textContent = name;
       }
     } catch {}
@@ -355,10 +502,10 @@ export default function BaiduSkinOverlay({
 
   // 左侧工具按钮内容更新为当前任务类型（清空原内容，直接使用任务名）
   useEffect(() => {
-    const lt = document.querySelector<HTMLElement>('.left-tool_12WeH');
+    const lt = document.querySelector<HTMLElement>(".left-tool_12WeH");
     if (!lt) return;
-    const text = selectedTask || '选择任务';
-    lt.innerHTML = '';
+    const text = selectedTask || "选择任务";
+    lt.innerHTML = "";
     lt.appendChild(document.createTextNode(text));
   }, [selectedTask]);
 
@@ -384,7 +531,14 @@ export default function BaiduSkinOverlay({
       >
         {/* 进度条：贴在 .chat-input-container 下方（若无则贴输入框），宽度不超过容器 */}
         {anchorRect && clamped > 0 ? (
-          <div style={{ position: "absolute", left: `${anchorRect.left}px`, top: `${anchorRect.bottom + 6}px`, width: `${anchorRect.width}px` }}>
+          <div
+            style={{
+              position: "absolute",
+              left: `${anchorRect.left}px`,
+              top: `${anchorRect.bottom + 6}px`,
+              width: `${anchorRect.width}px`,
+            }}
+          >
             <div
               style={{
                 height: "4px",
@@ -399,7 +553,8 @@ export default function BaiduSkinOverlay({
                   width: `${clamped}%`,
                   height: "100%",
                   borderRadius: "9999px",
-                  background: "linear-gradient(90deg, rgba(59,130,246,1) 0%, rgba(99,102,241,1) 100%)",
+                  background:
+                    "linear-gradient(90deg, rgba(59,130,246,1) 0%, rgba(99,102,241,1) 100%)",
                   transition: "width 200ms ease",
                 }}
               />
@@ -422,13 +577,50 @@ export default function BaiduSkinOverlay({
 
         {/* 右上角用户菜单（可交互） */}
         <div
-          style={{ position: "fixed", top: 12, right: 12, pointerEvents: "auto" }}
+          style={{
+            position: "fixed",
+            top: 12,
+            right: 12,
+            pointerEvents: "auto",
+          }}
         >
           <UserMenu isBaiduSkin={isBaiduSkin} onSwitchSkin={onSwitchSkin} />
         </div>
 
         {/* 下载按钮由脚本注入到 #right-tool 内，不再用绝对定位渲染 */}
       </div>
+
+      {/* 固定位置下载按钮（兜底显示，避免容器未挂载导致不可见） */}
+      {isBaiduSkin && (
+        <>
+          <button
+            onClick={handleDownloadClick}
+            title={isDownloadAvailable ? "下载审核结果" : "暂无审核结果"}
+            className={`fixed bottom-6 right-6 z-[2147483649] pointer-events-auto inline-flex items-center gap-2 px-4 py-2 rounded-full shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
+              isDownloadAvailable
+                ? "bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus-visible:ring-blue-500"
+                : "bg-gray-400 text-white hover:bg-gray-400 focus-visible:ring-gray-400"
+            }`}
+          >
+            &nbsp;&nbsp;
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-10 w-5"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path d="M3 14a2 2 0 012-2h2v2H5v2h10v-2h-2v-2h2a2 2 0 012 2v2a2 2 0 01-2 2H5a2 2 0 01-2-2v-2z" />
+              <path d="M7 10a1 1 0 011-1h1V3a1 1 0 112 0v6h1a1 1 0 011 1v.01l-3 3-3-3V10z" />
+            </svg>
+            <span>下载</span>&nbsp;&nbsp;
+          </button>
+          {downloadHint && (
+            <div className="fixed bottom-20 right-6 z-[2147483649] pointer-events-none bg-black/80 text-white text-xs px-3 py-1.5 rounded-md shadow">
+              {downloadHint}
+            </div>
+          )}
+        </>
+      )}
     </>
   );
 }

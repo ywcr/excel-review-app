@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { getTaskTemplate } from "@/lib/validationRules";
-import * as XLSX from "xlsx";
 
 export interface ValidationProgress {
   message: string;
@@ -250,7 +249,7 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
         const template = getTaskTemplate(taskName);
 
         if (isLargeFile) {
-          // For large files, pass File object directly
+          // For large files, pass File object directly (worker will stream-read)
           worker.postMessage({
             type: MESSAGE_TYPES.VALIDATE_EXCEL,
             data: {
@@ -263,63 +262,25 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
             },
           });
         } else {
-          // For small files, use traditional ArrayBuffer approach
-          const newFile = new File([file], file.name, {
-            type: file.type,
-            lastModified: Date.now(),
-          });
-          const fileBuffer = await newFile.arrayBuffer();
+          // For small files, read ArrayBuffer on main thread and transfer to worker
+          const fileBuffer = await file.arrayBuffer();
 
-          // Pre-check sheet availability: if no sheet matches template.sheetNames, prompt user to select
-          try {
-            if (!selectedSheet && (template?.sheetNames?.length ?? 0) > 0) {
-              const wb = XLSX.read(fileBuffer, { type: "array" });
-              const names: string[] = wb.SheetNames || [];
-              const expected = new Set<string>((template.sheetNames || []).map((s: string) => String(s)));
-              const hasExpected = names.some((n) => expected.has(String(n)));
-              if (!hasExpected) {
-                // Build availableSheets with hasData heuristic
-                const availableSheets = names.map((name) => {
-                  const ws = wb.Sheets[name];
-                  const ref = ws && (ws as any)["!ref"];
-                  let hasData = false;
-                  try {
-                    if (ref) {
-                      const range = XLSX.utils.decode_range(ref);
-                      hasData = range.e && (range.e.r > range.s.r || range.e.c > range.s.c);
-                    }
-                  } catch {}
-                  return { name, hasData };
-                });
-
-                setResult({
-                  isValid: false,
-                  needSheetSelection: true,
-                  availableSheets,
-                  summary: { totalRows: 0, validRows: 0, errorCount: 0 },
-                });
-                setIsValidating(false);
-                setProgress(null);
-                cleanupWorker();
-                return; // Do not start worker until user selects a sheet
-              }
-            }
-          } catch (e) {
-            // If pre-check fails, fallback to worker
-            console.warn("Sheet pre-check failed, falling back to worker:", e);
-          }
-
-          worker.postMessage({
-            type: MESSAGE_TYPES.VALIDATE_EXCEL,
-            data: {
-              fileBuffer,
-              taskName,
-              selectedSheet,
-              template,
-              includeImages: includeImages || false,
-              isLargeFile: false,
+          // 重要：直接依赖 Worker 的智能工作表选择与提示，不在主线程进行 XLSX 预解析，避免UI卡顿
+          // 通过 Transferable 传输，避免大内存拷贝
+          worker.postMessage(
+            {
+              type: MESSAGE_TYPES.VALIDATE_EXCEL,
+              data: {
+                fileBuffer,
+                taskName,
+                selectedSheet,
+                template,
+                includeImages: includeImages || false,
+                isLargeFile: false,
+              },
             },
-          });
+            [fileBuffer as ArrayBuffer]
+          );
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "文件读取失败");
@@ -414,15 +375,18 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
           },
         });
       } else {
-        // For small files, convert to ArrayBuffer
+        // For small files, convert to ArrayBuffer and transfer to worker
         const fileBuffer = await file.arrayBuffer();
-        worker.postMessage({
-          type: MESSAGE_TYPES.VALIDATE_IMAGES,
-          data: {
-            fileBuffer,
-            isLargeFile: false,
+        worker.postMessage(
+          {
+            type: MESSAGE_TYPES.VALIDATE_IMAGES,
+            data: {
+              fileBuffer,
+              isLargeFile: false,
+            },
           },
-        });
+          [fileBuffer as ArrayBuffer]
+        );
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "图片验证失败");

@@ -378,31 +378,27 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
       }
     );
 
-    // 智能工作表选择逻辑（来自我们的修复）
-    let targetSheet = selectedSheet;
-    let isAutoMatched = false;
+    // 智能工作表选择逻辑（修复：无法明确匹配时弹出选择器）
+    let targetSheet = selectedSheet || null;
+    let isConfidentMatch = false;
 
-    // 如果没有指定工作表或指定的工作表不存在，尝试自动匹配
-    if (!targetSheet || !workbook.SheetNames.includes(targetSheet)) {
-      ImageDebugLogger.debug(
+    const availableSheets = workbook.SheetNames || [];
+
+    // 如果用户明确指定且存在，直接使用
+    if (targetSheet && availableSheets.includes(targetSheet)) {
+      isConfidentMatch = true;
+      ImageDebugLogger.info(
         ImageDebugLogger.STAGES.SHEET_IDENTIFY,
-        "需要自动匹配工作表",
-        {
-          requestedSheet: targetSheet,
-          sheetExists: workbook.SheetNames.includes(targetSheet || ""),
-        }
+        `使用指定工作表: ${targetSheet}`
       );
-
+    } else {
       // 尝试根据模板匹配工作表
       const template = templateFromMainThread;
       if (template && template.sheetNames && template.sheetNames.length > 0) {
-        const matchedSheet = findMatchingSheet(
-          workbook.SheetNames,
-          template.sheetNames
-        );
+        const matchedSheet = findMatchingSheet(availableSheets, template.sheetNames);
         if (matchedSheet) {
           targetSheet = matchedSheet;
-          isAutoMatched = true;
+          isConfidentMatch = true;
           ImageDebugLogger.info(
             ImageDebugLogger.STAGES.SHEET_IDENTIFY,
             `自动匹配到工作表: ${targetSheet}`,
@@ -411,40 +407,40 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
               matchedSheet,
             }
           );
+        } else {
+          ImageDebugLogger.debug(
+            ImageDebugLogger.STAGES.SHEET_IDENTIFY,
+            "需要用户选择工作表（模板匹配失败）",
+            {
+              requestedSheet: selectedSheet || "未指定",
+              sheetExists: false,
+            }
+          );
         }
-      }
-
-      // 如果仍然没有匹配到，使用第一个工作表
-      if (!targetSheet || !workbook.SheetNames.includes(targetSheet)) {
-        targetSheet = workbook.SheetNames[0];
-        isAutoMatched = true; // 标记为已匹配，使用默认工作表
-        ImageDebugLogger.warn(
+      } else {
+        ImageDebugLogger.debug(
           ImageDebugLogger.STAGES.SHEET_IDENTIFY,
-          `使用默认工作表: ${targetSheet}`,
+          "需要用户选择工作表（无模板可匹配）",
           {
-            reason: "无法自动匹配，使用第一个工作表",
+            requestedSheet: selectedSheet || "未指定",
+            sheetExists: availableSheets.includes(targetSheet || ""),
           }
         );
       }
-    } else {
-      isAutoMatched = true;
-      ImageDebugLogger.info(
-        ImageDebugLogger.STAGES.SHEET_IDENTIFY,
-        `使用指定工作表: ${targetSheet}`
-      );
     }
 
-    // 如果无法自动匹配且用户未明确选择，触发工作表选择
-    if (!isAutoMatched && !selectedSheet) {
+    // 如果仍无法明确匹配，触发选择器（不再静默使用第一个Sheet）
+    if (!isConfidentMatch) {
       ImageDebugLogger.info(
         ImageDebugLogger.STAGES.SHEET_IDENTIFY,
-        "无法自动匹配工作表，触发用户选择"
+        "无法自动匹配工作表，触发用户选择",
+        { requestedSheet: selectedSheet || "未指定", availableSheets }
       );
       sendResult({
         needSheetSelection: true,
-        availableSheets: workbook.SheetNames.map((name) => ({
+        availableSheets: availableSheets.map((name) => ({
           name,
-          hasData: !!(workbook.Sheets[name] && workbook.Sheets[name]["!ref"]),
+          hasData: !!(workbook.Sheets && workbook.Sheets[name] && workbook.Sheets[name]["!ref"]),
         })),
       });
       return;

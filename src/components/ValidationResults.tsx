@@ -108,6 +108,8 @@ export default function ValidationResults({
 
   const { validation, fileName, taskName } = result;
   const { errors, summary } = validation;
+  const imageResults = validation.imageValidation?.results ?? [];
+  const hasExportableImageIssues = imageResults.some((r: any) => (r.duplicates?.length ?? 0) > 0);
 
   // Filter errors by type
   const filteredErrors =
@@ -228,7 +230,60 @@ export default function ValidationResults({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
+    <div className="bg-white rounded-lg shadow-md p-6 relative">
+      {onExportErrors && (errors.length > 0 || hasExportableImageIssues) && (
+        <div className="absolute top-4 right-4 z-10">
+          <button
+            onClick={onExportErrors}
+            disabled={isExporting}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isExporting ? (
+              <>
+                <svg
+                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                导出中...
+              </>
+            ) : (
+              <>
+                <svg
+                  className="-ml-1 mr-2 h-4 w-4"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+                导出Excel
+              </>
+            )}
+          </button>
+        </div>
+      )}
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">验证结果</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -373,6 +428,7 @@ export default function ValidationResults({
         )}
       </div>
 
+
       {errors.length > 0 && (
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
@@ -380,57 +436,6 @@ export default function ValidationResults({
               错误详情
             </h3>
             <div className="flex items-center space-x-4">
-              {onExportErrors && (
-                <button
-                  onClick={onExportErrors}
-                  disabled={isExporting}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isExporting ? (
-                    <>
-                      <svg
-                        className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      导出中...
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        className="-ml-1 mr-2 h-4 w-4"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
-                      </svg>
-                      导出Excel
-                    </>
-                  )}
-                </button>
-              )}
               <div className="flex items-center space-x-2">
                 <label htmlFor="error-filter" className="text-sm text-gray-700">
                   筛选:
@@ -481,7 +486,7 @@ export default function ValidationResults({
                       {error.sheet && `${error.sheet} - `}第{error.row}行
                       {error.column && ` ${error.column}列`}
                     </td>
-                    <td className="px-6 py-4 align-top w-28">
+                    <td className="px-6 py-4 align-top">
                       <span
                         className={`block break-words whitespace-normal px-2 py-1 text-xs font-semibold rounded-full ${getErrorTypeColor(
                           error.errorType
@@ -616,7 +621,7 @@ export default function ValidationResults({
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     位置/行数
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">
                     问题类型
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -743,8 +748,8 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                           "位置未知"
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex space-x-2">
+                      <td className="px-6 py-4 align-top w-48 whitespace-normal">
+                        <div className="flex flex-wrap gap-2">
 {result.isBlurry && (
                             <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
                               模糊

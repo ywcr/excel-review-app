@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 
 interface SheetInfo {
   name: string;
@@ -12,13 +12,13 @@ interface FrontendSheetSelectorProps {
   isLoading?: boolean;
 }
 
-export default function FrontendSheetSelector({ 
-  availableSheets, 
-  onSheetSelect, 
+export default function FrontendSheetSelector({
+  availableSheets,
+  onSheetSelect,
   onCancel,
-  isLoading = false 
+  isLoading = false,
 }: FrontendSheetSelectorProps) {
-  const [selectedSheet, setSelectedSheet] = useState<string>('');
+  const [selectedSheet, setSelectedSheet] = useState<string>("");
 
   const handleConfirm = () => {
     if (selectedSheet) {
@@ -27,18 +27,26 @@ export default function FrontendSheetSelector({
   };
 
   const handleCancel = () => {
-    
     onCancel();
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[2147483648] p-4">
       <div
-        className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4"
+        className="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 ring-1 ring-black/5"
+        role="dialog"
+        aria-modal="true"
         onClick={(e) => e.stopPropagation()}
       >
+        <button
+          aria-label="关闭"
+          onClick={handleCancel}
+          className="absolute top-2 right-2 p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        >
+          ✕
+        </button>
         <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
             选择工作表
           </h3>
 
@@ -46,7 +54,7 @@ export default function FrontendSheetSelector({
             系统无法自动识别对应的工作表，请手动选择正确的工作表进行验证：
           </p>
 
-          <div className="space-y-2 mb-6">
+          <div className="space-y-2 mb-6 max-h-72 overflow-y-auto pr-1 pl-1">
             {availableSheets.map((sheet) => (
               <label
                 key={sheet.name}
@@ -54,10 +62,11 @@ export default function FrontendSheetSelector({
                   flex items-center p-3 border rounded-lg cursor-pointer transition-colors
                   ${
                     selectedSheet === sheet.name
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
+                      ? "border-blue-500 bg-blue-50 ring-2 ring-blue-500"
+                      : "border-gray-200 hover:border-blue-300"
                   }
                   ${!sheet.hasData ? "opacity-50" : ""}
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400
                 `}
               >
                 <input
@@ -67,7 +76,7 @@ export default function FrontendSheetSelector({
                   checked={selectedSheet === sheet.name}
                   onChange={(e) => setSelectedSheet(e.target.value)}
                   disabled={!sheet.hasData}
-                  className="mr-3 text-blue-600"
+                  className="mr-3 h-4 w-4 text-blue-600 disabled:cursor-not-allowed"
                 />
                 <div className="flex-1">
                   <div className="font-medium text-gray-900">{sheet.name}</div>
@@ -95,14 +104,16 @@ export default function FrontendSheetSelector({
             <button
               onClick={handleCancel}
               disabled={isLoading}
-              className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors disabled:opacity-50"
+              className="mr-10"
             >
               取消
             </button>
+            &nbsp;&nbsp;
             <button
               onClick={handleConfirm}
               disabled={!selectedSheet || isLoading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className=""
+              style={{ color: "blue" }}
             >
               {isLoading ? "验证中..." : "确认验证"}
             </button>
