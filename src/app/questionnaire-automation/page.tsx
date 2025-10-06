@@ -127,7 +127,6 @@ export default function QuestionnaireAutomationPage() {
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="questionnaire-automation-container qa-container">
           <div className="container mx-auto max-w-7xl px-4 md:px-6">
-
             {/* API配置区域 */}
             <div className="card mb-6">
               <div className="api-toggle">
@@ -187,10 +186,7 @@ export default function QuestionnaireAutomationPage() {
                       </div>
                     </label>
                   </div>
-                  <div
-                    className="note success mt-3"
-                    id="modeHint"
-                  >
+                  <div className="note success mt-3" id="modeHint">
                     <div className="flex items-center text-sm text-green-700">
                       <svg
                         className="w-4 h-4 mr-2"
@@ -215,9 +211,7 @@ export default function QuestionnaireAutomationPage() {
             {/* 自动化功能配置 */}
             <div className="auto-features mb-6">
               <div className="card">
-                <h3 className="section-title">
-                  🤖 自动化功能配置
-                </h3>
+                <h3 className="section-title">🤖 自动化功能配置</h3>
                 <details className="group">
                   <summary className="cursor-pointer text-gray-900 hover:text-gray-950 font-medium">
                     ⚙️ 高级选项
@@ -283,9 +277,7 @@ export default function QuestionnaireAutomationPage() {
             {/* 问卷类型选择 */}
             <div className="questionnaire-selector mb-6">
               <div className="card">
-                <h3 className="section-title">
-                  📋 选择问卷类型
-                </h3>
+                <h3 className="section-title">📋 选择问卷类型</h3>
                 <div
                   className="questionnaire-types grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
                   id="questionnaireTypes"
@@ -309,10 +301,7 @@ export default function QuestionnaireAutomationPage() {
                     accept=".xlsx,.xls"
                     className="hidden"
                   />
-                  <button
-                    className="btn btn-primary"
-                    type="button"
-                  >
+                  <button className="btn btn-primary" type="button">
                     选择文件
                   </button>
                 </div>
@@ -331,9 +320,7 @@ export default function QuestionnaireAutomationPage() {
               id="assigneeManagement"
             >
               <div className="card">
-                <h3 className="section-title">
-                  👥 指派人管理
-                </h3>
+                <h3 className="section-title">👥 指派人管理</h3>
                 <div className="assignee-list" id="assigneeList"></div>
               </div>
             </div>
@@ -359,9 +346,7 @@ export default function QuestionnaireAutomationPage() {
               id="generationButtons"
             >
               <div className="card">
-                <h3 className="section-title">
-                  🚀 生成自动化代码
-                </h3>
+                <h3 className="section-title">🚀 生成自动化代码</h3>
                 <div className="validation-buttons flex gap-4">
                   <button
                     className="btn btn-primary"
@@ -388,9 +373,7 @@ export default function QuestionnaireAutomationPage() {
               id="validationSection"
             >
               <div className="card">
-                <h3 className="section-title">
-                  🔍 数据验证工具
-                </h3>
+                <h3 className="section-title">🔍 数据验证工具</h3>
                 <p className="text-gray-700 mb-3">
                   ⚠️
                   数据验证功能已集成到生成的代码片段中，请在控制台中使用以下命令：
@@ -449,9 +432,7 @@ export default function QuestionnaireAutomationPage() {
             {/* 日志区域 */}
             <div className="log-container mb-6 hidden">
               <div className="card">
-                <h3 className="section-title">
-                  📝 操作日志
-                </h3>
+                <h3 className="section-title">📝 操作日志</h3>
                 <div
                   id="logContainer"
                   className="log-box"
@@ -534,7 +515,11 @@ export default function QuestionnaireAutomationPage() {
                 if (typeof window !== "undefined") {
                   const w = window as any;
                   const app = w.automationAppInstance || w.app;
-                  if (app && app.sheetSelector && typeof app.sheetSelector.confirm === "function") {
+                  if (
+                    app &&
+                    app.sheetSelector &&
+                    typeof app.sheetSelector.confirm === "function"
+                  ) {
                     app.sheetSelector.confirm();
                   } else if (typeof w.confirmSheetSelection === "function") {
                     w.confirmSheetSelection();
@@ -612,6 +597,8 @@ export default function QuestionnaireAutomationPage() {
                   '/automation/js/data-processor.js',
                   '/automation/js/ui-manager.js',
                   '/automation/js/sheet-selector.js',
+                  // 签名工具库（优先加载）
+                  '/automation/js/automation-sign-utils.js',
                   // 基础类必须先加载
                   '/automation/js/automation/questionnaire-logic/base-questionnaire.js',
                   // 然后加载继承类

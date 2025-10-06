@@ -236,6 +236,11 @@ async function updateWithMissing(newData = null) {
     // 自动执行缺失的数据
     console.log('%c🚀 开始自动执行缺失数据...', 'color: #6f42c1; font-weight: bold;');
     
+    // 🎵 开始播放后台音频（保持标签页活跃）
+    if (typeof startBackgroundAudio === 'function') {
+        startBackgroundAudio();
+    }
+    
     let successCount = 0;
     let failCount = 0;
     let criticalError = false;
@@ -341,6 +346,11 @@ async function updateWithMissing(newData = null) {
         isPaused = false;
         shouldStop = false; // ⚠️ 关键：重置停止标志
         updateProgressDisplay();
+    }
+    
+    // 🔇 停止后台音频
+    if (typeof stopBackgroundAudio === 'function') {
+        stopBackgroundAudio();
     }
     
     console.log('%c📊 补充完成:', 'color: #28a745; font-weight: bold;');

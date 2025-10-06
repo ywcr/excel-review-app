@@ -833,94 +833,106 @@ function generateSign(data, signkey) {
     }
 }
 
-// 内置HMAC-SHA256实现（基于crypto.js）
-function sha256(data) {
-    // 这里应该包含完整的SHA-256实现
-    // 为了简化，我们先使用一个基础实现
-    if (typeof CryptoJS !== 'undefined' && CryptoJS.SHA256) {
-        return CryptoJS.SHA256(data);
-    }
-    throw new Error('SHA-256实现不可用');
-}
+// ==================== 辅助工具函数 ====================
+// 优先使用外部签名工具库（automation-sign-utils.js）
+// 如果未加载，则内联定义（向后兼容）
 
-function hmac(key, data) {
-    const encoder = new TextEncoder("utf-8");
-    const keyBytes = typeof key === 'string' ? encoder.encode(key) : key;
-    const dataBytes = typeof data === 'string' ? encoder.encode(data) : data;
-
-    // 使用CryptoJS的HMAC-SHA256
-    if (typeof CryptoJS !== 'undefined' && CryptoJS.HmacSHA256) {
-        const keyStr = typeof key === 'string' ? key : new TextDecoder().decode(key);
-        const dataStr = typeof data === 'string' ? data : new TextDecoder().decode(data);
-        const result = CryptoJS.HmacSHA256(dataStr, keyStr);
-
-        // 转换为Uint8Array格式
-        const words = result.words;
-        const bytes = new Uint8Array(32);
-        for (let i = 0; i < 8; i++) {
-            const word = words[i];
-            bytes[i * 4] = (word >>> 24) & 0xff;
-            bytes[i * 4 + 1] = (word >>> 16) & 0xff;
-            bytes[i * 4 + 2] = (word >>> 8) & 0xff;
-            bytes[i * 4 + 3] = word & 0xff;
+if (typeof AutomationSignUtils !== 'undefined') {
+    // 使用外部工具库
+    var formatParams = AutomationSignUtils.formatParams;
+    var toQueryString = AutomationSignUtils.toQueryString;
+    var sha256 = AutomationSignUtils.sha256;
+    var hmac = AutomationSignUtils.hmac;
+    var sign = AutomationSignUtils.sign;
+    var hex = AutomationSignUtils.hex;
+    console.log('✅ 使用外部签名工具库 (v' + AutomationSignUtils.version + ')');
+} else {
+    // 内联定义（向后兼容）
+    console.warn('⚠️ 未检测到签名工具库，使用内联定义');
+    console.warn('💡 建议在控制台执行前先加载 automation-sign-utils.js 以减少代码体积');
+    
+    function sha256(data) {
+        if (typeof CryptoJS !== 'undefined' && CryptoJS.SHA256) {
+            return CryptoJS.SHA256(data);
         }
-        return bytes;
+        throw new Error('SHA-256实现不可用');
     }
-
-    throw new Error('HMAC-SHA256实现不可用');
-}
-
-function sign(inputKey, inputData) {
-    return hmac(inputKey, inputData);
-}
-
-function hex(bin) {
-    if (typeof bin === 'string') {
-        return bin;
+    
+    function hmac(key, data) {
+        const encoder = new TextEncoder("utf-8");
+        const keyBytes = typeof key === 'string' ? encoder.encode(key) : key;
+        const dataBytes = typeof data === 'string' ? encoder.encode(data) : data;
+        
+        if (typeof CryptoJS !== 'undefined' && CryptoJS.HmacSHA256) {
+            const keyStr = typeof key === 'string' ? key : new TextDecoder().decode(key);
+            const dataStr = typeof data === 'string' ? data : new TextDecoder().decode(data);
+            const result = CryptoJS.HmacSHA256(dataStr, keyStr);
+            
+            const words = result.words;
+            const bytes = new Uint8Array(32);
+            for (let i = 0; i < 8; i++) {
+                const word = words[i];
+                bytes[i * 4] = (word >>> 24) & 0xff;
+                bytes[i * 4 + 1] = (word >>> 16) & 0xff;
+                bytes[i * 4 + 2] = (word >>> 8) & 0xff;
+                bytes[i * 4 + 3] = word & 0xff;
+            }
+            return bytes;
+        }
+        
+        throw new Error('HMAC-SHA256实现不可用');
     }
-    return bin.reduce(
-        (acc, val) => acc + ("00" + val.toString(16)).substr(-2),
-        ""
-    );
-}
-
-// 参数格式化函数（基于dcwj.js）
-function formatParams(arys) {
-    let newkey = Object.keys(arys).sort();
-    let newObj = Array.isArray(arys) ? [] : {};
-    for (let i = 0; i < newkey.length; i++) {
-        let currentValue = arys[newkey[i]];
-        if (typeof currentValue === "object") {
-            if (Array.isArray(currentValue)) {
-                let isArrObject = (currentValue || []).every(
-                    (i) => Object.prototype.toString.call(i) === "[object Object]"
-                );
-                if (isArrObject) {
-                    newObj[newkey[i]] = formatParams(currentValue);
+    
+    function sign(inputKey, inputData) {
+        return hmac(inputKey, inputData);
+    }
+    
+    function hex(bin) {
+        if (typeof bin === 'string') {
+            return bin;
+        }
+        return bin.reduce(
+            (acc, val) => acc + ("00" + val.toString(16)).substr(-2),
+            ""
+        );
+    }
+    
+    function formatParams(arys) {
+        let newkey = Object.keys(arys).sort();
+        let newObj = Array.isArray(arys) ? [] : {};
+        for (let i = 0; i < newkey.length; i++) {
+            let currentValue = arys[newkey[i]];
+            if (typeof currentValue === "object") {
+                if (Array.isArray(currentValue)) {
+                    let isArrObject = (currentValue || []).every(
+                        (i) => Object.prototype.toString.call(i) === "[object Object]"
+                    );
+                    if (isArrObject) {
+                        newObj[newkey[i]] = formatParams(currentValue);
+                    } else {
+                        newObj[newkey[i]] = currentValue;
+                    }
                 } else {
-                    newObj[newkey[i]] = currentValue;
+                    newObj[newkey[i]] = formatParams(currentValue);
                 }
             } else {
-                newObj[newkey[i]] = formatParams(currentValue);
+                newObj[newkey[i]] = currentValue;
             }
-        } else {
-            newObj[newkey[i]] = currentValue;
         }
+        return newObj;
     }
-    return newObj;
-}
-
-// 转换为查询字符串（基于dcwj.js）
-function toQueryString(obj) {
-    const part = [];
-    for (const [key, value] of Object.entries(obj)) {
-        if (typeof value === "object") {
-            part.push(\`\${key}=\${JSON.stringify(value)}\`);
-        } else {
-            part.push(\`\${key}=\${value}\`);
+    
+    function toQueryString(obj) {
+        const part = [];
+        for (const [key, value] of Object.entries(obj)) {
+            if (typeof value === "object") {
+                part.push(\`\${key}=\${JSON.stringify(value)}\`);
+            } else {
+                part.push(\`\${key}=\${value}\`);
+            }
         }
+        return part.join("&");
     }
-    return part.join("&");
 }
 
 {{QUESTION_LOGIC}}
@@ -929,28 +941,39 @@ function toQueryString(obj) {
 
 // 启动提示
 console.log('%c🎉 自动化代码加载成功！', 'color: #28a745; font-weight: bold; font-size: 16px;');
-console.log('可用命令:');
+console.log('💡 输入 help() 查看所有可用命令');
+
+// 帮助函数
+function help() {
+    console.log('%c📖 可用命令列表', 'color: #17a2b8; font-weight: bold;');
+    console.log('');
+    console.log('📝 问卷执行:');
 {{CHANNEL_COMMANDS}}
-console.log('  • startAddContact(起始位置) - 创建联系人（串行，安全）');
-console.log('  • startAddContactFast(批量大小, 起始位置) - 快速创建联系人（并发，默认10个/批）');
-console.log('    💡 起始位置可以是数字（如: 25）或姓名（如: "张三"）');
-console.log('  • startApi(起始位置) - 手动执行单个任务');
-console.log('  • automaticApi(日期, 起始位置) - 自动执行（串行，安全）');
-console.log('  • automaticApiFast(批量大小, 日期, 起始位置) - 快速批量执行（并发，默认10个/批）');
-console.log('    💡 起始位置可以是数字（如: 25）或姓名（如: "张三"）');
-console.log('  • setApiInterval(毫秒) - 设置API请求间隔（仅串行模式）');
-console.log('  • resetProgress() - 重置执行进度到第1个');
-console.log('  • setStartPosition(位置) - 设置起始位置');
-console.log('');
-console.log('执行控制:');
-console.log('  • pauseExecution() - 暂停当前执行');
-console.log('  • resumeExecution() - 继续执行');
-console.log('  • stopExecution() - 停止执行');
-console.log('');
-console.log('数据验证:');
-console.log('  • validateData() - 验证数据完整性');
-console.log('  • showMissing() - 显示缺失数据');
-console.log('  • updateWithMissing() - 补充缺失数据');
+    console.log('  • startApi(起始位置) - 手动执行单个任务');
+    console.log('  • automaticApi(日期, 起始位置) - 自动执行（串行，安全）');
+    console.log('  • automaticApiFast(批量大小, 日期, 起始位置) - 快速批量执行（并发，默认10个/批）');
+    console.log('');
+    console.log('👥 联系人管理:');
+    console.log('  • startAddContact(起始位置) - 创建联系人（串行，安全）');
+    console.log('  • startAddContactFast(批量大小, 起始位置) - 快速创建联系人（并发，默认10个/批）');
+    console.log('');
+    console.log('⚙️ 执行配置:');
+    console.log('  • setApiInterval(毫秒) - 设置API请求间隔（仅串行模式）');
+    console.log('  • resetProgress() - 重置执行进度到第1个');
+    console.log('  • setStartPosition(位置) - 设置起始位置（数字或姓名）');
+    console.log('');
+    console.log('🎮 执行控制:');
+    console.log('  • pauseExecution() - 暂停当前执行');
+    console.log('  • resumeExecution() - 继续执行');
+    console.log('  • stopExecution() - 停止执行');
+    console.log('');
+    console.log('🔍 数据验证:');
+    console.log('  • validateData() - 验证数据完整性');
+    console.log('  • showMissing() - 显示缺失数据');
+    console.log('  • updateWithMissing() - 补充缺失数据');
+    console.log('');
+    console.log('💡 提示: 起始位置可以是数字（如: 25）或姓名（如: "张三"）');
+}
 
 // 控制面板
 {{CONTROL_PANEL}}

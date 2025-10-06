@@ -136,6 +136,11 @@ async function startAddContact(startFrom = null) {
     console.log('👥 准备创建${this.contactType}，共' + data.length + '个，处理 ' + (data.length - startIndex) + ' 个');
     console.log('💡 提示: 使用 startAddContactFast() 可以更快速地创建（并发模式）');
     
+    // 🎵 开始播放后台音频（保持标签页活跃）
+    if (typeof startBackgroundAudio === 'function') {
+        startBackgroundAudio();
+    }
+    
     let successCount = 0;
     let existCount = 0;
     
@@ -160,6 +165,11 @@ async function startAddContact(startFrom = null) {
                 existCount++;
             }
         });
+    }
+    
+    // 🔇 停止后台音频
+    if (typeof stopBackgroundAudio === 'function') {
+        stopBackgroundAudio();
     }
     
     console.log('✅ ${this.contactType}创建完毕！');
@@ -189,6 +199,11 @@ async function startAddContactFast(batchSize = 10, startFrom = null) {
     
     console.log('⚡ 准备快速创建${this.contactType}，共' + data.length + '个，处理 ' + (data.length - startIndex) + ' 个');
     console.log('📦 批量大小: ' + batchSize + ' 个/批');
+    
+    // 🎵 开始播放后台音频（保持标签页活跃）
+    if (typeof startBackgroundAudio === 'function') {
+        startBackgroundAudio();
+    }
     
     let successCount = 0;
     let existCount = 0;
@@ -248,6 +263,11 @@ async function startAddContactFast(batchSize = 10, startFrom = null) {
             console.log(\`⏱️  批次间延迟 \${(batchInterval/1000).toFixed(1)}秒...\`);
             await new Promise(resolve => setTimeout(resolve, batchInterval));
         }
+    }
+    
+    // 🔇 停止后台音频
+    if (typeof stopBackgroundAudio === 'function') {
+        stopBackgroundAudio();
     }
     
     console.log('✅ ${this.contactType}快速创建完毕！');
