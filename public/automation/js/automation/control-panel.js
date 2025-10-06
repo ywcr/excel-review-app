@@ -70,9 +70,9 @@ class ControlPanelManager {
     ${
       hasChannelFlag === "true"
         ? `
-    // 添加创建医院按钮
+    // 添加创建医院按钮（有渠道时显示）
     var btnAddChannel = document.createElement('button'); btnAddChannel.className='info'; btnAddChannel.textContent='创建医院'; btnAddChannel.title='startAddChannel()';
-    body.appendChild(btnAddChannel);`
+    // body.appendChild(btnAddChannel);`
         : ""
     }
     body.appendChild(btnAddContact);
@@ -83,24 +83,24 @@ class ControlPanelManager {
     body.appendChild(separator1);
 
     // 控制按钮
-    var btnStart = document.createElement('button'); btnStart.className='light'; btnStart.textContent='单步执行'; btnStart.title='start()';
-    var btnAuto = document.createElement('button'); btnAuto.className='primary'; btnAuto.textContent='自动执行'; btnAuto.title='automatic()';
-    var btnAutoFast = document.createElement('button'); btnAutoFast.className='success'; btnAutoFast.textContent='快速执行⚡'; btnAutoFast.title='automaticApiFast() or automaticFast()';
+    // var btnStart = document.createElement('button'); btnStart.className='light'; btnStart.textContent='单步执行'; btnStart.title='start()';
+    var btnAuto = document.createElement('button'); btnAuto.className='primary acp-span'; btnAuto.textContent='自动创建问卷'; btnAuto.title='automatic()';
+    // var btnAutoFast = document.createElement('button');  btnAutoFast.className='success'; btnAutoFast.textContent='快速执行⚡'; btnAutoFast.title='automaticApiFast() or automaticFast()'; btnAutoFast.disabled = true;
     var btnValidate = document.createElement('button'); btnValidate.className='secondary'; btnValidate.textContent='验证遗漏'; btnValidate.title='validateData()';
-    var btnShowMissing = document.createElement('button'); btnShowMissing.className='light'; btnShowMissing.textContent='显示遗漏'; btnShowMissing.title='showMissing()';
+    // var btnShowMissing = document.createElement('button'); btnShowMissing.className='light'; btnShowMissing.textContent='显示遗漏'; btnShowMissing.title='showMissing()';
     var btnUpdateMissing = document.createElement('button'); btnUpdateMissing.className='warn'; btnUpdateMissing.textContent='补充遗漏'; btnUpdateMissing.title='updateWithMissing()';
-    var btnExecuteAll = document.createElement('button'); btnExecuteAll.className='secondary'; btnExecuteAll.textContent='全部日期'; btnExecuteAll.title='executeAllDates()';
-    var btnErrorSummary = document.createElement('button'); btnErrorSummary.className='error'; btnErrorSummary.textContent='错误汇总'; btnErrorSummary.title='showErrorSummary()';
+    // var btnExecuteAll = document.createElement('button'); btnExecuteAll.className='secondary'; btnExecuteAll.textContent='全部日期'; btnExecuteAll.title='executeAllDates()';
+    // var btnErrorSummary = document.createElement('button'); btnErrorSummary.className='error'; btnErrorSummary.textContent='错误汇总'; btnErrorSummary.title='showErrorSummary()';
 
-    body.appendChild(btnStart);
+    // body.appendChild(btnStart);
     body.appendChild(btnAuto);
-    body.appendChild(btnAutoFast);
+    // body.appendChild(btnAutoFast);
     body.appendChild(btnValidate);
     body.appendChild(btnUpdateMissing);
-    body.appendChild(btnExecuteAll);
-    btnShowMissing.style.display='none'; // 隐藏显示遗漏
-    btnErrorSummary.style.display='none'; // 初始隐藏
-    
+    // body.appendChild(btnExecuteAll);
+    // btnShowMissing.style.display='none'; // 隐藏显示遗漏
+    // btnErrorSummary.style.display='none'; // 初始隐藏
+
     // 执行控制按钮（仅API模式）
     if (isApiMode) {
       var separator2 = document.createElement('div'); separator2.className='acp-separator';
@@ -120,11 +120,11 @@ class ControlPanelManager {
     }
 
     // 日期输入行
-    var row = document.createElement('div'); row.className='acp-row';
-    var dateInput = document.createElement('input'); dateInput.type='text'; dateInput.placeholder='输入日期 (如 09.01)';
-    var runByDateBtn = document.createElement('button'); runByDateBtn.className='secondary'; runByDateBtn.textContent='按日期执行';
-    row.appendChild(dateInput); row.appendChild(runByDateBtn);
-    body.appendChild(row);
+    // var row = document.createElement('div'); row.className='acp-row';
+    // var dateInput = document.createElement('input'); dateInput.type='text'; dateInput.placeholder='输入日期 (如 09.01)';
+    // var runByDateBtn = document.createElement('button'); runByDateBtn.className='secondary'; runByDateBtn.textContent='按日期执行';
+    // row.appendChild(dateInput); row.appendChild(runByDateBtn);
+    // body.appendChild(row);
 
     // 高级选项（API模式）
     if (isApiMode) {
@@ -223,17 +223,17 @@ class ControlPanelManager {
         if (batch) call('startAddContactFast', parseInt(batch));
       });
     }
-    btnStart.addEventListener('click', function(){ call('start'); });
+    // btnStart.addEventListener('click', function(){ call('start'); });
     btnAuto.addEventListener('click', function(){ call('automatic'); });
-    if (btnAutoFast) {
-      btnAutoFast.addEventListener('click', function(){ 
-        var batch = prompt('请输入批次大小（并发数量）:', '10');
-        if (batch) call('automaticFast', parseInt(batch));
-      });
-    }
-    runByDateBtn.addEventListener('click', function(){ var v=(dateInput.value||'').trim(); if(!v){ call('automatic'); } else { call('automatic', v); } });
+    // if (btnAutoFast) {
+    //   btnAutoFast.addEventListener('click', function(){ 
+    //     var batch = prompt('请输入批次大小（并发数量）:', '10');
+    //     if (batch) call('automaticFast', parseInt(batch));
+    //   });
+    // }
+    // runByDateBtn.addEventListener('click', function(){ var v=(dateInput.value||'').trim(); if(!v){ call('automatic'); } else { call('automatic', v); } });
     btnValidate.addEventListener('click', function(){ call('validateData'); });
-    btnShowMissing.addEventListener('click', function(){ call('showMissing'); });
+    // btnShowMissing.addEventListener('click', function(){ call('showMissing'); });
     btnUpdateMissing.addEventListener('click', function(){ call('updateWithMissing'); });
     
     // 高级选项事件（API模式）
@@ -303,16 +303,16 @@ class ControlPanelManager {
 
     // 可选按钮
     if (typeof fns.executeAllDates === 'function' && ${flag}) {
-      btnExecuteAll.style.display='inline-block';
-      btnExecuteAll.addEventListener('click', function(){ call('executeAllDates'); });
+      // btnExecuteAll.style.display='inline-block';
+      // btnExecuteAll.addEventListener('click', function(){ call('executeAllDates'); });
     } else {
-      btnExecuteAll.style.display='none';
+      // btnExecuteAll.style.display='none';
     }
     if (typeof fns.showErrorSummary === 'function') {
-      btnErrorSummary.style.display='inline-block';
-      btnErrorSummary.addEventListener('click', function(){ call('showErrorSummary'); });
+      // btnErrorSummary.style.display='inline-block';
+      // btnErrorSummary.addEventListener('click', function(){ call('showErrorSummary'); });
     } else {
-      btnErrorSummary.style.display='none';
+      // btnErrorSummary.style.display='none';
     }
   } catch(e){ console.warn('初始化控制面板失败:', e); }
 })();
@@ -332,6 +332,7 @@ class ControlPanelManager {
           "#automation-control-panel .acp-btn:hover{opacity:1}" +
           "#automation-control-panel .acp-body{padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;}" +
           "#automation-control-panel .acp-row{grid-column:1/-1;display:flex;gap:8px;align-items:center;}" +
+          "#automation-control-panel .acp-span{grid-column:1/-1;}" +
           "#automation-control-panel .acp-separator{grid-column:1/-1;height:1px;background:#dee2e6;margin:4px 0;}" +
           "#automation-control-panel .acp-adv-toggle{grid-column:1/-1;padding:8px;text-align:center;background:#f9fafb;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;color:#6b7280;}" +
           "#automation-control-panel .acp-adv-toggle:hover{background:#f3f4f6;}" +
