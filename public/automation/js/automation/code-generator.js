@@ -63,7 +63,10 @@ class AutomationCodeGenerator {
             const template = this.templateManager.getTemplate(templateName);
 
             // 获取各部分代码
-            const questionLogic = this.questionnaireLogic.getQuestionLogic();
+            const questionLogic =
+              this.questionnaireLogic.getQuestionLogic() +
+              "\n\n" +
+              this.questionnaireLogic.getContactCreationLogic();
             const executionLogic = this.getExecutionLogic(mode, isAllDates);
             const validationCode = includeValidation ? this.validationManager.getValidationCode() : '';
             const controlPanelCode = this.getControlPanelCode(isAllDates);

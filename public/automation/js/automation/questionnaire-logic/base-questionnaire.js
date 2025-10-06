@@ -46,7 +46,7 @@ function getSame(name, sex) {
             success: function(res) {
                 setTimeout(function() {
                     resolve(res);
-                }, 500);
+                }, 100);  // 优化：500ms -> 100ms
             }
         });
     });
@@ -106,20 +106,40 @@ function addContact(name, sex) {
             success: function(res) {
                 setTimeout(function() {
                     resolve();
-                }, 2000);
+                }, 500);  // 优化：2000ms -> 500ms
             }
         });
     });
 }
 
-// 执行创建${this.contactType}任务
-async function startAddContact() {
-    console.log('👥 准备创建${this.contactType}，共' + data.length + '个');
+// 执行创建${this.contactType}任务（串行模式，安全但较慢）
+async function startAddContact(startFrom = null) {
+    // 确定起始位置
+    let startIndex = 0;
+    if (startFrom !== null) {
+        if (typeof startFrom === 'number') {
+            // 按索引（从1开始）
+            startIndex = Math.max(0, startFrom - 1);
+            console.log('📍 从第 ' + startFrom + ' 个开始创建');
+        } else if (typeof startFrom === 'string') {
+            // 按姓名查找
+            const foundIndex = data.findIndex(item => item.name === startFrom);
+            if (foundIndex !== -1) {
+                startIndex = foundIndex;
+                console.log('📍 从「' + startFrom + '」开始创建（第 ' + (foundIndex + 1) + ' 个）');
+            } else {
+                console.warn('⚠️ 未找到姓名「' + startFrom + '」，从头开始');
+            }
+        }
+    }
+    
+    console.log('👥 准备创建${this.contactType}，共' + data.length + '个，处理 ' + (data.length - startIndex) + ' 个');
+    console.log('💡 提示: 使用 startAddContactFast() 可以更快速地创建（并发模式）');
     
     let successCount = 0;
     let existCount = 0;
     
-    for (let i = 0; i < data.length; i++) {
+    for (let i = startIndex; i < data.length; i++) {
         let name = data[i].name;
         let sex = data[i].sex;
         
@@ -144,6 +164,95 @@ async function startAddContact() {
     
     console.log('✅ ${this.contactType}创建完毕！');
     console.log('📊 统计: 新建' + successCount + '个, 已存在' + existCount + '个');
+}
+
+// 快速批量创建${this.contactType}（并发模式，速度快但可能对服务器压力大）
+async function startAddContactFast(batchSize = 10, startFrom = null) {
+    // 确定起始位置
+    let startIndex = 0;
+    if (startFrom !== null) {
+        if (typeof startFrom === 'number') {
+            // 按索引（从1开始）
+            startIndex = Math.max(0, startFrom - 1);
+            console.log('📍 从第 ' + startFrom + ' 个开始创建');
+        } else if (typeof startFrom === 'string') {
+            // 按姓名查找
+            const foundIndex = data.findIndex(item => item.name === startFrom);
+            if (foundIndex !== -1) {
+                startIndex = foundIndex;
+                console.log('📍 从「' + startFrom + '」开始创建（第 ' + (foundIndex + 1) + ' 个）');
+            } else {
+                console.warn('⚠️ 未找到姓名「' + startFrom + '」，从头开始');
+            }
+        }
+    }
+    
+    console.log('⚡ 准备快速创建${this.contactType}，共' + data.length + '个，处理 ' + (data.length - startIndex) + ' 个');
+    console.log('📦 批量大小: ' + batchSize + ' 个/批');
+    
+    let successCount = 0;
+    let existCount = 0;
+    
+    // 分批处理
+    for (let i = startIndex; i < data.length; i += batchSize) {
+        const batch = data.slice(i, Math.min(i + batchSize, data.length));
+        const batchNum = Math.floor(i / batchSize) + 1;
+        const totalBatches = Math.ceil(data.length / batchSize);
+        
+        console.log(\`📦 处理第 \${batchNum}/\${totalBatches} 批，共 \${batch.length} 个\`);
+        
+        // 并发处理当前批次
+        const promises = batch.map(async (item, idx) => {
+            const globalIdx = i + idx;
+            const name = item.name;
+            const sex = item.sex;
+            
+            try {
+                const res = await getSame(name, sex);
+                if (res.code == 0) {
+                    await addContact(name, sex);
+                    console.log('[' + (globalIdx + 1) + '/' + data.length + '] ✅ 添加成功：' + name);
+                    return { success: true, name };
+                } else {
+                    // 已存在 -> 校验性别
+                    const fetchedSex = await getContactSexByName(name, "${this.contactType}");
+                    if (fetchedSex && fetchedSex !== sex) {
+                        console.log('[' + (globalIdx + 1) + '/' + data.length + '] 🔄 ${this.contactType}已存在：' + name + '，性别已由「' + sex + '」修正为「' + fetchedSex + '」');
+                        data[globalIdx].sex = fetchedSex;
+                    } else {
+                        console.log('[' + (globalIdx + 1) + '/' + data.length + '] ⏭️  ${this.contactType}已存在：' + name);
+                    }
+                    return { success: false, name, existed: true };
+                }
+            } catch (error) {
+                console.error('[' + (globalIdx + 1) + '/' + data.length + '] ❌ 处理失败：' + name, error);
+                return { success: false, name, error: true };
+            }
+        });
+        
+        // 等待当前批次完成
+        const results = await Promise.all(promises);
+        
+        // 统计结果
+        results.forEach(result => {
+            if (result.success) {
+                successCount++;
+            } else if (result.existed) {
+                existCount++;
+            }
+        });
+        
+        // 批次间短暂延迟，避免服务器压力过大（使用可配置的间隔或默认200ms）
+        if (i + batchSize < data.length) {
+            const batchInterval = typeof apiRequestInterval !== 'undefined' ? Math.min(apiRequestInterval, 500) : 200;
+            console.log(\`⏱️  批次间延迟 \${(batchInterval/1000).toFixed(1)}秒...\`);
+            await new Promise(resolve => setTimeout(resolve, batchInterval));
+        }
+    }
+    
+    console.log('✅ ${this.contactType}快速创建完毕！');
+    console.log('📊 统计: 新建' + successCount + '个, 已存在' + existCount + '个');
+    console.log('⏱️  总耗时约: ' + Math.ceil((successCount * 0.6 + existCount * 0.1) / (batchSize / 10)) + ' 秒');
 }
 `;
     }

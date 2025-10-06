@@ -18,12 +18,20 @@ let currentIndex = 0;
 let isRunning = false;
 
 // 创建任务
-async function createTask(name, sex) {
+async function createTask(name, sex, taskDate) {
     return new Promise((resolve, reject) => {
+        // 确定实施日期
+        const implementDate = taskDate || date;
+        const implementYear = (new Date()).getFullYear();
+        const formattedDate = \`\${implementYear}-\${implementDate.replace('.', '-')}\`;
+        
+        // 根据配置确定姓名标签
+        const nameLabel = config.labelName || '姓名';
+        
         // 设置基本信息
-        setInputValue('姓名', name);
+        setInputValue(nameLabel, name);
         setInputValue('性别', sex);
-        setInputValue('实施时间', \`\${year}-\${date.replace('.', '-')}\`);
+        setInputValue('实施时间', formattedDate);
         
         // 设置问题答案
         try {
@@ -43,7 +51,7 @@ async function createTask(name, sex) {
             const submitBtn = contentWindow.document.querySelector('button[lay-submit]');
             if (submitBtn) {
                 submitBtn.click();
-                console.log(\`✅ 已提交: \${name} (\${sex})\`);
+                console.log(\`✅ 已提交: \${name} (\${sex}) - \${formattedDate}\`);
                 resolve();
             } else {
                 console.error('❌ 找不到提交按钮');
@@ -66,11 +74,21 @@ async function start() {
     }
     
     isRunning = true;
+    
+    // 首次执行时检查并更新问卷内容
+    if (currentIndex === 0 && typeof initializeQuestionnaireContent === 'function') {
+        try {
+            await initializeQuestionnaireContent();
+        } catch (error) {
+            console.warn('⚠️ 问卷内容检查失败，继续使用默认配置:', error);
+        }
+    }
+    
     const item = data[currentIndex];
     
     try {
-        console.log(\`[DOM] 开始处理第 \${currentIndex + 1}/\${data.length} 个: \${item.name} (\${item.sex})\`);
-        await createTask(item.name, item.sex);
+        console.log(\`[DOM] 开始处理第 \${currentIndex + 1}/\${data.length} 个: \${item.name} (\${item.sex}) - \${item.time}\`);
+        await createTask(item.name, item.sex, item.time);
         currentIndex++;
         console.log(\`✅ 完成: \${item.name}\`);
     } catch (error) {
@@ -102,6 +120,15 @@ async function automatic(targetDate = null) {
     isRunning = true;
     console.log(\`🚀 开始自动执行，共 \${dataToProcess.length} 个任务\`);
     
+    // 执行前检查并更新问卷内容
+    if (typeof initializeQuestionnaireContent === 'function') {
+        try {
+            await initializeQuestionnaireContent();
+        } catch (error) {
+            console.warn('⚠️ 问卷内容检查失败，继续使用默认配置:', error);
+        }
+    }
+    
     let successCount = 0;
     let failCount = 0;
     
@@ -109,8 +136,8 @@ async function automatic(targetDate = null) {
         const item = dataToProcess[i];
         
         try {
-            console.log(\`[DOM] 处理第 \${i + 1}/\${dataToProcess.length} 个: \${item.name} (\${item.sex})\`);
-            await createTask(item.name, item.sex);
+            console.log(\`[DOM] 处理第 \${i + 1}/\${dataToProcess.length} 个: \${item.name} (\${item.sex}) - \${item.time}\`);
+            await createTask(item.name, item.sex, item.time);
             successCount++;
             
             // 添加延迟避免操作过快
@@ -254,11 +281,11 @@ function initWorkerMode() {
             "      self.postMessage({type:'BATCH_PROGRESS', data:{ current:i+1, total:tasks.length, successCount:successCount, failCount:failCount }});",
             "      if(i<tasks.length-1){ await new Promise(r=>setTimeout(r, interval)); }",
             "    }",
-"    self.postMessage({type:'BATCH_COMPLETE', successCount:successCount, failCount:failCount, total:tasks.length, data:{ successCount:successCount, failCount:failCount, total:tasks.length }});",
+"    self.postMessage({type:'BATCH_COMPLETE', successCount:successCount, failCount:failCount, total:batchTasks.length, data:{ successCount:successCount, failCount:failCount, total:batchTasks.length }});",
             "  }",
             "});",
             "self.postMessage({type:'WORKER_READY', message:'Inline Worker ready'});"
-        ].join('\n');
+        ].join('\\n');
 
         const blob = new Blob([WORKER_JS], { type: 'application/javascript' });
         const workerUrl = URL.createObjectURL(blob);
@@ -327,8 +354,13 @@ function toggleWorkerMode(enable) {
 }
 
 // API创建任务
-async function createTaskApi(name, sex) {
+async function createTaskApi(name, sex, taskDate) {
     try {
+        // 确定实施日期
+        const implementDate = taskDate || date;
+        const implementYear = (new Date()).getFullYear();
+        const formattedDate = \`\${implementYear}-\${implementDate.replace('.', '-')}\`;
+        
         // 获取动态盐值
         const saltData = await createDynamicsSalt();
         
@@ -336,7 +368,7 @@ async function createTaskApi(name, sex) {
         const requestData = {
             name: name,
             sex: sex,
-            date: \`\${year}-\${date.replace('.', '-')}\`,
+            date: formattedDate,
             // 添加问题答案
             answers: {}
         };
@@ -494,11 +526,21 @@ async function startApi() {
     }
     
     isRunning = true;
+    
+    // 首次执行时检查并更新问卷内容
+    if (currentIndex === 0 && typeof initializeQuestionnaireContent === 'function') {
+        try {
+            await initializeQuestionnaireContent();
+        } catch (error) {
+            console.warn('⚠️ 问卷内容检查失败，继续使用默认配置:', error);
+        }
+    }
+    
     const item = data[currentIndex];
     
     try {
-        console.log(\`[API] 开始处理第 \${currentIndex + 1}/\${data.length} 个: \${item.name} (\${item.sex})\`);
-        const result = await createTaskApi(item.name, item.sex);
+        console.log(\`[API] 开始处理第 \${currentIndex + 1}/\${data.length} 个: \${item.name} (\${item.sex}) - \${item.time}\`);
+        const result = await createTaskApi(item.name, item.sex, item.time);
 
         // 检查是否是任务数量达标
         if (result && result.isQuotaReached) {
@@ -546,6 +588,15 @@ async function automaticApi(targetDate = null, useWorker = false) {
     isRunning = true;
     console.log(\`🚀 开始API自动执行，共 \${dataToProcess.length} 个任务\`);
     
+    // 执行前检查并更新问卷内容
+    if (typeof initializeQuestionnaireContent === 'function') {
+        try {
+            await initializeQuestionnaireContent();
+        } catch (error) {
+            console.warn('⚠️ 问卷内容检查失败，继续使用默认配置:', error);
+        }
+    }
+    
     let successCount = 0;
     let failCount = 0;
     
@@ -553,8 +604,8 @@ async function automaticApi(targetDate = null, useWorker = false) {
         const item = dataToProcess[i];
         
         try {
-            console.log(\`[API] 处理第 \${i + 1}/\${dataToProcess.length} 个: \${item.name} (\${item.sex})\`);
-            const result = await createTaskApi(item.name, item.sex);
+            console.log(\`[API] 处理第 \${i + 1}/\${dataToProcess.length} 个: \${item.name} (\${item.sex}) - \${item.time}\`);
+            const result = await createTaskApi(item.name, item.sex, item.time);
 
             // 检查是否是任务数量达标
             if (result && result.isQuotaReached) {
@@ -718,11 +769,12 @@ async function executeAllDates() {
             await automatic(targetDate);
         }
         
-        // 日期间隔延迟
+        // 日期间隔延迟（使用可配置的间隔或默认2秒）
         if (dates.indexOf(targetDate) < dates.length - 1) {
+            const interval = typeof apiRequestInterval !== 'undefined' ? apiRequestInterval : 2000;
             console.log('');
-            console.log('等待5秒后继续下一个日期...');
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            console.log(\`等待 \${(interval/1000).toFixed(1)}秒后继续下一个日期...\`);
+            await new Promise(resolve => setTimeout(resolve, interval));
         }
     }
     

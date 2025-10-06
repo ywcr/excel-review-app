@@ -59,27 +59,263 @@ const contentWindow = document.querySelector('#ssfwIframe')?.contentWindow ?? wi
 // API基础配置（用于验证功能）
 const API_BASE_URL = window.location.origin;
 
-// 辅助函数：从URL获取项目ID
+// 辅助函数：从URL获取项目ID（参考 wenjuanyanzheng.js）
 function getProjectIdFromUrl() {
+    // 方法1: 从当前页面URL获取
     const urlParams = new URLSearchParams(window.location.search);
     let projectId = urlParams.get('projectId');
     
-    if (!projectId) {
-        // 尝试从iframe获取
-        const iframe = document.querySelector('#ssfwIframe');
-        if (iframe && iframe.src) {
-            const iframeUrl = new URL(iframe.src);
-            projectId = iframeUrl.searchParams.get('projectId');
+    if (projectId) {
+        return projectId;
+    }
+    
+    // 方法2: 从iframe获取
+    const iframe = document.querySelector('#ssfwIframe');
+    if (iframe) {
+        try {
+            // 尝试从 iframe 的 contentWindow.location 获取
+            const iframeSrc = iframe.contentWindow.location.href;
+            const iframeParams = new URLSearchParams(iframeSrc.split('?')[1]);
+            projectId = iframeParams.get('projectId');
+            
+            if (projectId) {
+                return projectId;
+            }
+        } catch (error) {
+            // 跨域限制，尝试从 iframe.src 获取
+            try {
+                if (iframe.src) {
+                    const iframeUrl = new URL(iframe.src);
+                    projectId = iframeUrl.searchParams.get('projectId');
+                    
+                    if (projectId) {
+                        return projectId;
+                    }
+                }
+            } catch (e) {
+                // 忽略错误，使用默认值
+            }
         }
     }
     
-    // 返回找到的projectId或默认值
-    return projectId || '1756460958725101';
+    // 返回默认值
+    return '1756460958725101';
 }
 
 const PROJECT_ID = getProjectIdFromUrl();
 
 {{VALIDATION_CODE}}
+
+// ==================== 问卷内容抓取与对比 ====================
+
+// 从网站页面抓取问卷选项
+function extractQuestionOptionsFromPage() {
+    try {
+        console.log('🔍 开始从页面抓取问卷选项...');
+        
+        // 方法1: 尝试从DOM结构抓取（当在问卷填写页面时）
+        const mainElements = contentWindow.document.querySelectorAll('.main');
+        if (mainElements.length >= 2) {
+            const questionItems = mainElements[1].querySelectorAll('.layui-form-item');
+            const extractedQuestions = [];
+            
+            questionItems.forEach((item, index) => {
+                try {
+                    // 获取问题标题
+                    const labelElement = item.querySelector('label');
+                    const questionTitle = labelElement ? labelElement.innerText.trim() : '';
+                    
+                    // 获取所有选项
+                    const options = [];
+                    const inputElements = item.querySelectorAll('input[type="radio"], input[type="checkbox"]');
+                    
+                    inputElements.forEach(input => {
+                        const value = input.value;
+                        if (value && value.trim()) {
+                            options.push(value.trim());
+                        }
+                    });
+                    
+                    if (questionTitle && options.length > 0) {
+                        extractedQuestions.push({
+                            index: index,
+                            title: questionTitle,
+                            options: options
+                        });
+                        console.log(\`  问题 \${index}: \${questionTitle}\`);
+                        console.log(\`    选项: [\${options.join(', ')}]\`);
+                    }
+                } catch (error) {
+                    console.warn(\`⚠️ 解析问题 \${index} 时出错:\`, error);
+                }
+            });
+            
+            if (extractedQuestions.length > 0) {
+                console.log(\`✅ 从DOM结构成功抓取 \${extractedQuestions.length} 个问题\`);
+                return extractedQuestions;
+            }
+        }
+        
+        // 方法2: 尝试从隐藏字段抓取（备用方案）
+        console.log('🔄 尝试从隐藏字段抓取问卷定义...');
+        const questionsInput = contentWindow.document.querySelector('input[name="questions"]');
+        const optionsInput = contentWindow.document.querySelector('input[name="options"]');
+        
+        if (questionsInput && optionsInput) {
+            const questionsValue = questionsInput.value;
+            const optionsValue = optionsInput.value;
+            
+            if (questionsValue && optionsValue) {
+                // 解析问题和选项（格式：问题用#分隔，选项用#分隔，每个问题的选项用|或;分隔）
+                const questions = questionsValue.split('#');
+                const optionsGroups = optionsValue.split('#');
+                
+                const extractedQuestions = [];
+                questions.forEach((question, index) => {
+                    if (question && optionsGroups[index]) {
+                        // 尝试用|分隔，如果没有|则用;分隔
+                        let options = [];
+                        if (optionsGroups[index].includes('|')) {
+                            options = optionsGroups[index].split('|').filter(opt => opt.trim());
+                        } else if (optionsGroups[index].includes(';')) {
+                            options = optionsGroups[index].split(';').filter(opt => opt.trim());
+                        } else {
+                            // 如果都没有，可能是单个选项
+                            options = [optionsGroups[index]].filter(opt => opt.trim());
+                        }
+                        
+                        if (options.length > 0) {
+                            extractedQuestions.push({
+                                index: index,
+                                title: question.trim(),
+                                options: options.map(opt => opt.trim())
+                            });
+                            console.log(\`  问题 \${index}: \${question.trim()}\`);
+                            console.log(\`    选项: [\${options.join(', ')}]\`);
+                        }
+                    }
+                });
+                
+                if (extractedQuestions.length > 0) {
+                    console.log(\`✅ 从隐藏字段成功抓取 \${extractedQuestions.length} 个问题\`);
+                    return extractedQuestions;
+                }
+            }
+        }
+        
+        console.warn('⚠️ 未能从页面抓取到问卷内容');
+        console.log(\`✅ 成功抓取 0 个问题\`);
+        return null;
+    } catch (error) {
+        console.error('❌ 抓取问卷选项失败:', error);
+        return null;
+    }
+}
+
+// 对比并更新问卷答案函数
+function compareAndUpdateQuestions(extractedQuestions) {
+    if (!extractedQuestions || extractedQuestions.length === 0) {
+        console.warn('⚠️ 没有抓取到问卷内容，使用默认配置');
+        return false;
+    }
+    
+    console.log('🔄 开始对比问卷内容...');
+    let hasChanges = false;
+    
+    extractedQuestions.forEach(question => {
+        const index = question.index;
+        const answerFuncName = \`_answer\${index}\`;
+        
+        // 检查答案函数是否存在
+        if (typeof window[answerFuncName] !== 'function') {
+            console.log(\`⚠️ 问题 \${index} 没有对应的答案函数，跳过\`);
+            return;
+        }
+        
+        // 获取当前答案函数的选项（通过检查函数源码）
+        const currentFunc = window[answerFuncName];
+        const funcSource = currentFunc.toString();
+        
+        // 尝试从函数源码中提取选项数组
+        let currentOptions = [];
+        try {
+            // 匹配 const option = [...] 或 const option=[...]
+            const optionMatch = funcSource.match(/const\\s+option\\s*=\\s*\\[([^\\]]+)\\]/);
+            if (optionMatch) {
+                // 提取选项字符串，去掉引号和空格
+                currentOptions = optionMatch[1]
+                    .split(',')
+                    .map(opt => opt.trim().replace(/^['"]|['"]$/g, ''))
+                    .filter(opt => opt);
+            }
+        } catch (error) {
+            console.warn(\`⚠️ 无法解析问题 \${index} 的原选项\`, error);
+        }
+        
+        // 检查选项是否匹配
+        let allOptionsMatch = true;
+        for (const option of question.options) {
+            if (!funcSource.includes(option)) {
+                allOptionsMatch = false;
+                break;
+            }
+        }
+        
+        if (!allOptionsMatch) {
+            console.log(\`🔄 问题 \${index} 的选项不匹配，更新答案函数\`);
+            if (currentOptions.length > 0) {
+                console.log(\`  原选项: [\${currentOptions.join(', ')}]\`);
+            } else {
+                console.log(\`  原选项: (无法从函数源码中提取)\`);
+            }
+            console.log(\`  新选项: [\${question.options.join(', ')}]\`);
+            
+            // 动态生成新的答案函数
+            const newFunction = generateAnswerFunction(question);
+            window[answerFuncName] = newFunction;
+            hasChanges = true;
+        } else {
+            console.log(\`✅ 问题 \${index} 的选项匹配\`);
+        }
+    });
+    
+    if (hasChanges) {
+        console.log('✅ 问卷内容已更新为网站最新版本');
+    } else {
+        console.log('✅ 问卷内容与网站一致，无需更新');
+    }
+    
+    return hasChanges;
+}
+
+// 生成答案函数
+function generateAnswerFunction(question) {
+    const options = question.options;
+    
+    // 根据选项数量和类型生成合适的随机逻辑
+    return function() {
+        const index = Math.floor(Math.random() * options.length);
+        return options[index];
+    };
+}
+
+// 初始化问卷内容检查（在执行创建任务前调用）
+async function initializeQuestionnaireContent() {
+    console.log('📋 初始化问卷内容检查...');
+    
+    // 等待页面加载完成
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // 抓取页面问卷内容
+    const extractedQuestions = extractQuestionOptionsFromPage();
+    
+    // 对比并更新
+    if (extractedQuestions) {
+        compareAndUpdateQuestions(extractedQuestions);
+    }
+    
+    console.log('✅ 问卷内容检查完成');
+}
 
 // 设置输入框值
 function setInputValue(name, value) {
@@ -133,7 +369,9 @@ function setOptionValue(index, values) {
 console.log('%c🎉 自动化代码加载成功！', 'color: #28a745; font-weight: bold; font-size: 16px;');
 console.log('可用命令:');
 {{CHANNEL_COMMANDS}}
-console.log('  • startAddContact() - 创建联系人');
+console.log('  • startAddContact(起始位置) - 创建联系人（串行，安全）');
+console.log('  • startAddContactFast(批量大小, 起始位置) - 快速创建联系人（并发，默认10个/批）');
+console.log('    💡 起始位置可以是数字（如: 25）或姓名（如: "张三"）');
 console.log('  • start() - 手动执行单个任务');
 console.log('  • automatic() - 自动执行或按日期执行');
 console.log('  • validateData() - 验证数据完整性');
@@ -170,27 +408,265 @@ const CORP_ID = '1749721838789101';
 const PROJECT_TPL = '1756451075934101';
 const SPONSOR_PROJECT_ID = '1756451241652103';
 
-// 辅助函数：从URL获取项目ID
+// 辅助函数：从URL获取项目ID（参考 wenjuanyanzheng.js）
 function getProjectIdFromUrl() {
+    // 方法1: 从当前页面URL获取
     const urlParams = new URLSearchParams(window.location.search);
     let projectId = urlParams.get('projectId');
     
-    if (!projectId) {
-        // 尝试从iframe获取
-        const iframe = document.querySelector('#ssfwIframe');
-        if (iframe && iframe.src) {
-            const iframeUrl = new URL(iframe.src);
-            projectId = iframeUrl.searchParams.get('projectId');
+    if (projectId) {
+        return projectId;
+    }
+    
+    // 方法2: 从iframe获取
+    const iframe = document.querySelector('#ssfwIframe');
+    if (iframe) {
+        try {
+            // 尝试从 iframe 的 contentWindow.location 获取
+            const iframeSrc = iframe.contentWindow.location.href;
+            const iframeParams = new URLSearchParams(iframeSrc.split('?')[1]);
+            projectId = iframeParams.get('projectId');
+            
+            if (projectId) {
+                return projectId;
+            }
+        } catch (error) {
+            // 跨域限制，尝试从 iframe.src 获取
+            try {
+                if (iframe.src) {
+                    const iframeUrl = new URL(iframe.src);
+                    projectId = iframeUrl.searchParams.get('projectId');
+                    
+                    if (projectId) {
+                        return projectId;
+                    }
+                }
+            } catch (e) {
+                // 忽略错误，使用默认值
+            }
         }
     }
     
-    // 返回找到的projectId或默认值
-    return projectId || '1756460958725101';
+    // 返回默认值
+    return '1756460958725101';
 }
 
 const PROJECT_ID = getProjectIdFromUrl();
 
 {{VALIDATION_CODE}}
+
+// ==================== 问卷内容抓取与对比 ====================
+
+// 从网站页面抓取问卷选项
+function extractQuestionOptionsFromPage() {
+    try {
+        console.log('🔍 开始从页面抓取问卷选项...');
+        
+        const contentWindow = document.querySelector('#ssfwIframe')?.contentWindow ?? window;
+        
+        // 方法1: 尝试从DOM结构抓取（当在问卷填写页面时）
+        const mainElements = contentWindow.document.querySelectorAll('.main');
+        if (mainElements.length >= 2) {
+            const questionItems = mainElements[1].querySelectorAll('.layui-form-item');
+            const extractedQuestions = [];
+            
+            questionItems.forEach((item, index) => {
+                try {
+                    // 获取问题标题
+                    const labelElement = item.querySelector('label');
+                    const questionTitle = labelElement ? labelElement.innerText.trim() : '';
+                    
+                    // 获取所有选项
+                    const options = [];
+                    const inputElements = item.querySelectorAll('input[type="radio"], input[type="checkbox"]');
+                    
+                    inputElements.forEach(input => {
+                        const value = input.value;
+                        if (value && value.trim()) {
+                            options.push(value.trim());
+                        }
+                    });
+                    
+                    if (questionTitle && options.length > 0) {
+                        extractedQuestions.push({
+                            index: index,
+                            title: questionTitle,
+                            options: options
+                        });
+                        console.log(\`  问题 \${index}: \${questionTitle}\`);
+                        console.log(\`    选项: [\${options.join(', ')}]\`);
+                    }
+                } catch (error) {
+                    console.warn(\`⚠️ 解析问题 \${index} 时出错:\`, error);
+                }
+            });
+            
+            if (extractedQuestions.length > 0) {
+                console.log(\`✅ 从DOM结构成功抓取 \${extractedQuestions.length} 个问题\`);
+                return extractedQuestions;
+            }
+        }
+        
+        // 方法2: 尝试从隐藏字段抓取（备用方案）
+        console.log('🔄 尝试从隐藏字段抓取问卷定义...');
+        const questionsInput = contentWindow.document.querySelector('input[name="questions"]');
+        const optionsInput = contentWindow.document.querySelector('input[name="options"]');
+        
+        if (questionsInput && optionsInput) {
+            const questionsValue = questionsInput.value;
+            const optionsValue = optionsInput.value;
+            
+            if (questionsValue && optionsValue) {
+                // 解析问题和选项（格式：问题用#分隔，选项用#分隔，每个问题的选项用|或;分隔）
+                const questions = questionsValue.split('#');
+                const optionsGroups = optionsValue.split('#');
+                
+                const extractedQuestions = [];
+                questions.forEach((question, index) => {
+                    if (question && optionsGroups[index]) {
+                        // 尝试用|分隔，如果没有|则用;分隔
+                        let options = [];
+                        if (optionsGroups[index].includes('|')) {
+                            options = optionsGroups[index].split('|').filter(opt => opt.trim());
+                        } else if (optionsGroups[index].includes(';')) {
+                            options = optionsGroups[index].split(';').filter(opt => opt.trim());
+                        } else {
+                            // 如果都没有，可能是单个选项
+                            options = [optionsGroups[index]].filter(opt => opt.trim());
+                        }
+                        
+                        if (options.length > 0) {
+                            extractedQuestions.push({
+                                index: index,
+                                title: question.trim(),
+                                options: options.map(opt => opt.trim())
+                            });
+                            console.log(\`  问题 \${index}: \${question.trim()}\`);
+                            console.log(\`    选项: [\${options.join(', ')}]\`);
+                        }
+                    }
+                });
+                
+                if (extractedQuestions.length > 0) {
+                    console.log(\`✅ 从隐藏字段成功抓取 \${extractedQuestions.length} 个问题\`);
+                    return extractedQuestions;
+                }
+            }
+        }
+        
+        console.warn('⚠️ 未能从页面抓取到问卷内容');
+        console.log(\`✅ 成功抓取 0 个问题\`);
+        return null;
+    } catch (error) {
+        console.error('❌ 抓取问卷选项失败:', error);
+        return null;
+    }
+}
+
+// 对比并更新问卷答案函数
+function compareAndUpdateQuestions(extractedQuestions) {
+    if (!extractedQuestions || extractedQuestions.length === 0) {
+        console.warn('⚠️ 没有抓取到问卷内容，使用默认配置');
+        return false;
+    }
+    
+    console.log('🔄 开始对比问卷内容...');
+    let hasChanges = false;
+    
+    extractedQuestions.forEach(question => {
+        const index = question.index;
+        const answerFuncName = \`_answer\${index}\`;
+        
+        // 检查答案函数是否存在
+        if (typeof window[answerFuncName] !== 'function') {
+            console.log(\`⚠️ 问题 \${index} 没有对应的答案函数，跳过\`);
+            return;
+        }
+        
+        // 获取当前答案函数的选项（通过检查函数源码）
+        const currentFunc = window[answerFuncName];
+        const funcSource = currentFunc.toString();
+        
+        // 尝试从函数源码中提取选项数组
+        let currentOptions = [];
+        try {
+            // 匹配 const option = [...] 或 const option=[...]
+            const optionMatch = funcSource.match(/const\\s+option\\s*=\\s*\\[([^\\]]+)\\]/);
+            if (optionMatch) {
+                // 提取选项字符串，去掉引号和空格
+                currentOptions = optionMatch[1]
+                    .split(',')
+                    .map(opt => opt.trim().replace(/^['"]|['"]$/g, ''))
+                    .filter(opt => opt);
+            }
+        } catch (error) {
+            console.warn(\`⚠️ 无法解析问题 \${index} 的原选项\`, error);
+        }
+        
+        // 检查选项是否匹配
+        let allOptionsMatch = true;
+        for (const option of question.options) {
+            if (!funcSource.includes(option)) {
+                allOptionsMatch = false;
+                break;
+            }
+        }
+        
+        if (!allOptionsMatch) {
+            console.log(\`🔄 问题 \${index} 的选项不匹配，更新答案函数\`);
+            if (currentOptions.length > 0) {
+                console.log(\`  原选项: [\${currentOptions.join(', ')}]\`);
+            } else {
+                console.log(\`  原选项: (无法从函数源码中提取)\`);
+            }
+            console.log(\`  新选项: [\${question.options.join(', ')}]\`);
+            
+            // 动态生成新的答案函数
+            const newFunction = generateAnswerFunction(question);
+            window[answerFuncName] = newFunction;
+            hasChanges = true;
+        } else {
+            console.log(\`✅ 问题 \${index} 的选项匹配\`);
+        }
+    });
+    
+    if (hasChanges) {
+        console.log('✅ 问卷内容已更新为网站最新版本');
+    } else {
+        console.log('✅ 问卷内容与网站一致，无需更新');
+    }
+    
+    return hasChanges;
+}
+
+// 生成答案函数
+function generateAnswerFunction(question) {
+    const options = question.options;
+    
+    // 根据选项数量和类型生成合适的随机逻辑
+    return function() {
+        const index = Math.floor(Math.random() * options.length);
+        return options[index];
+    };
+}
+
+// 初始化问卷内容检查（在执行创建任务前调用）
+async function initializeQuestionnaireContent() {
+    console.log('📋 初始化问卷内容检查...');
+    
+    // 等待页面加载完成
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // 抓取页面问卷内容
+    const extractedQuestions = extractQuestionOptionsFromPage();
+    
+    // 对比并更新
+    if (extractedQuestions) {
+        compareAndUpdateQuestions(extractedQuestions);
+    }
+    
+    console.log('✅ 问卷内容检查完成');
+}
 
 // ==================== 签名算法实现 ====================
 
@@ -455,9 +931,23 @@ function toQueryString(obj) {
 console.log('%c🎉 自动化代码加载成功！', 'color: #28a745; font-weight: bold; font-size: 16px;');
 console.log('可用命令:');
 {{CHANNEL_COMMANDS}}
-console.log('  • startAddContact() - 创建联系人');
-console.log('  • startApi() - 手动执行单个任务');
-console.log('  • automaticApi() - 自动执行所有任务');
+console.log('  • startAddContact(起始位置) - 创建联系人（串行，安全）');
+console.log('  • startAddContactFast(批量大小, 起始位置) - 快速创建联系人（并发，默认10个/批）');
+console.log('    💡 起始位置可以是数字（如: 25）或姓名（如: "张三"）');
+console.log('  • startApi(起始位置) - 手动执行单个任务');
+console.log('  • automaticApi(日期, 起始位置) - 自动执行（串行，安全）');
+console.log('  • automaticApiFast(批量大小, 日期, 起始位置) - 快速批量执行（并发，默认10个/批）');
+console.log('    💡 起始位置可以是数字（如: 25）或姓名（如: "张三"）');
+console.log('  • setApiInterval(毫秒) - 设置API请求间隔（仅串行模式）');
+console.log('  • resetProgress() - 重置执行进度到第1个');
+console.log('  • setStartPosition(位置) - 设置起始位置');
+console.log('');
+console.log('执行控制:');
+console.log('  • pauseExecution() - 暂停当前执行');
+console.log('  • resumeExecution() - 继续执行');
+console.log('  • stopExecution() - 停止执行');
+console.log('');
+console.log('数据验证:');
 console.log('  • validateData() - 验证数据完整性');
 console.log('  • showMissing() - 显示缺失数据');
 console.log('  • updateWithMissing() - 补充缺失数据');

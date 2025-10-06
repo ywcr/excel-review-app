@@ -18,6 +18,56 @@ let validationResults = null;
 let missingData = [];
 
 /**
+ * 获取项目ID
+ * 参考 wenjuanyanzheng.js 的实现
+ */
+function getProjectIdFromUrl() {
+    // 方法1: 从当前页面URL获取
+    const urlParams = new URLSearchParams(window.location.search);
+    let projectId = urlParams.get('projectId');
+    
+    if (projectId) {
+        console.log(\`📋 从URL获取projectId: \${projectId}\`);
+        return projectId;
+    }
+    
+    // 方法2: 从iframe获取（参考 wenjuanyanzheng.js）
+    const iframe = document.querySelector('#ssfwIframe');
+    if (iframe) {
+        try {
+            // 尝试从 iframe 的 contentWindow.location 获取
+            const iframeSrc = iframe.contentWindow.location.href;
+            const iframeParams = new URLSearchParams(iframeSrc.split('?')[1]);
+            projectId = iframeParams.get('projectId');
+            
+            if (projectId) {
+                console.log(\`📋 从iframe获取projectId: \${projectId}\`);
+                return projectId;
+            }
+        } catch (error) {
+            // 跨域限制，尝试从 iframe.src 获取
+            try {
+                if (iframe.src) {
+                    const iframeUrl = new URL(iframe.src);
+                    projectId = iframeUrl.searchParams.get('projectId');
+                    
+                    if (projectId) {
+                        console.log(\`📋 从iframe.src获取projectId: \${projectId}\`);
+                        return projectId;
+                    }
+                }
+            } catch (e) {
+                console.warn('⚠️ 无法从iframe获取projectId，可能是跨域限制');
+            }
+        }
+    }
+    
+    // 方法3: 使用默认值
+    console.warn('⚠️ 无法获取projectId，使用默认值');
+    return '1756460958725101';
+}
+
+/**
  * 验证数据完整性
  * 检查所有数据是否已成功创建
  */
@@ -72,25 +122,39 @@ async function validateData() {
  */
 async function getCreatedQuestionnaires(projectId, targetDate) {
     try {
-        // 构建查询参数
-        const params = new URLSearchParams({
-            projectId: projectId,
-            date: targetDate.replace(/\\./g, '-'),
-            pageSize: 1000
-        });
+        // 转换日期格式 MM.DD -> YYYY-MM-DD
+        const year = new Date().getFullYear();
+        let checkDate = targetDate;
         
-        const response = await fetch(\`\${API_BASE_URL}/lgb/project/submitList?\${params}\`, {
-            method: 'GET',
-            headers: {
-                'accept': 'application/json',
-                'x-requested-with': 'XMLHttpRequest'
-            },
-            credentials: 'include'
-        });
+        // 如果是 MM.DD 格式，转换为 YYYY-MM-DD
+        if (targetDate.includes('.')) {
+            const [month, day] = targetDate.split('.');
+            checkDate = \`\${year}-\${month.padStart(2, '0')}-\${day.padStart(2, '0')}\`;
+        }
+        
+        // 使用与 wenjuanyanzheng.js 相同的接口
+        const response = await fetch(
+            \`/lgb/workOrder/mobile/list?searchValue=&pageNum=1&pageSize=100000&projectId=\${projectId}&queryState=-1\`,
+            {
+                method: 'GET',
+                headers: {
+                    'accept': 'application/json',
+                    'x-requested-with': 'XMLHttpRequest'
+                },
+                credentials: 'include'
+            }
+        );
         
         const result = await response.json();
-        if (result.code === 0 || result.code === 200) {
-            return result.data || [];
+        
+        // 接口返回 code: 200 表示成功
+        if (result.code === 200) {
+            const createdSurveys = result.rows || [];
+            // 提取姓名字段，兼容多种字段名
+            return createdSurveys.map(item => ({
+                name: item.workOrderValue || item.patientName || item.consumerName || '',
+                ...item
+            }));
         }
         
         return [];
@@ -159,28 +223,65 @@ async function updateWithMissing(newData = null) {
         console.log(\`✅ 已添加 \${uniqueNewData.length} 条新数据到数据集\`);
     }
     
+    // 在执行前检查并更新问卷内容（如果函数存在）
+    if (typeof initializeQuestionnaireContent === 'function') {
+        try {
+            console.log('%c📋 检查问卷内容是否需要更新...', 'color: #17a2b8; font-weight: bold;');
+            await initializeQuestionnaireContent();
+        } catch (error) {
+            console.warn('⚠️ 问卷内容检查失败，继续使用默认配置:', error);
+        }
+    }
+    
     // 自动执行缺失的数据
     console.log('%c🚀 开始自动执行缺失数据...', 'color: #6f42c1; font-weight: bold;');
     
     let successCount = 0;
     let failCount = 0;
     
-    for (const item of dataToProcess) {
+    for (let i = 0; i < dataToProcess.length; i++) {
+        const item = dataToProcess[i];
+        
+        // 检查是否应该停止
+        if (typeof shouldStop !== 'undefined' && shouldStop) {
+            console.log('%c⏹️ 执行已停止', 'color: #ff6b6b; font-weight: bold;');
+            break;
+        }
+        
+        // 检查是否暂停（等待恢复）
+        while (typeof isPaused !== 'undefined' && isPaused) {
+            console.log('%c⏸️ 执行已暂停，等待恢复...', 'color: #ffa502; font-weight: bold;');
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // 在暂停期间也检查是否要停止
+            if (typeof shouldStop !== 'undefined' && shouldStop) {
+                console.log('%c⏹️ 执行已停止', 'color: #ff6b6b; font-weight: bold;');
+                break;
+            }
+        }
+        
+        // 再次检查停止状态（可能在暂停期间被设置）
+        if (typeof shouldStop !== 'undefined' && shouldStop) {
+            break;
+        }
+        
         try {
-            console.log(\`处理: \${item.name} (\${item.sex})\`);
+            console.log(\`[\${i + 1}/\${dataToProcess.length}] 处理: \${item.name} (\${item.sex}) - \${item.time}\`);
             
             if (typeof createTaskApi !== 'undefined') {
-                await createTaskApi(item.name, item.sex);
+                await createTaskApi(item.name, item.sex, item.time);
             } else if (typeof createTask !== 'undefined') {
-                await createTask(item.name, item.sex);
+                await createTask(item.name, item.sex, item.time);
             }
             
             successCount++;
+            console.log(\`✅ [\${i + 1}/\${dataToProcess.length}] 成功: \${item.name}\`);
             
-            // 添加延迟避免请求过快
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // 使用全局间隔设置（如果存在），否则使用默认2秒
+            const interval = typeof apiRequestInterval !== 'undefined' ? apiRequestInterval : 2000;
+            await new Promise(resolve => setTimeout(resolve, interval));
         } catch (error) {
-            console.error(\`❌ 处理失败: \${item.name}\`, error);
+            console.error(\`❌ [\${i + 1}/\${dataToProcess.length}] 处理失败: \${item.name}\`, error);
             failCount++;
         }
     }
