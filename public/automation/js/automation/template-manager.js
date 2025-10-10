@@ -288,6 +288,90 @@ function compareAndUpdateQuestions(extractedQuestions) {
     return hasChanges;
 }
 
+// 校验问卷内容是否匹配（仅校验，不改动答案函数）
+function verifyQuestionnaireContent(showAlert = true) {
+    try {
+        const extractedQuestions = extractQuestionOptionsFromPage();
+        if (!extractedQuestions || extractedQuestions.length === 0) {
+            console.error('❌ 无法读取当前页面的问卷结构，已终止执行');
+            if (showAlert) alert('❌ 无法读取当前页面的问卷结构，已终止执行');
+            return false;
+        }
+
+        const expectedDef = buildExpectedQuestionnaireDefinition();
+        let mismatch = false;
+        const details = [];
+
+        // 将提取结果转索引映射
+        const pageMap = {};
+        extractedQuestions.forEach(q => { pageMap[q.index] = q.options || []; });
+
+        // 对比期望与页面
+        Object.keys(expectedDef).forEach(k => {
+            const idx = parseInt(k, 10);
+            const expectedOpts = expectedDef[idx] || [];
+            const pageOpts = pageMap[idx] || [];
+            if (expectedOpts.length === 0) return; // 没有明确期望则跳过
+            const missing = expectedOpts.filter(o => !pageOpts.includes(o));
+            if (missing.length > 0) {
+                mismatch = true;
+                details.push({ index: idx, missing, pageOpts });
+            }
+        });
+
+        if (mismatch) {
+            console.error('❌ 问卷不匹配，详情: ', details);
+            if (showAlert) alert('❌ 当前页面问卷内容与所选类型不匹配，已终止执行');
+            return false;
+        }
+
+        console.log('✅ 问卷内容与所选类型匹配');
+        return true;
+    } catch (e) {
+        console.error('❌ 校验问卷内容失败:', e);
+        if (showAlert) alert('❌ 校验问卷内容失败，已终止执行');
+        return false;
+    }
+}
+
+// 构建期望的问卷定义（从答案函数中解析）
+function buildExpectedQuestionnaireDefinition() {
+    const expected = {};
+
+    // 通用：解析 _answerN 函数中的 const option = [...]
+    for (let i = 0; i < 50; i++) {
+        const name = \`_answer\${i}\`;
+        const fn = window[name];
+        if (typeof fn !== 'function') continue;
+        try {
+            const src = fn.toString();
+            const m = src.match(/const\\s+option\\s*=\\s*\\[([^\\]]+)\\]/);
+            if (m) {
+                expected[i] = m[1]
+                    .split(',')
+                    .map(str => str.trim().replace(/^['"]|['"]$/g, ''))
+                    .filter(Boolean);
+            }
+        } catch {}
+    }
+
+    // 平晓特殊规则：明确第1题与第4题的选项集合
+    try {
+        if (typeof config !== 'undefined' && config.variant === "pingxiao") {
+            // 仅要求第1题包含配置的选项；第4题为依赖题，由运行时逻辑自适应页面可选项
+            expected[0] = ['肿瘤辅助治疗','甲状腺 / 乳腺结节消结散结','淋巴结肿大 / 炎症肿痛缓解','中医辨证热毒壅结证'];
+        }
+    } catch {}
+
+    return expected;
+}
+
+// 确认匹配，否则中止
+async function ensureQuestionnaireMatchesOrAbort() {
+    const ok = verifyQuestionnaireContent(true);
+    if (!ok) throw new Error('问卷不匹配');
+}
+
 // 生成答案函数
 function generateAnswerFunction(question) {
     const options = question.options;
@@ -639,6 +723,90 @@ function compareAndUpdateQuestions(extractedQuestions) {
     return hasChanges;
 }
 
+// 校验问卷内容是否匹配（仅校验，不改动答案函数）
+function verifyQuestionnaireContent(showAlert = true) {
+    try {
+        const extractedQuestions = extractQuestionOptionsFromPage();
+        if (!extractedQuestions || extractedQuestions.length === 0) {
+            console.error('❌ 无法读取当前页面的问卷结构，已终止执行');
+            if (showAlert) alert('❌ 无法读取当前页面的问卷结构，已终止执行');
+            return false;
+        }
+
+        const expectedDef = buildExpectedQuestionnaireDefinition();
+        let mismatch = false;
+        const details = [];
+
+        // 将提取结果转索引映射
+        const pageMap = {};
+        extractedQuestions.forEach(q => { pageMap[q.index] = q.options || []; });
+
+        // 对比期望与页面
+        Object.keys(expectedDef).forEach(k => {
+            const idx = parseInt(k, 10);
+            const expectedOpts = expectedDef[idx] || [];
+            const pageOpts = pageMap[idx] || [];
+            if (expectedOpts.length === 0) return; // 没有明确期望则跳过
+            const missing = expectedOpts.filter(o => !pageOpts.includes(o));
+            if (missing.length > 0) {
+                mismatch = true;
+                details.push({ index: idx, missing, pageOpts });
+            }
+        });
+
+        if (mismatch) {
+            console.error('❌ 问卷不匹配，详情: ', details);
+            if (showAlert) alert('❌ 当前页面问卷内容与所选类型不匹配，已终止执行');
+            return false;
+        }
+
+        console.log('✅ 问卷内容与所选类型匹配');
+        return true;
+    } catch (e) {
+        console.error('❌ 校验问卷内容失败:', e);
+        if (showAlert) alert('❌ 校验问卷内容失败，已终止执行');
+        return false;
+    }
+}
+
+// 构建期望的问卷定义（从答案函数中解析）
+function buildExpectedQuestionnaireDefinition() {
+    const expected = {};
+
+    // 通用：解析 _answerN 函数中的 const option = [...]
+    for (let i = 0; i < 50; i++) {
+        const name = '_answer' + i;
+        const fn = window[name];
+        if (typeof fn !== 'function') continue;
+        try {
+            const src = fn.toString();
+            const m = src.match(/const\\s+option\\s*=\\s*\\[([^\\]]+)\\]/);
+            if (m) {
+                expected[i] = m[1]
+                    .split(',')
+                    .map(str => str.trim().replace(/^['"]|['"]$/g, ''))
+                    .filter(Boolean);
+            }
+        } catch {}
+    }
+
+    // 平晓特殊规则：明确第1题与第4题的选项集合
+    try {
+        if (typeof config !== 'undefined' && config.variant === 'pingxiao') {
+            // 仅要求第1题包含配置的选项；第4题为依赖题，由运行时逻辑自适应页面可选项
+            expected[0] = ['肿瘤辅助治疗','甲状腺 / 乳腺结节消结散结','淋巴结肿大 / 炎症肿痛缓解','中医辨证热毒壅结证'];
+        }
+    } catch {}
+
+    return expected;
+}
+
+// 确认匹配，否则中止
+async function ensureQuestionnaireMatchesOrAbort() {
+    const ok = verifyQuestionnaireContent(true);
+    if (!ok) throw new Error('问卷不匹配');
+}
+
 // 生成答案函数
 function generateAnswerFunction(question) {
     const options = question.options;
@@ -680,6 +848,7 @@ if (typeof CryptoJS === 'undefined') {
 
 // 获取动态盐值
 async function createDynamicsSalt() {
+    // 用于创建（/add）
     // 尝试主端点
     try {
         console.log('🔍 开始获取动态盐值...');
@@ -696,7 +865,7 @@ async function createDynamicsSalt() {
                 },
                 error: function(xhr, status, error) {
                     console.error('❌ 主端点请求失败:', status, error);
-                    reject(new Error(\`请求失败: \${status} - \${error}\`));
+                    reject(new Error('请求失败: ' + status + ' - ' + error));
                 }
             });
         });
@@ -737,7 +906,7 @@ async function tryAlternativeEndpoint() {
                 },
                 error: function(xhr, status, error) {
                     console.error('❌ 备用端点请求失败:', status, error);
-                    reject(new Error(\`备用端点请求失败: \${status} - \${error}\`));
+                    reject(new Error('备用端点请求失败: ' + status + ' - ' + error));
                 }
             });
         });
@@ -755,13 +924,41 @@ async function tryAlternativeEndpoint() {
     }
 }
 
+// 获取动态盐值（用于更新 /mobileUpd）
+async function createDynamicsSaltForUpdate() {
+    try {
+        const endpoint = (config && config.saltEndpointUpdate) 
+            ? config.saltEndpointUpdate 
+            : (config && config.saltEndpoint 
+                ? (config.saltEndpoint.replace(/add$/, 'mobileUpd').replace('/add', '/mobileUpd'))
+                : '/lgb/payMerge/createDynamicsSalt?methodName=/xfzwj/mobileUpd');
+        console.log('🔍 获取更新用动态盐值...', endpoint);
+        const result = await new Promise((resolve, reject) => {
+            $.ajax({
+                url: endpoint,
+                type: "GET",
+                traditional: true,
+                success: function(res) { resolve(res); },
+                error: function(xhr, status, error) { reject(new Error('请求失败: ' + status + ' - ' + error)); }
+            });
+        });
+        if (result && result.code === 0) {
+            return await processSaltData(result.data);
+        }
+        throw new Error(\`获取更新盐值失败: \${result && result.message}\`);
+    } catch (e) {
+        console.error('❌ 获取更新盐值失败:', e);
+        throw e;
+    }
+}
+
 // 处理盐值数据
 async function processSaltData(data) {
     console.log('✅ 动态盐值获取成功:', data);
 
     // 验证返回的数据结构
     if (!data) {
-        throw new Error('动态盐值数据为空');
+        throw new Error(\`动态盐值数据为空\`);
     }
 
     // 根据参考代码 dcwj.js，API返回的data直接就是签名密钥
@@ -971,6 +1168,16 @@ function help() {
     console.log('  • validateData() - 验证数据完整性');
     console.log('  • showMissing() - 显示缺失数据');
     console.log('  • updateWithMissing() - 补充缺失数据');
+    console.log('');
+    console.log('🔄 智能更新:');
+    console.log('  • updateByOrderApi(日期, 起始位置) - 按data顺序匹配工单ID并更新');
+    console.log('    💡 例: updateByOrderApi("10.09") - 更新所有10.09的工单');
+    console.log('    💡 例: updateByOrderApi(null, 5) - 从第5个开始更新所有工单');
+    console.log('    💡 例: updateByOrderApi("10.09", "张三") - 从张三开始更新10.09工单');
+    console.log('  • updateByDateApi(日期) - 按日期批量更新所有工单');
+    console.log('  • revokeByDateApi(日期) - 按日期批量撤销工单');
+    console.log('  • cacheQuestionnaireStructure() - 手动缓存问卷结构（在工单列表页更新时使用）');
+    console.log('  • clearQuestionnaireCache() - 清除缓存');
     console.log('');
     console.log('💡 提示: 起始位置可以是数字（如: 25）或姓名（如: "张三"）');
 }

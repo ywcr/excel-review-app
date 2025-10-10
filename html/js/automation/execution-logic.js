@@ -36,7 +36,7 @@ async function createTask(name, sex, taskDate) {
         // 设置问题答案
         try {
             for (let i = 0; i < 10; i++) {
-                const answerFunc = window[\`_answer\${i}\`];
+                const answerFunc = window['_answer' + i];
                 if (typeof answerFunc === 'function') {
                     const answer = answerFunc();
                     setOptionValue(i, answer);
@@ -413,7 +413,7 @@ async function createTaskApi(name, sex, taskDate) {
         // 添加单独的answer字段
         requestData.answers.forEach((answer, index) => {
             if (answer !== undefined) {
-                tempData[\`answer\${index}\`] = answer;
+                tempData['answer' + index] = answer;
             }
         });
 
@@ -460,7 +460,7 @@ async function createTaskApi(name, sex, taskDate) {
         // 添加单独的answer字段（answer0, answer1, answer2...）
         requestData.answers.forEach((answer, index) => {
             if (answer !== undefined) {
-                ajaxData[\`answer\${index}\`] = answer;
+                ajaxData['answer' + index] = answer;
             }
         });
 

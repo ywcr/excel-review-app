@@ -14,10 +14,12 @@ const CONFIG = {
       labelName: "患者姓名",
       hasChannel: false,
       columnFormat: "simple", // 无渠道：序号, 姓名, 性别, 时间, 指派人
-      description: "六味地黄丸患者问卷，无需创建医院",
+      description: "西黄丸消费者问卷，需要创建消费者和医院",
+      updateEndpoint: "/lgb/xfzwj/mobileUpd",
+      saltEndpointUpdate: "/lgb/payMerge/createDynamicsSalt?methodName=/xfzwj/mobileUpd",
     },
     xihuang_consumer: {
-      name: "西黄消费者问卷",
+      name: "西黄消费者问卷-致力庆",
       contactType: "消费者",
       sheetName: "西黄消费者问卷",
       keywords: ["西黄", "消费者", "问卷"],
@@ -28,7 +30,25 @@ const CONFIG = {
       labelName: "消费者姓名",
       hasChannel: true,
       columnFormat: "simple", // 无渠道：序号, 姓名, 性别, 时间, 指派人
-      description: "西黄丸消费者问卷，需要创建消费者和医院",
+      description: "西黄丸消费者问卷（致力庆规则集）",
+    },
+    xihuang_consumer_pingxiao: {
+      name: "西黄消费者问卷-平晓",
+      contactType: "消费者",
+      // 复用原始西黄问卷的Excel解析和页面入口，仅区分问卷逻辑
+      sheetName: "西黄消费者问卷",
+      keywords: ["西黄", "消费者", "问卷", "平晓"],
+      createUrl: "/lgb/mobile/xfzwj.jsp?t=true",
+      apiEndpoint: "/lgb/xfzwj/add",
+      saltEndpoint: "/lgb/payMerge/createDynamicsSalt?methodName=/xfzwj/add",
+      listType: "消费者问卷",
+      labelName: "消费者姓名",
+      hasChannel: true,
+      columnFormat: "simple",
+      description: "西黄丸消费者问卷（平晓规则集）",
+      variant: "pingxiao",
+      updateEndpoint: "/lgb/xfzwj/mobileUpd",
+      saltEndpointUpdate: "/lgb/payMerge/createDynamicsSalt?methodName=/xfzwj/mobileUpd",
     },
     niujie_consumer: {
       name: "牛解消费者问卷",

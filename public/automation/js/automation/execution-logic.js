@@ -131,7 +131,7 @@ async function createTask(name, sex, taskDate) {
         // 设置问题答案
         try {
             for (let i = 0; i < 10; i++) {
-                const answerFunc = window[\`_answer\${i}\`];
+                const answerFunc = window['_answer' + i];
                 if (typeof answerFunc === 'function') {
                     const answer = answerFunc();
                     setOptionValue(i, answer);
@@ -180,14 +180,16 @@ async function start() {
     
     isRunning = true;
     
-    // 首次执行时检查并更新问卷内容
-    if (currentIndex === 0 && typeof initializeQuestionnaireContent === 'function') {
-        try {
-            await initializeQuestionnaireContent();
-        } catch (error) {
-            console.warn('⚠️ 问卷内容检查失败，继续使用默认配置:', error);
-        }
-    }
+    // 执行前校验问卷内容是否匹配（已禁用）
+    // try {
+    //     if (typeof ensureQuestionnaireMatchesOrAbort === 'function') {
+    //         await ensureQuestionnaireMatchesOrAbort();
+    //     }
+    // } catch (e) {
+    //     console.error('🛑 问卷不匹配，已终止执行。', e);
+    //     isRunning = false;
+    //     return;
+    // }
     
     const item = data[currentIndex];
     
@@ -426,7 +428,7 @@ async function createTaskApi(name, sex, taskDate) {
         // 设置问题答案 - 使用数组格式，索引对应answer0, answer1, answer2...
         const answersArray = [];
         for (let i = 0; i < 10; i++) {
-            const answerFunc = window[\`_answer\${i}\`];
+            const answerFunc = window['_answer' + i];
             if (typeof answerFunc === 'function') {
                 answersArray[i] = answerFunc();
             }
@@ -533,13 +535,9 @@ async function createTaskApi(name, sex, taskDate) {
         const title = getInputValue('title', config.title || "致力庆西黄丸消费者问卷");
         const memo = getInputValue('memo', config.memo || "为了充分了解客户对于西黄丸产品评价，为更好的做好临床药学服务，促进产品在临床的安全合理的使用，便于下一步市场策略的规划，特进行本次问卷调查。");
         const way = getInputValue('way', "实名调查");
-        // ⚠️ 关键：dcdxName（调查对象姓名）必须有值
-        // 如果页面隐藏字段为空，使用 config.dcdxName 或当前调查对象的 name
-        let dcdxName = getInputValue('dcdxName', '');
-        if (!dcdxName || dcdxName.trim() === '') {
-            dcdxName = config.dcdxName || name;
-            console.log('📝 dcdxName 为空，使用默认值:', dcdxName);
-        }
+        // ⚠️ 关键修复：不从页面读取 dcdxName，始终使用 data 数组中的姓名
+        // 原代码： let dcdxName = getInputValue('dcdxName', ''); if (!dcdxName || dcdxName.trim() === '') { dcdxName = config.dcdxName || name; }
+        const dcdxName = name;  // 直接使用传入的 name 参数
         const channelAddress = getInputValue('channelAddress', '');
         const latLng = getInputValue('latLng', '');
         const recId = getInputValue('recId', '');
@@ -671,7 +669,7 @@ async function createTaskApi(name, sex, taskDate) {
         // 之前认为多选题不应该包含 answerN 是错误的！
         requestData.answers.forEach((answer, index) => {
             if (answer !== undefined && answer !== '') {
-                cleanedParamsForSign[\`answer\${index}\`] = answer;
+                cleanedParamsForSign['answer' + index] = answer;
                 if (typesValue) {
                     const typeList = typesValue.split('#');
                     const typeName = (typeList[index] || '').trim();
@@ -822,15 +820,469 @@ async function createTaskApi(name, sex, taskDate) {
         console.error(\`❌ API返回未知状态码: \${code}, 消息: \${message}\`);
         throw new Error(\`API返回错误: \${message || '未知错误'} (code: \${code})\`);
     } catch (error) {
-        console.error(\`❌ API创建失败: \${name}\`, error);
+        console.error(\`❌ API创建失败: ${name}\`, error);
         throw error;
     }
+}
+
+// ========== 工单列表与撤销（API） ==========
+function formatDateForList(mmdd){
+    const year = (new Date()).getFullYear();
+    const parts = String(mmdd).split('.');
+    const m = String(parts[0]).padStart(2,'0');
+    const d = String(parts[1]).padStart(2,'0');
+    return year + '-' + m + '-' + d;
+}
+
+async function fetchWorkOrdersApi(projectId, mmdd = null){
+    const params = new URLSearchParams({ searchValue:'', pageNum:'1', pageSize:'100000', projectId: projectId || '', queryState:'-1' });
+    if (mmdd) params.set('date', formatDateForList(mmdd));
+    const url = '/lgb/workOrder/mobile/list?' + params.toString();
+    return await new Promise((resolve, reject) => {
+        $.ajax({ url, type:'GET', traditional:true, success: (res)=>{
+            if (res && res.code === 200) resolve(Array.isArray(res.rows)?res.rows:[]);
+            else reject(new Error('列表接口异常: ' + (res && res.code)));
+        }, error: (xhr,s,e)=> reject(new Error('列表请求失败: ' + s + ' - ' + e)) });
+    });
+}
+
+async function revokeWorkOrderApi(workOrderId){
+    return await new Promise((resolve, reject) => {
+        $.ajax({ url:'/lgb/projectJs/returnCh', type:'POST', data:{ tabName:'xfzwj', id:String(workOrderId) }, traditional:true,
+            success: ()=> resolve(true), error:(xhr,s,e)=> reject(new Error('撤销失败: ' + s + ' - ' + e)) });
+    });
+}
+
+function rowName(row){ return row && (row.workOrderValue || row.consumerName || row.patientName || row.name || ''); }
+function findSexByName(name){ try { const item = (data || []).find(i=>i.name===name); return (item && item.sex) || '女'; } catch(e){ return '女'; } }
+
+async function revokeByDateApi(mmdd){
+    try {
+        const projectId = (function(){
+            const p = new URLSearchParams(window.location.search).get('projectId');
+            if (p) return p; const ifr = document.querySelector('#ssfwIframe');
+            if (ifr){ try{ const href = ifr.contentWindow.location.href; const u = new URLSearchParams(href.split('?')[1]||''); const id = u.get('projectId'); if (id) return id; }catch(e){ const src = ifr.getAttribute('src')||''; const u = new URLSearchParams(src.split('?')[1]||''); const id = u.get('projectId'); if (id) return id; } }
+            return null; })();
+        if (!projectId){ console.error('❌ 未获取到 projectId'); return; }
+        const rows = await fetchWorkOrdersApi(projectId, mmdd);
+        if (!rows.length){ console.log('📭 无待撤销工单'); return; }
+        let ok=0, fail=0; 
+        for (let i=0;i<rows.length;i++){
+            const id = rows[i].workOrderId || rows[i].recId || rows[i].id;
+            try{
+                await revokeWorkOrderApi(id);
+                console.log('✅ [' + (i+1) + '/' + rows.length + '] 撤销成功: ' + id);
+                ok++;
+            }catch(e){
+                console.error('❌ [' + (i+1) + '/' + rows.length + '] 撤销失败: ' + id, e.message||e);
+                fail++;
+            }
+            if (i<rows.length-1) await new Promise(r=>setTimeout(r,200));
+        }
+        console.log('📊 撤销完成：成功 ' + ok + '，失败 ' + fail);
+    } catch(e){ console.error('❌ revokeByDateApi 失败:', e.message||e); }
+}
+
+// ========== 问卷结构缓存 ==========
+// 全局缓存，用于批量更新时避免重复读取
+let questionnaireStructureCache = null;
+
+/**
+ * 缓存问卷结构字段
+ * 在批量更新前调用，从问卷页面读取并缓存
+ */
+function cacheQuestionnaireStructure() {
+    try {
+        let targetWindow = (typeof contentWindow !== 'undefined' && contentWindow) ? contentWindow : window;
+        if (targetWindow === window) {
+            const iframe = document.querySelector('#ssfwIframe');
+            if (iframe && iframe.contentWindow) targetWindow = iframe.contentWindow;
+        }
+        
+        const getInputValue = (name, fallback='') => {
+            const input = targetWindow.document.querySelector(\`input[name="\${name}"]\`);
+            return input ? input.value : fallback;
+        };
+        
+        const questionsValue = getInputValue('questions', '');
+        const optionsValue = getInputValue('options', '');
+        const typesValue = getInputValue('types', '');
+        
+        if (questionsValue && optionsValue && typesValue) {
+            questionnaireStructureCache = {
+                questions: questionsValue,
+                options: optionsValue,
+                types: typesValue,
+                timestamp: Date.now()
+            };
+            console.log('✅ 问卷结构已缓存（questions: ' + questionsValue.length + ' chars, options: ' + optionsValue.length + ' chars）');
+            return true;
+        } else {
+            console.warn('⚠️ 无法读取问卷结构字段，请确保在问卷页面执行');
+            return false;
+        }
+    } catch (e) {
+        console.error('❌ 缓存问卷结构失败:', e);
+        return false;
+    }
+}
+
+/**
+ * 清除问卷结构缓存
+ */
+function clearQuestionnaireCache() {
+    questionnaireStructureCache = null;
+    console.log('🗑️ 问卷结构缓存已清除');
+}
+
+// ========== 更新（API /mobileUpd） ==========
+async function updateTaskApi(recIdParam, name, sex, taskDate){
+    try {
+        const implementDate = taskDate || date;
+        const implementYear = (new Date()).getFullYear();
+        const formattedDate = \`\${implementYear}-\${implementDate.replace('.', '-')}\`;
+        const saltData = await createDynamicsSaltForUpdate();
+
+        const requestData = { name, sex, date: formattedDate, answers: {} };
+        const answersArray = [];
+        for (let i=0;i<10;i++){ const fn = window['_answer' + i]; if (typeof fn === 'function') answersArray[i] = fn(); }
+        requestData.answers = answersArray;
+
+        let targetWindow = (typeof contentWindow !== 'undefined' && contentWindow) ? contentWindow : window;
+        if (targetWindow === window){ const iframe = document.querySelector('#ssfwIframe'); if (iframe && iframe.contentWindow) targetWindow = iframe.contentWindow; }
+
+        const getInputValue = (name, fallback='')=>{ const input = targetWindow.document.querySelector(\`input[name="\${name}"]\`); return input ? input.value : fallback; };
+        const getProjectIdFromUrl = ()=>{ const p = new URLSearchParams(window.location.search).get('projectId'); if (p) return p; const ifr = document.querySelector('#ssfwIframe'); if (ifr){ try{ const href = ifr.contentWindow.location.href; const u = new URLSearchParams(href.split('?')[1]||''); const id = u.get('projectId'); if (id) return id; }catch(e){ const src = ifr.getAttribute('src')||''; const u = new URLSearchParams(src.split('?')[1]||''); const id = u.get('projectId'); if (id) return id; } } return null; };
+
+        // 优先使用缓存，如果没有缓存则从页面读取
+        let questionsValue, optionsValue, typesValue;
+        if (questionnaireStructureCache) {
+            questionsValue = questionnaireStructureCache.questions;
+            optionsValue = questionnaireStructureCache.options;
+            typesValue = questionnaireStructureCache.types;
+        } else {
+            questionsValue = getInputValue('questions','');
+            optionsValue   = getInputValue('options','');
+            typesValue     = getInputValue('types','');
+        }
+        
+        if (!questionsValue || !optionsValue || !typesValue) {
+            throw new Error('问卷结构字段缺失，请在执行前调用 cacheQuestionnaireStructure()');
+        }
+
+        let projectId = getInputValue('projectId',''); if (!projectId){ const idu = getProjectIdFromUrl(); if (idu) projectId = idu; }
+        const corpId = getInputValue('corpId', config.corpId || '1749721838789101');
+        const projectTpl = getInputValue('projectTpl', config.projectTpl || '1756451075934101');
+        const sponsorProjectId = getInputValue('sponsorProjectId', config.sponsorProjectId || '1756451241652103');
+        const title = getInputValue('title', config.title || '致力庆西黄丸消费者问卷');
+        const memo = getInputValue('memo', config.memo || '为了充分了解客户对于西黄丸产品评价，为更好的做好临床药学服务...');
+        const way = getInputValue('way', '实名调查');
+        // ⚠️ 关键修复：不从页面读取 dcdxName，始终使用 data 数组中的姓名
+        // 原代码： let dcdxName = getInputValue('dcdxName',''); if (!dcdxName) dcdxName = name;
+        const dcdxName = name;  // 直接使用传入的 name 参数
+        const channelAddress = getInputValue('channelAddress','');
+        const latLng = getInputValue('latLng','');
+        const recIdPage = getInputValue('recId','');
+        const recId = recIdParam || recIdPage;
+
+        const nvcValHidden = getInputValue('nvcVal','');
+        let nvcVal = nvcValHidden;
+        try { const nvcObj = targetWindow && targetWindow.nvc; if (nvcObj && typeof nvcObj.getNVCValAsync === 'function'){
+            nvcVal = await new Promise((resolve)=>{ const t=setTimeout(()=>resolve(nvcValHidden),3000); nvcObj.getNVCValAsync(function(val){ clearTimeout(t); resolve(val||nvcValHidden); }); });
+        }} catch(e){}
+        if (!nvcVal) console.warn(\`[${name}] nvcVal 为空，可能导致验签失败\`);
+
+        const answersString = answersArray.filter(a=>a!==undefined).join('#');
+        const paramsForSign = {
+            name: requestData.name, sex: requestData.sex, date: requestData.date, answers: answersString,
+            recId, latLng, projectId, corpId, projectTpl, sponsorProjectId, isForward:1, title, way, startTime: requestData.date, memo, dcdxName, channelAddress,
+            questions: questionsValue, options: optionsValue, types: typesValue
+        };
+        const cleaned = {}; Object.keys(paramsForSign).forEach(k=>{ const v=paramsForSign[k]; if (v!==undefined && v!==null && v!=='') cleaned[k]=v; });
+        requestData.answers.forEach((answer, idx)=>{ if (answer!==undefined && answer!=='') cleaned['answer' + idx]=answer; });
+        const formattedData = formatParams(cleaned);
+        const encryptedText = toQueryString(formattedData);
+        const finalEncryptedText = encryptedText.length>255 ? encryptedText.substring(0,255) : encryptedText;
+        const signature = generateSign(finalEncryptedText, saltData.signkey);
+
+        const ajaxData = { name:requestData.name, sex:requestData.sex, date:requestData.date, answers:answersString,
+            recId, nvcVal, latLng, projectId, corpId, projectTpl, sponsorProjectId, isForward:1, title, way, startTime: requestData.date, memo, dcdxName,
+            fieldName:'性别', fill: requestData.sex, channelAddress,
+            questions: questionsValue, options: optionsValue, types: typesValue };
+        requestData.answers.forEach((a, i)=>{ if (a!==undefined) ajaxData['answer' + i]=a; });
+
+        const result = await new Promise((resolve, reject)=>{
+            $.ajax({ url: (config.updateEndpoint || '/lgb/xfzwj/mobileUpd'), type:'POST', data: ajaxData,
+                headers:{ sign: signature, signKey: saltData.signkey }, traditional:true,
+                success: res=> resolve(res), error:(xhr,s,e)=> reject(new Error(\`请求失败: \${s} - \${e}\`)) });
+        });
+        const code = (typeof result==='number') ? result : (result && (result.code||result.errCode));
+        if (code===0 || code==='0' || code===1 || code==='1' || code===200 || code==='200'){ return { success:true, data: result }; }
+        throw new Error(\`更新返回异常: \${code}\`);
+    } catch(e){ console.error(\`❌ API更新失败: \${name}\`, e); throw e; }
+}
+
+async function updateByDateApi(mmdd){
+    try{
+        // 🎵 开始播放后台音频（保持标签页活跃）
+        if (typeof startBackgroundAudio === 'function') {
+            startBackgroundAudio();
+        }
+        
+        // 执行前先缓存问卷结构
+        console.log('📋 准备缓存问卷结构...');
+        const cached = cacheQuestionnaireStructure();
+        if (!cached) {
+            console.error('❌ 无法缓存问卷结构，请确保：');
+            console.error('   1. 当前在问卷填写页面（xfzwj.jsp 等）');
+            console.error('   2. 或者问卷 iframe 已加载完成');
+            console.error('   3. 或者手动调用 cacheQuestionnaireStructure() 后再执行');
+            return;
+        }
+        
+        const projectId = (function(){ const p=new URLSearchParams(window.location.search).get('projectId'); if(p) return p; const ifr=document.querySelector('#ssfwIframe'); if(ifr){ try{ const href=ifr.contentWindow.location.href; const u=new URLSearchParams(href.split('?')[1]||''); const id=u.get('projectId'); if(id) return id; }catch(e){ const src=ifr.getAttribute('src')||''; const u=new URLSearchParams(src.split('?')[1]||''); const id=u.get('projectId'); if(id) return id; } } return null; })();
+        if (!projectId){ console.error('❌ 未获取到 projectId'); return; }
+        const rows = await fetchWorkOrdersApi(projectId, mmdd);
+        if (!rows.length){ console.log('📭 无待更新工单'); return; }
+        let ok=0, fail=0;
+        for (let i=0;i<rows.length;i++){
+            const row = rows[i]; const recId = row.workOrderId || row.recId || row.id; const name = rowName(row); const sex = findSexByName(name);
+            try{ 
+                await updateTaskApi(recId, name, sex, mmdd);
+                console.log('✅ [' + (i+1) + '/' + rows.length + '] 更新成功: ' + name + ' (' + recId + ')');
+                ok++;
+            }
+            catch(e){ 
+                console.error('❌ [' + (i+1) + '/' + rows.length + '] 更新失败: ' + name + ' (' + recId + ')', e.message||e);
+                fail++;
+            }
+            // 使用设置的间隔时间（默认为 apiRequestInterval）
+            if (i<rows.length-1) {
+                const interval = apiRequestInterval || 5000;
+                console.log('⏳ 等待 ' + interval + 'ms...');
+                await new Promise(r=>setTimeout(r, interval));
+            }
+        }
+        console.log('📊 更新完成：成功 ' + ok + '，失败 ' + fail);
+        
+        // 清除缓存
+        clearQuestionnaireCache();
+        
+        // 🔇 停止后台音频
+        if (typeof stopBackgroundAudio === 'function') {
+            stopBackgroundAudio();
+        }
+    } catch(e){ 
+        console.error('❌ updateByDateApi 失败:', e.message||e); 
+        clearQuestionnaireCache();
+        
+        // 🔇 停止后台音频
+        if (typeof stopBackgroundAudio === 'function') {
+            stopBackgroundAudio();
+        }
+    }
+}
+
+// ========== 智能匹配更新（按 data 顺序） ==========
+/**
+ * 智能匹配并更新工单
+ * 1. 查询所有工单列表
+ * 2. 按照 data 数组顺序匹配对应的 workOrderId
+ * 3. 使用设置的间隔时间逐个更新
+ * 
+ * @param {string} mmdd - 可选，指定日期(如 '10.09')，不指定则查询所有
+ * @param {number} startFrom - 可选，从第几个开始（索引从1开始）或姓名
+ */
+async function updateByOrderApi(mmdd = null, startFrom = null) {
+    try {
+        console.log('🔄 开始智能匹配更新...');
+        
+        // 🎵 开始播放后台音频（保持标签页活跃）
+        if (typeof startBackgroundAudio === 'function') {
+            startBackgroundAudio();
+        }
+        
+        // 执行前先缓存问卷结构
+        console.log('📋 准备缓存问卷结构...');
+        const cached = cacheQuestionnaireStructure();
+        if (!cached) {
+            console.error('❌ 无法缓存问卷结构，请确保：');
+            console.error('   1. 当前在问卷填写页面（xfzwj.jsp 等）');
+            console.error('   2. 或者问卷 iframe 已加载完成');
+            console.error('   3. 或者手动调用 cacheQuestionnaireStructure() 后再执行');
+            return;
+        }
+        
+        // 获取 projectId
+        const projectId = (function(){
+            const p = new URLSearchParams(window.location.search).get('projectId');
+            if (p) return p;
+            const ifr = document.querySelector('#ssfwIframe');
+            if (ifr) {
+                try {
+                    const href = ifr.contentWindow.location.href;
+                    const u = new URLSearchParams(href.split('?')[1] || '');
+                    const id = u.get('projectId');
+                    if (id) return id;
+                } catch(e) {
+                    const src = ifr.getAttribute('src') || '';
+                    const u = new URLSearchParams(src.split('?')[1] || '');
+                    const id = u.get('projectId');
+                    if (id) return id;
+                }
+            }
+            return null;
+        })();
+        
+        if (!projectId) {
+            console.error('❌ 未获取到 projectId');
+            return;
+        }
+        
+        // 查询工单列表
+        console.log(\`📋 查询工单列表\${mmdd ? ' (日期: ' + mmdd + ')' : ' (全部)'}...\`);
+        const rows = await fetchWorkOrdersApi(projectId, mmdd);
+        
+        if (!rows.length) {
+            console.log('📭 无工单数据');
+            return;
+        }
+        
+        console.log(\`✅ 查询到 \${rows.length} 个工单\`);
+        
+        // 建立工单映射表: name -> workOrder
+        const workOrderMap = new Map();
+        rows.forEach(row => {
+            const name = rowName(row);
+            const recId = row.workOrderId || row.recId || row.id;
+            if (name && recId) {
+                // 如果同一个姓名有多个工单，保存为数组
+                if (workOrderMap.has(name)) {
+                    const existing = workOrderMap.get(name);
+                    if (Array.isArray(existing)) {
+                        existing.push({ recId, row });
+                    } else {
+                        workOrderMap.set(name, [existing, { recId, row }]);
+                    }
+                } else {
+                    workOrderMap.set(name, { recId, row });
+                }
+            }
+        });
+        
+        console.log(\`📊 建立映射表：\${workOrderMap.size} 个不同姓名\`);
+        
+        // 处理起始位置
+        let startIndex = 0;
+        if (startFrom !== null) {
+            if (typeof startFrom === 'number') {
+                startIndex = Math.max(0, Math.min(startFrom - 1, data.length - 1));
+                console.log(\`📍 从第 \${startFrom} 个开始更新\`);
+            } else if (typeof startFrom === 'string') {
+                const foundIndex = data.findIndex(item => item.name === startFrom);
+                if (foundIndex !== -1) {
+                    startIndex = foundIndex;
+                    console.log(\`📍 从「\${startFrom}」开始更新（第 \${foundIndex + 1} 个）\`);
+                } else {
+                    console.warn(\`⚠️ 未找到姓名「\${startFrom}」，从第1个开始\`);
+                }
+            }
+        }
+        
+        // 匹配并更新
+        let ok = 0, fail = 0, skip = 0;
+        const totalToProcess = data.length - startIndex;
+        
+        for (let i = startIndex; i < data.length; i++) {
+            const item = data[i];
+            const name = item.name;
+            const sex = item.sex || '女';
+            const taskDate = item.time;
+            
+            // 查找匹配的工单
+            const matched = workOrderMap.get(name);
+            
+            if (!matched) {
+                console.warn(\`⚠️ [\${i + 1}/\${data.length}] 跳过「\${name}」- 未找到对应工单\`);
+                skip++;
+                continue;
+            }
+            
+            // 处理多个同名工单的情况
+            let recId;
+            if (Array.isArray(matched)) {
+                // 同名工单，使用第一个未使用的
+                const unused = matched.find(m => !m.used);
+                if (unused) {
+                    recId = unused.recId;
+                    unused.used = true;
+                } else {
+                    console.warn(\`⚠️ [\${i + 1}/\${data.length}] 跳过「\${name}」- 同名工单已全部使用\`);
+                    skip++;
+                    continue;
+                }
+            } else {
+                recId = matched.recId;
+                matched.used = true;
+            }
+            
+            // 更新工单
+            try {
+                const progress = \`[\${i - startIndex + 1}/\${totalToProcess}]\`;
+                console.log(\`🔄 \${progress} 更新: \${name} (\${sex}) - 工单ID: \${recId}\`);
+                
+                await updateTaskApi(recId, name, sex, taskDate);
+                
+                console.log(\`✅ \${progress} 更新成功: \${name}\`);
+                ok++;
+                
+                // 更新进度显示
+                executionStats.current = i + 1;
+                executionStats.success = ok;
+                executionStats.failed = fail;
+                updateProgressDisplay();
+                
+            } catch(e) {
+                console.error(\`❌ [\${i - startIndex + 1}/\${totalToProcess}] 更新失败: \${name} (\${recId})\`, e.message || e);
+                fail++;
+            }
+            
+            // 使用设置的间隔时间（默认为 apiRequestInterval）
+            if (i < data.length - 1) {
+                const interval = apiRequestInterval || 5000;
+                console.log(\`⏳ 等待 \${interval}ms...\`);
+                await new Promise(r => setTimeout(r, interval));
+            }
+        }
+        console.log('\\n📊 智能匹配更新完成：');
+        console.log(\`   ✅ 成功: \${ok}\`);
+        console.log(\`   ❌ 失败: \${fail}\`);
+        console.log(\`   ⏭️  跳过: \${skip}\`);
+        console.log(\`   📝 总计: \${ok + fail + skip}\`);
+        
+        // 清除缓存
+        clearQuestionnaireCache();
+        
+        // 🔇 停止后台音频
+        if (typeof stopBackgroundAudio === 'function') {
+            stopBackgroundAudio();
+        }
+    } catch(e) {
+        console.error('❌ updateByOrderApi 失败:', e.message || e);
+        clearQuestionnaireCache();
+        
+        // 🔇 停止后台音频
+        if (typeof stopBackgroundAudio === 'function') {
+            stopBackgroundAudio();
+        }
+    }
+}
 }
 
 // 手动执行单个任务（API模式）
 async function startApi(startFrom = null) {
     if (isRunning) {
-        console.log('⚠️ 已有任务在运行中');
+        console.log(\`⚠️ 已有任务在运行中\`);
         return;
     }
     
@@ -853,20 +1305,22 @@ async function startApi(startFrom = null) {
     }
     
     if (currentIndex >= data.length) {
-        console.log('✅ 所有任务已完成');
+        console.log(\`✅ 所有任务已完成\`);
         return;
     }
     
     isRunning = true;
     
-    // 首次执行时检查并更新问卷内容
-    if (currentIndex === 0 && typeof initializeQuestionnaireContent === 'function') {
-        try {
-            await initializeQuestionnaireContent();
-        } catch (error) {
-            console.warn('⚠️ 问卷内容检查失败，继续使用默认配置:', error);
-        }
-    }
+    // 执行前校验问卷内容是否匹配（已禁用）
+    // try {
+    //     if (typeof ensureQuestionnaireMatchesOrAbort === 'function') {
+    //         await ensureQuestionnaireMatchesOrAbort();
+    //     }
+    // } catch (e) {
+    //     console.error(\`🛑 问卷不匹配，已终止执行。\`, e);
+    //     isRunning = false;
+    //     return;
+    // }
     
     const item = data[currentIndex];
     
@@ -892,12 +1346,12 @@ async function startApi(startFrom = null) {
 // 快速批量执行（API模式 - 并发）
 async function automaticApiFast(batchSize = 10, targetDate = null, startFrom = null) {
     if (!data || data.length === 0) {
-        console.error('❌ 没有数据可处理');
+        console.error(\`❌ 没有数据可处理\`);
         return;
     }
     
     if (isRunning) {
-        console.warn('⚠️ 已有任务在运行中');
+        console.warn(\`⚠️ 已有任务在运行中\`);
         return;
     }
     
@@ -909,22 +1363,23 @@ async function automaticApiFast(batchSize = 10, targetDate = null, startFrom = n
     startBackgroundAudio();
     
     console.log('');
-    console.log('='.repeat(60));
+    console.log(\`=\${'='.repeat(60)}\`);
     console.log('🚀 快速批量执行模式（流式处理）');
     console.log('📦 批次大小:', batchSize, '个/批');
     console.log('⚡ 优化: 获取盐值后立即创建，避免盐值覆盖');
     console.log('💡 提示: 可使用 pauseExecution() / stopExecution() 控制执行');
     console.log('='.repeat(60));
     
-    // 初始化问卷内容
-    if (typeof initializeQuestionnaireContent === 'function') {
-        try {
-            console.log('📋 检查问卷内容是否需要更新...');
-            await initializeQuestionnaireContent();
-        } catch (error) {
-            console.warn('⚠️ 问卷内容检查失败，继续使用默认配置:', error);
-        }
-    }
+    // 执行前校验问卷内容是否匹配（已禁用）
+    // try {
+    //     if (typeof ensureQuestionnaireMatchesOrAbort === 'function') {
+    //         await ensureQuestionnaireMatchesOrAbort();
+    //     }
+    // } catch (e) {
+    //     console.error('🛑 问卷不匹配，已终止执行。', e);
+    //     isRunning = false;
+    //     return;
+    // }
     
     // 筛选数据
     let dataToProcess = data;
@@ -1213,14 +1668,16 @@ async function automaticApi(targetDate = null, startFrom = null) {
     };
     updateProgressDisplay();
     
-    // 执行前检查并更新问卷内容
-    if (typeof initializeQuestionnaireContent === 'function') {
-        try {
-            await initializeQuestionnaireContent();
-        } catch (error) {
-            console.warn('⚠️ 问卷内容检查失败，继续使用默认配置:', error);
-        }
-    }
+    // 执行前校验问卷内容是否匹配（已禁用）
+    // try {
+    //     if (typeof ensureQuestionnaireMatchesOrAbort === 'function') {
+    //         await ensureQuestionnaireMatchesOrAbort();
+    //     }
+    // } catch (e) {
+    //     console.error('🛑 问卷不匹配，已终止执行。', e);
+    //     isRunning = false;
+    //     return;
+    // }
     
     let successCount = 0;
     let failCount = 0;
