@@ -186,16 +186,84 @@
   };
 
   // 对外命令：按 id 列表撤销（已有 workOrderId 的场景）
+  // 若不传参数，则撤销全部工单
   window.revokeByIds = async function (idList) {
-    if (!Array.isArray(idList) || idList.length === 0) {
-      logWarn('请传入 id 数组，如 revokeByIds(["1759...","1759..."])');
-      return;
+    try {
+      // 如果没有传入参数或传入 null/undefined，则撤销全部
+      if (!idList || (Array.isArray(idList) && idList.length === 0)) {
+        logInfo('🔄 未传入 id 列表，准备撤销全部工单...');
+        
+        const projectId = getProjectIdFromContext();
+        if (!projectId) {
+          logErr("无法获取 projectId，请在包含 projectId 的页面内执行");
+          return;
+        }
+        
+        logInfo('📋 正在拉取所有工单列表...');
+        const rows = await fetchWorkOrders({ projectId, date: null });
+        const ids = rows.map(pickWorkOrderId).filter(Boolean);
+        
+        if (ids.length === 0) {
+          logWarn('未找到任何工单');
+          return;
+        }
+        
+        logInfo(`📦 查询到 ${ids.length} 条工单，开始撤销...`);
+        await revokeBatch(ids);
+        return;
+      }
+      
+      // 如果传入的不是数组，提示错误
+      if (!Array.isArray(idList)) {
+        logWarn('请传入 id 数组，如 revokeByIds(["1759...","1759..."])，或不传参数撤销全部');
+        return;
+      }
+      
+      // 正常按 id 列表撤销
+      logInfo(`共 ${idList.length} 条，开始撤销...`);
+      await revokeBatch(idList);
+    } catch (e) {
+      logErr("revokeByIds 执行失败：", e.message || e);
     }
-    logInfo(`共 ${idList.length} 条，开始撤销...`);
-    await revokeBatch(idList);
+  };
+  // 帮助命令：显示撤销相关命令
+  // 如果已经有全局 help，则不覆盖
+  if (!window.help) {
+    window.help = function() {
+      console.log(
+        '%c\n' +
+        '╔═════════════════════════════════════════════\n' +
+        '║  ❌ 批量撤销工单 - 命令列表\n' +
+        '╠═════════════════════════════════════════════\n' +
+        '║\n' +
+        '║  📖 help()\n' +
+        '║     显示所有可用命令\n' +
+        '║\n' +
+        '║  📅 revokeByDate("MM.DD")\n' +
+        '║     撤销指定日期的所有工单\n' +
+        '║     示例：revokeByDate("10.10")\n' +
+        '║\n' +
+        '║  📆 revokeAllForDates(["MM.DD", ...])\n' +
+        '║     撤销多个日期的所有工单\n' +
+        '║     示例：revokeAllForDates(["10.08", "10.09", "10.10"])\n' +
+        '║\n' +
+        '║  🎯 revokeByIds([id1, id2, ...])\n' +
+        '║     撤销指定 ID 列表的工单\n' +
+        '║     示例：revokeByIds(["1759123456", "1759234567"])\n' +
+        '║\n' +
+        '║  ⚠️  revokeByIds()\n' +
+        '║     撤销所有工单（不传参数）- 高危操作！\n' +
+        '║     示例：revokeByIds()\n' +
+        '║\n' +
+        '╚═════════════════════════════════════════════\n' +
+        '⚠️  注意：撤销操作不可逆，请谨慎使用！\n' +
+        '📍 需在包含 projectId 的页面中执行\n',
+        'color: #17a2b8; font-weight: bold; font-family: monospace;'
+      );
+    };
+  }
   };
 
-  logInfo(
-    '🎯 撤销命令就绪：revokeByDate("MM.DD"), revokeAllForDates(["MM.DD",...]), revokeByIds([id,...])'
-  );
+  // 初始化提示
+  logInfo('🎯 撤销命令就绪！输入 help() 查看所有可用命令');
 })();
