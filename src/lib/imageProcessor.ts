@@ -15,6 +15,15 @@ export const IMAGE_CONFIG = {
   DUPLICATE_THRESHOLD: 5, // 重复检测汉明距离阈值
   HASH_SIZE: 8, // 感知哈希尺寸
   CANVAS_SIZE: 64, // Canvas处理尺寸
+  // 新增：质量检测阈值
+  MIN_CONTRAST: 30, // 最小对比度
+  MIN_BRIGHTNESS: 40, // 最小亮度
+  MAX_BRIGHTNESS: 220, // 最大亮度
+  MAX_NOISE_LEVEL: 25, // 最大噪点水平
+  // 动态并发控制
+  MIN_CONCURRENCY: 2,
+  MAX_CONCURRENCY: 8,
+  MEMORY_THRESHOLD_MB: 200, // 内存阈值（MB），超过则降低并发
 };
 
 // 图片信息接口
@@ -51,6 +60,14 @@ export interface ImageValidationResult {
   position?: string;
   row?: number;
   column?: string;
+  // 新增：高级质量指标
+  contrast?: number;
+  brightness?: number;
+  noiseLevel?: number;
+  isLowContrast?: boolean;
+  isOverExposed?: boolean;
+  isUnderExposed?: boolean;
+  isNoisy?: boolean;
 }
 
 // 图片验证汇总接口
@@ -137,25 +154,81 @@ export class ImageProcessor {
   }
 
   /**
-   * 验证图片质量（清晰度和重复性）
+   * 获取动态并发数
+   * 根据CPU核心数和可用内存动态调整
+   */
+  private getDynamicConcurrency(): number {
+    const cores =
+      (typeof navigator !== "undefined" &&
+        (navigator as any).hardwareConcurrency) ||
+      4;
+
+    // 基于CPU核心数的并发
+    let concurrency = Math.max(
+      IMAGE_CONFIG.MIN_CONCURRENCY,
+      Math.min(IMAGE_CONFIG.MAX_CONCURRENCY, Math.floor(cores * 0.75))
+    );
+
+    // 检查内存情况（如果浏览器支持）
+    if (
+      typeof performance !== "undefined" &&
+      (performance as any).memory
+    ) {
+      const memory = (performance as any).memory;
+      const usedMemoryMB = memory.usedJSHeapSize / 1024 / 1024;
+      const totalMemoryMB = memory.jsHeapSizeLimit / 1024 / 1024;
+      const memoryUsagePercent = (usedMemoryMB / totalMemoryMB) * 100;
+
+      console.log(`[IMAGE_PROCESSOR] 内存使用情况`, {
+        usedMB: usedMemoryMB.toFixed(2),
+        totalMB: totalMemoryMB.toFixed(2),
+        usagePercent: `${memoryUsagePercent.toFixed(1)}%`,
+        currentConcurrency: concurrency,
+      });
+
+      // 如果内存使用超过70%，降低并发
+      if (memoryUsagePercent > 70) {
+        concurrency = Math.max(IMAGE_CONFIG.MIN_CONCURRENCY, Math.floor(concurrency * 0.5));
+        console.warn(`[IMAGE_PROCESSOR] 内存使用较高，降低并发至 ${concurrency}`);
+      } else if (usedMemoryMB > IMAGE_CONFIG.MEMORY_THRESHOLD_MB) {
+        concurrency = Math.max(IMAGE_CONFIG.MIN_CONCURRENCY, Math.floor(concurrency * 0.75));
+        console.warn(`[IMAGE_PROCESSOR] 已用内存超过阈值，降低并发至 ${concurrency}`);
+      }
+    }
+
+    return concurrency;
+  }
+
+  /**
+   * 验证图片质量（清晰度、重复性和高级质量指标）
    * @param images 图片数组
    * @returns 验证结果汇总
    */
   async validateImages(images: ImageInfo[]): Promise<ImageValidationSummary> {
     const results: ImageValidationResult[] = [];
-    const cores =
-      (typeof navigator !== "undefined" &&
-        (navigator as any).hardwareConcurrency) ||
-      4;
-    const concurrency = Math.max(2, Math.min(4, cores)); // 根据硬件并发自适应，范围 2-6
+    let concurrency = this.getDynamicConcurrency();
 
-    // 分批处理图片
+    console.log(`[IMAGE_PROCESSOR] 开始图片验证`, {
+      totalImages: images.length,
+      initialConcurrency: concurrency,
+    });
+
+    // 分批处理图片，每10张图片后重新评估并发数
     for (let i = 0; i < images.length; i += concurrency) {
+      // 每处理10张图片后重新评估并发数
+      if (i > 0 && i % 10 === 0) {
+        concurrency = this.getDynamicConcurrency();
+      }
+
       const batch = images.slice(i, i + concurrency);
       const batchPromises = batch.map(async (image) => {
         try {
-          const sharpness = await this.calculateSharpness(image.data);
-          const hash = await this.calculateHash(image.data);
+          // 并行计算多个质量指标
+          const [sharpness, hash, qualityMetrics] = await Promise.all([
+            this.calculateSharpness(image.data),
+            this.calculateHash(image.data),
+            this.calculateQualityMetrics(image.data),
+          ]);
 
           return {
             id: image.id,
@@ -166,6 +239,8 @@ export class ImageProcessor {
             position: image.position,
             row: image.row,
             column: image.column,
+            // 高级质量指标
+            ...qualityMetrics,
           };
         } catch (error) {
           console.warn(`Failed to validate image ${image.id}:`, error);
@@ -187,6 +262,7 @@ export class ImageProcessor {
 
       // 更新进度
       const progress = Math.round(((i + batch.length) / images.length) * 100);
+      console.log(`[IMAGE_PROCESSOR] 验证进度: ${progress}%`);
     }
 
     // 检测重复图片
@@ -334,6 +410,133 @@ export class ImageProcessor {
 
           URL.revokeObjectURL(url);
           resolve(hexHash);
+        } catch (error) {
+          URL.revokeObjectURL(url);
+          reject(error);
+        }
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("图片加载失败"));
+      };
+
+      img.src = url;
+    });
+  }
+
+  /**
+   * 计算图片质量指标（对比度、亮度、噪点）
+   * @param imageData 图片数据
+   * @returns 质量指标对象
+   */
+  private async calculateQualityMetrics(
+    imageData: Uint8Array
+  ): Promise<{
+    contrast: number;
+    brightness: number;
+    noiseLevel: number;
+    isLowContrast: boolean;
+    isOverExposed: boolean;
+    isUnderExposed: boolean;
+    isNoisy: boolean;
+  }> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const blob = new Blob([new Uint8Array(imageData)]);
+      const url = URL.createObjectURL(blob);
+
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("无法创建Canvas上下文"));
+            return;
+          }
+
+          // 使用较小的尺寸提高性能
+          const size = IMAGE_CONFIG.CANVAS_SIZE;
+          canvas.width = size;
+          canvas.height = size;
+          ctx.drawImage(img, 0, 0, size, size);
+
+          const imageData = ctx.getImageData(0, 0, size, size);
+          const data = imageData.data;
+          const pixelCount = size * size;
+
+          // 转换为灰度图
+          const gray = new Array(pixelCount);
+          let brightnessSum = 0;
+
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            const grayValue = 0.299 * r + 0.587 * g + 0.114 * b;
+            gray[i / 4] = grayValue;
+            brightnessSum += grayValue;
+          }
+
+          // 1. 计算亮度（平均灰度值）
+          const brightness = brightnessSum / pixelCount;
+
+          // 2. 计算对比度（标准差）
+          let varianceSum = 0;
+          for (let i = 0; i < gray.length; i++) {
+            varianceSum += Math.pow(gray[i] - brightness, 2);
+          }
+          const stdDev = Math.sqrt(varianceSum / pixelCount);
+          const contrast = stdDev;
+
+          // 3. 计算噪点水平（局部方差）
+          let noiseSum = 0;
+          let noiseCount = 0;
+
+          // 使用3x3窗口计算局部方差
+          for (let y = 1; y < size - 1; y++) {
+            for (let x = 1; x < size - 1; x++) {
+              const idx = y * size + x;
+              const center = gray[idx];
+
+              // 计算邻域平均值
+              const neighbors = [
+                gray[idx - size - 1],
+                gray[idx - size],
+                gray[idx - size + 1],
+                gray[idx - 1],
+                gray[idx + 1],
+                gray[idx + size - 1],
+                gray[idx + size],
+                gray[idx + size + 1],
+              ];
+              const neighborAvg = neighbors.reduce((a, b) => a + b, 0) / 8;
+
+              // 局部方差
+              const localVariance = Math.abs(center - neighborAvg);
+              noiseSum += localVariance;
+              noiseCount++;
+            }
+          }
+
+          const noiseLevel = noiseCount > 0 ? noiseSum / noiseCount : 0;
+
+          // 评估质量问题
+          const isLowContrast = contrast < IMAGE_CONFIG.MIN_CONTRAST;
+          const isOverExposed = brightness > IMAGE_CONFIG.MAX_BRIGHTNESS;
+          const isUnderExposed = brightness < IMAGE_CONFIG.MIN_BRIGHTNESS;
+          const isNoisy = noiseLevel > IMAGE_CONFIG.MAX_NOISE_LEVEL;
+
+          URL.revokeObjectURL(url);
+          resolve({
+            contrast: Math.round(contrast * 100) / 100,
+            brightness: Math.round(brightness * 100) / 100,
+            noiseLevel: Math.round(noiseLevel * 100) / 100,
+            isLowContrast,
+            isOverExposed,
+            isUnderExposed,
+            isNoisy,
+          });
         } catch (error) {
           URL.revokeObjectURL(url);
           reject(error);
