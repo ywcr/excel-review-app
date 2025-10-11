@@ -49,6 +49,10 @@ interface ValidationResult {
       webLikelihood?: number;
       webReasons?: string[];
       isLowPixel?: boolean;
+      // 边框检测结果
+      hasBorder?: boolean;
+      borderSides?: string[];
+      borderWidth?: { top?: number; bottom?: number; left?: number; right?: number };
     }>;
     warning?: string; // 图片解析警告（例如 .xls 不支持）
   };
@@ -88,7 +92,8 @@ export default function ValidationResults({
     dimension: boolean;
     web: boolean;
     lowPixel: boolean;
-  }>({ blurry: true, duplicate: true, dimension: true, web: true, lowPixel: true });
+    border: boolean;
+  }>({ blurry: true, duplicate: true, dimension: true, web: true, lowPixel: true, border: true });
 
   // 行高亮定位：为图片问题行建立ref映射
   const imageRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
@@ -605,6 +610,15 @@ export default function ValidationResults({
                   />
                   显示疑似网图
                 </label>
+                <label className="inline-flex items-center text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    className="mr-1"
+                    checked={imageFilter.border}
+                    onChange={(e) => setImageFilter((prev) => ({ ...prev, border: e.target.checked }))}
+                  />
+                  显示存在边框
+                </label>
               </div>
             </div>
           </div>
@@ -640,12 +654,14 @@ export default function ValidationResults({
                     const isBlur = !!result.isBlurry;
                     const isWeb = typeof result.webLikelihood === 'number' && result.webLikelihood >= 0.6;
                     const isLowPixel = !!result.isLowPixel;
+                    const hasBorderIssue = !!result.hasBorder;
                     return (
                       (imageFilter.duplicate && isDup) ||
                       (imageFilter.dimension && isDimBad) ||
                       (imageFilter.blurry && isBlur) ||
                       (imageFilter.web && isWeb) ||
-                      (imageFilter.lowPixel && isLowPixel)
+                      (imageFilter.lowPixel && isLowPixel) ||
+                      (imageFilter.border && hasBorderIssue)
                     );
                   })
                 )
@@ -661,6 +677,8 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                     const bDimBad = b.dimensionOK === false;
                     const aLowPixel = !!a.isLowPixel;
                     const bLowPixel = !!b.isLowPixel;
+                    const aBorder = !!a.hasBorder;
+                    const bBorder = !!b.hasBorder;
 
                     // 1. 重复图片优先显示
                     if (aHasDuplicates && !bHasDuplicates) return -1;
@@ -682,7 +700,11 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                     if (aLowPixel && !bLowPixel) return -1;
                     if (!aLowPixel && bLowPixel) return 1;
 
-                    // 6. 同类型内按位置排序（行号优先，然后列号）
+                    // 6. 然后显示存在边框
+                    if (aBorder && !bBorder) return -1;
+                    if (!aBorder && bBorder) return 1;
+
+                    // 7. 同类型内按位置排序（行号优先，然后列号）
                     const aRow = a.row ?? 999999;
                     const bRow = b.row ?? 999999;
                     if (aRow !== bRow) return aRow - bRow;
@@ -784,6 +806,11 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                               )}
                             </>
                           )}
+                          {result.hasBorder && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-pink-100 text-pink-800">
+                              存在边框
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
@@ -812,6 +839,19 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                             .filter(Boolean);
                           if (dupPositions.length) {
                             details.push(`重复位置：${dupPositions.join('，')}`);
+                          }
+                          if (result.hasBorder && result.borderSides && result.borderSides.length > 0) {
+                            const borderDesc = result.borderSides.map((side: string) => {
+                              const sideNames: Record<string, string> = {
+                                top: '上',
+                                bottom: '下',
+                                left: '左',
+                                right: '右'
+                              };
+                              const width = result.borderWidth?.[side as keyof typeof result.borderWidth];
+                              return `${sideNames[side]}${width ? `(${width}px)` : ''}`;
+                            }).join('、');
+                            details.push(`边框: ${borderDesc}`);
                           }
                           const text = details.join('；');
                           return text || '-';

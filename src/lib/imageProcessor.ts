@@ -20,6 +20,10 @@ export const IMAGE_CONFIG = {
   MIN_BRIGHTNESS: 40, // 最小亮度
   MAX_BRIGHTNESS: 220, // 最大亮度
   MAX_NOISE_LEVEL: 25, // 最大噪点水平
+  // 边框检测配置
+  BORDER_MIN_WIDTH: 1, // 最小边框宽度（像素）
+  BORDER_COLOR_TOLERANCE: 15, // 颜色容差（0-255，允许轻微渐变）
+  BORDER_CONSISTENCY_RATIO: 0.9, // 边框一致性比例（90%的像素需要符合条件）
   // 动态并发控制
   MIN_CONCURRENCY: 2,
   MAX_CONCURRENCY: 8,
@@ -68,6 +72,10 @@ export interface ImageValidationResult {
   isOverExposed?: boolean;
   isUnderExposed?: boolean;
   isNoisy?: boolean;
+  // 边框检测结果
+  hasBorder?: boolean;
+  borderSides?: string[]; // ['top', 'bottom', 'left', 'right']
+  borderWidth?: { top?: number; bottom?: number; left?: number; right?: number };
 }
 
 // 图片验证汇总接口
@@ -224,10 +232,11 @@ export class ImageProcessor {
       const batchPromises = batch.map(async (image) => {
         try {
           // 并行计算多个质量指标
-          const [sharpness, hash, qualityMetrics] = await Promise.all([
+          const [sharpness, hash, qualityMetrics, borderInfo] = await Promise.all([
             this.calculateSharpness(image.data),
             this.calculateHash(image.data),
             this.calculateQualityMetrics(image.data),
+            this.detectSolidBorder(image.data),
           ]);
 
           return {
@@ -241,6 +250,8 @@ export class ImageProcessor {
             column: image.column,
             // 高级质量指标
             ...qualityMetrics,
+            // 边框检测结果
+            ...borderInfo,
           };
         } catch (error) {
           console.warn(`Failed to validate image ${image.id}:`, error);
@@ -550,6 +561,205 @@ export class ImageProcessor {
 
       img.src = url;
     });
+  }
+
+  /**
+   * 检测图片纯色边框
+   * @param imageData 图片数据
+   * @returns 边框检测结果
+   */
+  async detectSolidBorder(
+    imageData: Uint8Array
+  ): Promise<{
+    hasBorder: boolean;
+    borderSides: string[];
+    borderWidth: { top?: number; bottom?: number; left?: number; right?: number };
+  }> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const blob = new Blob([new Uint8Array(imageData)]);
+      const url = URL.createObjectURL(blob);
+
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("无法创建Canvas上下文"));
+            return;
+          }
+
+          // 使用原始尺寸以准确检测边框
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+
+          const imageData = ctx.getImageData(0, 0, img.width, img.height);
+          const data = imageData.data;
+          const width = img.width;
+          const height = img.height;
+
+          const borderSides: string[] = [];
+          const borderWidth: { top?: number; bottom?: number; left?: number; right?: number } = {};
+
+          // 检测上边框
+          const topBorderWidth = this.detectBorderEdge(data, width, height, 'top');
+          if (topBorderWidth > 0) {
+            borderSides.push('top');
+            borderWidth.top = topBorderWidth;
+          }
+
+          // 检测下边框
+          const bottomBorderWidth = this.detectBorderEdge(data, width, height, 'bottom');
+          if (bottomBorderWidth > 0) {
+            borderSides.push('bottom');
+            borderWidth.bottom = bottomBorderWidth;
+          }
+
+          // 检测左边框
+          const leftBorderWidth = this.detectBorderEdge(data, width, height, 'left');
+          if (leftBorderWidth > 0) {
+            borderSides.push('left');
+            borderWidth.left = leftBorderWidth;
+          }
+
+          // 检测右边框
+          const rightBorderWidth = this.detectBorderEdge(data, width, height, 'right');
+          if (rightBorderWidth > 0) {
+            borderSides.push('right');
+            borderWidth.right = rightBorderWidth;
+          }
+
+          URL.revokeObjectURL(url);
+          resolve({
+            hasBorder: borderSides.length > 0,
+            borderSides,
+            borderWidth,
+          });
+        } catch (error) {
+          URL.revokeObjectURL(url);
+          reject(error);
+        }
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("图片加载失败"));
+      };
+
+      img.src = url;
+    });
+  }
+
+  /**
+   * 检测单条边的边框
+   * @param data 图片像素数据
+   * @param width 图片宽度
+   * @param height 图片高度
+   * @param side 检测的边（'top', 'bottom', 'left', 'right'）
+   * @returns 边框宽度（像素数），如果不存在边框返回0
+   */
+  private detectBorderEdge(
+    data: Uint8ClampedArray,
+    width: number,
+    height: number,
+    side: 'top' | 'bottom' | 'left' | 'right'
+  ): number {
+    const tolerance = IMAGE_CONFIG.BORDER_COLOR_TOLERANCE;
+    const consistencyRatio = IMAGE_CONFIG.BORDER_CONSISTENCY_RATIO;
+    
+    // 根据边的位置确定扫描参数
+    let maxScanDepth: number;
+    let getPixelIndex: (depth: number, offset: number) => number;
+    let scanLength: number;
+
+    switch (side) {
+      case 'top':
+        maxScanDepth = Math.min(height, 50); // 最多扫描50行
+        scanLength = width;
+        getPixelIndex = (depth, offset) => (depth * width + offset) * 4;
+        break;
+      case 'bottom':
+        maxScanDepth = Math.min(height, 50);
+        scanLength = width;
+        getPixelIndex = (depth, offset) => ((height - 1 - depth) * width + offset) * 4;
+        break;
+      case 'left':
+        maxScanDepth = Math.min(width, 50); // 最多扫描50列
+        scanLength = height;
+        getPixelIndex = (depth, offset) => (offset * width + depth) * 4;
+        break;
+      case 'right':
+        maxScanDepth = Math.min(width, 50);
+        scanLength = height;
+        getPixelIndex = (depth, offset) => (offset * width + (width - 1 - depth)) * 4;
+        break;
+    }
+
+    // 从外向内逐行/列扫描
+    for (let depth = 0; depth < maxScanDepth; depth++) {
+      // 获取当前行/列的所有像素颜色
+      const colors: number[][] = [];
+      for (let offset = 0; offset < scanLength; offset++) {
+        const idx = getPixelIndex(depth, offset);
+        colors.push([data[idx], data[idx + 1], data[idx + 2]]);
+      }
+
+      // 检查这行/列是否是纯色边框
+      if (this.isSolidColorLine(colors, tolerance, consistencyRatio)) {
+        // 继续检查下一行/列，看边框有多宽
+        continue;
+      } else {
+        // 遇到非纯色行/列，返回边框宽度
+        return depth >= IMAGE_CONFIG.BORDER_MIN_WIDTH ? depth : 0;
+      }
+    }
+
+    // 如果扫描到最大深度都是纯色，返回扫描深度
+    return maxScanDepth >= IMAGE_CONFIG.BORDER_MIN_WIDTH ? maxScanDepth : 0;
+  }
+
+  /**
+   * 检查一行/列像素是否为纯色
+   * @param colors 像素颜色数组 [[r,g,b], [r,g,b], ...]
+   * @param tolerance 颜色容差
+   * @param consistencyRatio 一致性比例阈值
+   * @returns 是否为纯色
+   */
+  private isSolidColorLine(
+    colors: number[][],
+    tolerance: number,
+    consistencyRatio: number
+  ): boolean {
+    if (colors.length === 0) return false;
+
+    // 计算平均颜色
+    const avgColor = [0, 0, 0];
+    for (const color of colors) {
+      avgColor[0] += color[0];
+      avgColor[1] += color[1];
+      avgColor[2] += color[2];
+    }
+    avgColor[0] = Math.round(avgColor[0] / colors.length);
+    avgColor[1] = Math.round(avgColor[1] / colors.length);
+    avgColor[2] = Math.round(avgColor[2] / colors.length);
+
+    // 检查有多少像素在容差范围内
+    let consistentPixels = 0;
+    for (const color of colors) {
+      const rDiff = Math.abs(color[0] - avgColor[0]);
+      const gDiff = Math.abs(color[1] - avgColor[1]);
+      const bDiff = Math.abs(color[2] - avgColor[2]);
+
+      // 使用最大色差作为判断标准（允许轻微渐变）
+      if (rDiff <= tolerance && gDiff <= tolerance && bDiff <= tolerance) {
+        consistentPixels++;
+      }
+    }
+
+    // 检查一致性比例是否达到阈值
+    const ratio = consistentPixels / colors.length;
+    return ratio >= consistencyRatio;
   }
 
   /**
