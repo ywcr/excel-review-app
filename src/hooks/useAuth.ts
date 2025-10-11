@@ -49,6 +49,8 @@ export function useAuth() {
           user: data.user,
           isLoading: false,
           isAuthenticated: true,
+          sessionExpiryWarning: false,
+          lastActivity: Date.now(),
         });
         return true;
       } else if (response.status === 401) {
@@ -57,6 +59,8 @@ export function useAuth() {
           user: null,
           isLoading: false,
           isAuthenticated: false,
+          sessionExpiryWarning: false,
+          lastActivity: Date.now(),
         });
         router.push("/login?message=session_expired");
         return false;
@@ -82,6 +86,8 @@ export function useAuth() {
           user: data.user,
           isLoading: false,
           isAuthenticated: true,
+          sessionExpiryWarning: false,
+          lastActivity: Date.now(),
         });
       } else if (response.status === 401) {
         // 尝试刷新令牌
@@ -92,6 +98,8 @@ export function useAuth() {
           user: null,
           isLoading: false,
           isAuthenticated: false,
+          sessionExpiryWarning: false,
+          lastActivity: Date.now(),
         });
         router.push("/login?message=session_expired");
         // }
@@ -100,6 +108,8 @@ export function useAuth() {
           user: null,
           isLoading: false,
           isAuthenticated: false,
+          sessionExpiryWarning: false,
+          lastActivity: Date.now(),
         });
       }
     } catch (error) {
@@ -108,6 +118,8 @@ export function useAuth() {
         user: null,
         isLoading: false,
         isAuthenticated: false,
+        sessionExpiryWarning: false,
+        lastActivity: Date.now(),
       });
     }
   };
@@ -124,6 +136,8 @@ export function useAuth() {
         user: null,
         isLoading: false,
         isAuthenticated: false,
+        sessionExpiryWarning: false,
+        lastActivity: Date.now(),
       });
 
       router.push("/login");
@@ -248,6 +262,8 @@ export function useAuth() {
           user: null,
           isLoading: false,
           isAuthenticated: false,
+          sessionExpiryWarning: false,
+          lastActivity: Date.now(),
         });
         router.push("/login?message=session_expired");
         return false;

@@ -404,7 +404,9 @@ export default function BaiduSkinOverlay({
       el.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        downloadCbRef.current && downloadCbRef.current();
+        if (downloadCbRef.current) {
+          downloadCbRef.current();
+        }
       });
       rt.appendChild(el);
       downloadBtnRef.current = el;
