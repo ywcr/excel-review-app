@@ -666,9 +666,11 @@ export default function ValidationResults({
                   })
                 )
                   .sort((a, b) => {
-// 优先级排序：重复图片 > 模糊图片 > 疑似网图 > 疑似非手机拍摄
+// 优先级排序：重复图片 > 边框 > 模糊图片 > 疑似网图 > 疑似非手机拍摄
 const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                     const bHasDuplicates = (b.duplicates?.length ?? 0) > 0;
+                    const aBorder = !!a.hasBorder;
+                    const bBorder = !!b.hasBorder;
                     const aBlur = !!a.isBlurry;
                     const bBlur = !!b.isBlurry;
                     const aWeb = typeof a.webLikelihood === 'number' && a.webLikelihood >= 0.6;
@@ -677,32 +679,30 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                     const bDimBad = b.dimensionOK === false;
                     const aLowPixel = !!a.isLowPixel;
                     const bLowPixel = !!b.isLowPixel;
-                    const aBorder = !!a.hasBorder;
-                    const bBorder = !!b.hasBorder;
 
                     // 1. 重复图片优先显示
                     if (aHasDuplicates && !bHasDuplicates) return -1;
                     if (!aHasDuplicates && bHasDuplicates) return 1;
 
-// 2. 其次显示模糊图片
+                    // 2. 然后显示存在边框
+                    if (aBorder && !bBorder) return -1;
+                    if (!aBorder && bBorder) return 1;
+
+// 3. 再显示模糊图片
                     if (aBlur && !bBlur) return -1;
                     if (!aBlur && bBlur) return 1;
 
-                    // 3. 再显示疑似网图
+                    // 4. 再显示疑似网图
                     if (aWeb && !bWeb) return -1;
                     if (!aWeb && bWeb) return 1;
 
-                    // 4. 然后显示疑似非手机拍摄
+                    // 5. 然后显示疑似非手机拍摄
                     if (aDimBad && !bDimBad) return -1;
                     if (!aDimBad && bDimBad) return 1;
 
-                    // 5. 然后显示低像素
+                    // 6. 然后显示低像素
                     if (aLowPixel && !bLowPixel) return -1;
                     if (!aLowPixel && bLowPixel) return 1;
-
-                    // 6. 然后显示存在边框
-                    if (aBorder && !bBorder) return -1;
-                    if (!aBorder && bBorder) return 1;
 
                     // 7. 同类型内按位置排序（行号优先，然后列号）
                     const aRow = a.row ?? 999999;
@@ -772,24 +772,21 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                       </td>
                       <td className="px-6 py-4 align-top w-48 whitespace-normal">
                         <div className="flex flex-wrap gap-2">
-{result.isBlurry && (
-                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                              模糊
-                            </span>
-                          )}
+                          {/* 核心错误：重复和边框排在最前面，使用更鲜艳的颜色 */}
                           {(result.duplicates?.length ?? 0) > 0 && (
-                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-500 text-white">
                               重复
                             </span>
                           )}
-                          {result.dimensionOK === false && (
-                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                              疑似非手机拍摄
+                          {result.hasBorder && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-rose-500 text-white">
+                              存在边框
                             </span>
                           )}
-                          {result.isLowPixel && (
-                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                              低像素
+                          {/* 其他错误 */}
+{result.isBlurry && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                              模糊
                             </span>
                           )}
                           {typeof result.webLikelihood === 'number' && result.webLikelihood >= 0.6 && (
@@ -806,9 +803,14 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                               )}
                             </>
                           )}
-                          {result.hasBorder && (
-                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-pink-100 text-pink-800">
-                              存在边框
+                          {result.dimensionOK === false && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                              疑似非手机拍摄
+                            </span>
+                          )}
+                          {result.isLowPixel && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                              低像素
                             </span>
                           )}
                         </div>

@@ -21,9 +21,11 @@ export const IMAGE_CONFIG = {
   MAX_BRIGHTNESS: 220, // 最大亮度
   MAX_NOISE_LEVEL: 25, // 最大噪点水平
   // 边框检测配置
-  BORDER_MIN_WIDTH: 1, // 最小边框宽度（像素）
-  BORDER_COLOR_TOLERANCE: 15, // 颜色容差（0-255，允许轻微渐变）
-  BORDER_CONSISTENCY_RATIO: 0.9, // 边框一致性比例（90%的像素需要符合条件）
+  BORDER_MIN_WIDTH: 2, // 最小边框宽度（像素）- 过滤1px的细线
+  BORDER_MAX_WIDTH: 40, // 最大边框宽度（像素）- 适当提高以检测更宽的边框
+  BORDER_COLOR_TOLERANCE: 15, // 颜色容差（0-255）- 适中的容差
+  BORDER_CONSISTENCY_RATIO: 0.90, // 边框一致性比例（90%的像素需要符合条件）- 平衡的阈值
+  BORDER_BRIGHTNESS_DIFF: 30, // 边框与内容的最小亮度差异 - 提高到30更严格的边界判断
   // 动态并发控制
   MIN_CONCURRENCY: 2,
   MAX_CONCURRENCY: 8,
@@ -604,28 +606,28 @@ export class ImageProcessor {
 
           // 检测上边框
           const topBorderWidth = this.detectBorderEdge(data, width, height, 'top');
-          if (topBorderWidth > 0) {
+          if (topBorderWidth >= IMAGE_CONFIG.BORDER_MIN_WIDTH && topBorderWidth <= IMAGE_CONFIG.BORDER_MAX_WIDTH) {
             borderSides.push('top');
             borderWidth.top = topBorderWidth;
           }
 
           // 检测下边框
           const bottomBorderWidth = this.detectBorderEdge(data, width, height, 'bottom');
-          if (bottomBorderWidth > 0) {
+          if (bottomBorderWidth >= IMAGE_CONFIG.BORDER_MIN_WIDTH && bottomBorderWidth <= IMAGE_CONFIG.BORDER_MAX_WIDTH) {
             borderSides.push('bottom');
             borderWidth.bottom = bottomBorderWidth;
           }
 
           // 检测左边框
           const leftBorderWidth = this.detectBorderEdge(data, width, height, 'left');
-          if (leftBorderWidth > 0) {
+          if (leftBorderWidth >= IMAGE_CONFIG.BORDER_MIN_WIDTH && leftBorderWidth <= IMAGE_CONFIG.BORDER_MAX_WIDTH) {
             borderSides.push('left');
             borderWidth.left = leftBorderWidth;
           }
 
           // 检测右边框
           const rightBorderWidth = this.detectBorderEdge(data, width, height, 'right');
-          if (rightBorderWidth > 0) {
+          if (rightBorderWidth >= IMAGE_CONFIG.BORDER_MIN_WIDTH && rightBorderWidth <= IMAGE_CONFIG.BORDER_MAX_WIDTH) {
             borderSides.push('right');
             borderWidth.right = rightBorderWidth;
           }
@@ -696,6 +698,9 @@ export class ImageProcessor {
         break;
     }
 
+    let borderStartDepth = -1;
+    let lastLineBrightness: number | null = null;
+    
     // 从外向内逐行/列扫描
     for (let depth = 0; depth < maxScanDepth; depth++) {
       // 获取当前行/列的所有像素颜色
@@ -705,18 +710,41 @@ export class ImageProcessor {
         colors.push([data[idx], data[idx + 1], data[idx + 2]]);
       }
 
+      // 计算当前行/列的平均亮度
+      const currentBrightness = colors.reduce((sum, color) => 
+        sum + (0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2]), 0
+      ) / colors.length;
+
       // 检查这行/列是否是纯色边框
       if (this.isSolidColorLine(colors, tolerance, consistencyRatio)) {
-        // 继续检查下一行/列，看边框有多宽
+        if (borderStartDepth === -1) {
+          borderStartDepth = depth;
+        }
+        lastLineBrightness = currentBrightness;
         continue;
       } else {
-        // 遇到非纯色行/列，返回边框宽度
-        return depth >= IMAGE_CONFIG.BORDER_MIN_WIDTH ? depth : 0;
+        // 遇到非纯色行/列
+        if (depth === 0) {
+          // 第一行/列就不是纯色，无边框
+          return 0;
+        }
+        
+        // 检查边框与内容的对比度（避免将内部的白色区域误判为边框）
+        if (lastLineBrightness !== null) {
+          const brightnessDiff = Math.abs(currentBrightness - lastLineBrightness);
+          // 如果亮度差异很小，说明不是真正的边界，可能是内部区域
+          if (brightnessDiff < IMAGE_CONFIG.BORDER_BRIGHTNESS_DIFF) {
+            return 0;
+          }
+        }
+        
+        return depth;
       }
     }
 
-    // 如果扫描到最大深度都是纯色，返回扫描深度
-    return maxScanDepth >= IMAGE_CONFIG.BORDER_MIN_WIDTH ? maxScanDepth : 0;
+    // 如果扫描到最大深度都是纯色，可能不是边框而是大面积纯色区域
+    // 返回0表示不认为是边框
+    return 0;
   }
 
   /**

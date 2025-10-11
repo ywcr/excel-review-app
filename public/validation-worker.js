@@ -2278,6 +2278,29 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
               result.webReasons = webEval.reasons;
             } catch {}
 
+            // 边框检测
+            try {
+              const borderInfo = await detectSolidBorder(image.data);
+              if (borderInfo.hasBorder) {
+                result.hasBorder = borderInfo.hasBorder;
+                result.borderSides = borderInfo.borderSides;
+                result.borderWidth = borderInfo.borderWidth;
+                
+                // 为存在边框的图片生成缩略图，便于前端查看
+                if (!result.imageData) {
+                  const thumb = await createThumbnail(
+                    image.data,
+                    512,
+                    result.mimeType || "image/jpeg",
+                    0.85
+                  );
+                  if (thumb) result.imageData = thumb;
+                }
+              }
+            } catch (borderError) {
+              console.warn(`边框检测失败: ${image.name}`, borderError);
+            }
+
             results.push(result);
 
             ImageDebugLogger.debug(
@@ -2645,6 +2668,201 @@ async function calculateImageHash(imageData) {
     console.warn("感知哈希计算失败:", error);
     return { hash: "", width: 0, height: 0 }; // 返回空哈希，避免误判
   }
+}
+
+// 检测图片纯色边框
+async function detectSolidBorder(imageData) {
+  try {
+    if (
+      typeof OffscreenCanvas === "undefined" ||
+      typeof createImageBitmap === "undefined"
+    ) {
+      return { hasBorder: false, borderSides: [], borderWidth: {} };
+    }
+
+    const blob = new Blob([imageData]);
+    const bitmap = await createImageBitmap(blob);
+    
+    const width = bitmap.width;
+    const height = bitmap.height;
+
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) {
+      bitmap.close();
+      return { hasBorder: false, borderSides: [], borderWidth: {} };
+    }
+
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+
+    const imagePixelData = ctx.getImageData(0, 0, width, height);
+    const data = imagePixelData.data;
+
+    // 边框检测配置
+    const BORDER_COLOR_TOLERANCE = 15; // 颜色容差（适中的容差）
+    const BORDER_CONSISTENCY_RATIO = 0.90; // 90%的像素需要符合条件（平衡的阈值）
+    const BORDER_MIN_WIDTH = 2; // 最小边框宽度（过滤1px的细线）
+    const BORDER_MAX_WIDTH = 40; // 最大边框宽度（适当提高以检测更宽的边框）
+    const BORDER_BRIGHTNESS_DIFF_THRESHOLD = 30; // 亮度差异阈值（提高到30，更严格的边界判断）
+
+    const borderSides = [];
+    const borderWidth = {};
+
+    // 检测上边框
+    const topBorder = detectBorderEdge(data, width, height, 'top', BORDER_COLOR_TOLERANCE, BORDER_CONSISTENCY_RATIO, BORDER_BRIGHTNESS_DIFF_THRESHOLD);
+    if (topBorder >= BORDER_MIN_WIDTH && topBorder <= BORDER_MAX_WIDTH) {
+      borderSides.push('top');
+      borderWidth.top = topBorder;
+    }
+
+    // 检测下边框
+    const bottomBorder = detectBorderEdge(data, width, height, 'bottom', BORDER_COLOR_TOLERANCE, BORDER_CONSISTENCY_RATIO, BORDER_BRIGHTNESS_DIFF_THRESHOLD);
+    if (bottomBorder >= BORDER_MIN_WIDTH && bottomBorder <= BORDER_MAX_WIDTH) {
+      borderSides.push('bottom');
+      borderWidth.bottom = bottomBorder;
+    }
+
+    // 检测左边框
+    const leftBorder = detectBorderEdge(data, width, height, 'left', BORDER_COLOR_TOLERANCE, BORDER_CONSISTENCY_RATIO, BORDER_BRIGHTNESS_DIFF_THRESHOLD);
+    if (leftBorder >= BORDER_MIN_WIDTH && leftBorder <= BORDER_MAX_WIDTH) {
+      borderSides.push('left');
+      borderWidth.left = leftBorder;
+    }
+
+    // 检测右边框
+    const rightBorder = detectBorderEdge(data, width, height, 'right', BORDER_COLOR_TOLERANCE, BORDER_CONSISTENCY_RATIO, BORDER_BRIGHTNESS_DIFF_THRESHOLD);
+    if (rightBorder >= BORDER_MIN_WIDTH && rightBorder <= BORDER_MAX_WIDTH) {
+      borderSides.push('right');
+      borderWidth.right = rightBorder;
+    }
+
+    // 清理canvas资源
+    canvas.width = 0;
+    canvas.height = 0;
+
+    return {
+      hasBorder: borderSides.length > 0,
+      borderSides,
+      borderWidth,
+    };
+  } catch (error) {
+    console.warn("边框检测失败:", error);
+    return { hasBorder: false, borderSides: [], borderWidth: {} };
+  }
+}
+
+// 检测单条边的边框
+function detectBorderEdge(data, width, height, side, tolerance, consistencyRatio, brightnessDiffThreshold) {
+  let maxScanDepth;
+  let getPixelIndex;
+  let scanLength;
+
+  switch (side) {
+    case 'top':
+      maxScanDepth = Math.min(height, 50); // 最多扫按50行
+      scanLength = width;
+      getPixelIndex = (depth, offset) => (depth * width + offset) * 4;
+      break;
+    case 'bottom':
+      maxScanDepth = Math.min(height, 50);
+      scanLength = width;
+      getPixelIndex = (depth, offset) => ((height - 1 - depth) * width + offset) * 4;
+      break;
+    case 'left':
+      maxScanDepth = Math.min(width, 50); // 最多扫按50列
+      scanLength = height;
+      getPixelIndex = (depth, offset) => (offset * width + depth) * 4;
+      break;
+    case 'right':
+      maxScanDepth = Math.min(width, 50);
+      scanLength = height;
+      getPixelIndex = (depth, offset) => (offset * width + (width - 1 - depth)) * 4;
+      break;
+    default:
+      return 0;
+  }
+
+  let borderStartDepth = -1;
+  let lastLineBrightness = null;
+  
+  // 从外向内逐行/列扫描
+  for (let depth = 0; depth < maxScanDepth; depth++) {
+    // 获取当前行/列的所有像素颜色
+    const colors = [];
+    for (let offset = 0; offset < scanLength; offset++) {
+      const idx = getPixelIndex(depth, offset);
+      colors.push([data[idx], data[idx + 1], data[idx + 2]]);
+    }
+
+    // 计算当前行/列的平均亮度
+    const currentBrightness = colors.reduce((sum, color) => 
+      sum + (0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2]), 0
+    ) / colors.length;
+
+    // 检查这行/列是否是纯色边框
+    if (isSolidColorLine(colors, tolerance, consistencyRatio)) {
+      if (borderStartDepth === -1) {
+        borderStartDepth = depth;
+      }
+      lastLineBrightness = currentBrightness;
+      continue;
+    } else {
+      // 遇到非纯色行/列
+      if (depth === 0) {
+        // 第一行/列就不是纯色，无边框
+        return 0;
+      }
+      
+      // 检查边框与内容的对比度（避免将内部的白色区域误判为边框）
+      if (lastLineBrightness !== null) {
+        const brightnessDiff = Math.abs(currentBrightness - lastLineBrightness);
+        // 如果亮度差异很小，说明不是真正的边界，可能是内部区域
+        if (brightnessDiff < brightnessDiffThreshold) {
+          return 0;
+        }
+      }
+      
+      return depth;
+    }
+  }
+
+  // 如果扫描到最大深度都是纯色，可能不是边框而是大面积纯色区域
+  // 返回0表示不认为是边框
+  return 0;
+}
+
+// 检查一行/列像素是否为纯色
+function isSolidColorLine(colors, tolerance, consistencyRatio) {
+  if (colors.length === 0) return false;
+
+  // 计算平均颜色
+  const avgColor = [0, 0, 0];
+  for (const color of colors) {
+    avgColor[0] += color[0];
+    avgColor[1] += color[1];
+    avgColor[2] += color[2];
+  }
+  avgColor[0] = Math.round(avgColor[0] / colors.length);
+  avgColor[1] = Math.round(avgColor[1] / colors.length);
+  avgColor[2] = Math.round(avgColor[2] / colors.length);
+
+  // 检查有多少像素在容差范围内
+  let consistentPixels = 0;
+  for (const color of colors) {
+    const rDiff = Math.abs(color[0] - avgColor[0]);
+    const gDiff = Math.abs(color[1] - avgColor[1]);
+    const bDiff = Math.abs(color[2] - avgColor[2]);
+
+    // 使用最大色差作为判断标准（允许轻微渐变）
+    if (rDiff <= tolerance && gDiff <= tolerance && bDiff <= tolerance) {
+      consistentPixels++;
+    }
+  }
+
+  // 检查一致性比例是否达到阈值
+  const ratio = consistentPixels / colors.length;
+  return ratio >= consistencyRatio;
 }
 
 // 轻量EXIF快速扫描（仅JPEG）：查找APP1/Exif和常见标签关键字（近似）
