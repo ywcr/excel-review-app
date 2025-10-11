@@ -253,8 +253,10 @@ function randomAnswerByRate(option1, option2, rate) {
 class QuestionnaireLogicFactory {
     static create(questionnaireType) {
         switch (questionnaireType) {
-            case "西黄消费者问卷":
+            case "西黄消费者问卷-致力庆":
                 return new XihuangQuestionnaire(CONFIG.questionnaireTypes.xihuang_consumer);
+            case "西黄消费者问卷-平晓":
+                return new XihuangQuestionnaire(CONFIG.questionnaireTypes.xihuang_consumer_pingxiao);
             case "牛解消费者问卷":
                 return new NiujieQuestionnaire(CONFIG.questionnaireTypes.niujie_consumer);
             case "知柏消费者问卷":

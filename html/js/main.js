@@ -218,7 +218,7 @@ class AutomationApp {
       Logger.logInfo("");
       Logger.logInfo("🎯 新功能：现在支持完整的DOM模式问卷创建！");
       Logger.logInfo(
-        "📋 支持的问卷类型：六味患者、西黄消费者、牛解消费者、知柏消费者、贴膏患者"
+        "📋 支持的问卷类型：六味患者、西黄消费者、西黄消费者问卷-平晓、牛解消费者、知柏消费者、贴膏患者"
       );
       Logger.logInfo("🚀 可以直接在控制台使用 showHelp() 查看所有命令");
     }, 1000);

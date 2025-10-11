@@ -739,6 +739,34 @@ function hex(bin) {
     );
 }
 
+// 获取动态盐值（用于更新 /mobileUpd）
+async function createDynamicsSaltForUpdate() {
+  try {
+    const endpoint = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.saltEndpointUpdate)
+      ? CONFIG.saltEndpointUpdate
+      : '/lgb/payMerge/createDynamicsSalt?methodName=/xfzwj/mobileUpd';
+    const result = await new Promise((resolve, reject) => {
+      $.ajax({ url: endpoint, type: 'GET', traditional: true, success: res => resolve(res), error: (xhr,s,e)=>reject(new Error(\`请求失败: \${s} - \${e}\`)) });
+    });
+    if (result && result.code === 0) {
+      // 这里的 processSaltData 在静态模板里可能不存在，直接返回 data 即可
+      const data = result.data;
+      if (!data) throw new Error('动态盐值数据为空');
+      if (typeof data === 'string') return { signkey: data };
+      if (typeof data === 'object') {
+        if (data.signkey) return { signkey: data.signkey };
+        if (data.key) return { signkey: data.key };
+        if (data.salt) return { signkey: data.salt };
+      }
+      throw new Error('无法解析盐值返回');
+    }
+    throw new Error(\`获取更新盐值失败: \${result && result.message}\`);
+  } catch (e) {
+    console.error('❌ 获取更新盐值失败:', e);
+    throw e;
+  }
+}
+
 // 参数格式化函数（基于dcwj.js）
 function formatParams(arys) {
     let newkey = Object.keys(arys).sort();

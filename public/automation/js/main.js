@@ -218,7 +218,7 @@ class AutomationApp {
       Logger.logInfo("");
       Logger.logInfo("🎯 新功能：现在支持完整的DOM模式问卷创建！");
       Logger.logInfo(
-        "📋 支持的问卷类型：六味患者、西黄消费者、牛解消费者、知柏消费者、贴膏患者"
+        "📋 支持的问卷类型：六味患者、西黄消费者-致力庆、西黄消费者问卷-平晓、牛解消费者、知柏消费者、贴膏患者"
       );
       Logger.logInfo("🚀 可以直接在控制台使用 showHelp() 查看所有命令");
     }, 1000);
@@ -406,8 +406,24 @@ class AutomationApp {
         '✅ 自动化代码已生成！请查看下方绿色区域，点击"复制代码"按钮'
       );
     } catch (error) {
-      Logger.logError(`代码生成失败: ${error.message}`);
-      Logger.logError("错误堆栈:", error.stack);
+      // 输出详细错误信息，包括具体位置
+      Logger.logError(`❌ 代码生成失败: ${error.message}`);
+      Logger.logError("📍 错误详情:");
+      Logger.logError("   错误名称:", error.name);
+      Logger.logError("   错误消息:", error.message);
+      if (error.stack) {
+        Logger.logError("   错误堆栈:");
+        // 解析堆栈，提取关键信息
+        const stackLines = error.stack.split('\n');
+        stackLines.forEach((line, index) => {
+          if (index < 10) { // 只显示前10行堆栈
+            Logger.logError("     ", line.trim());
+          }
+        });
+      }
+      if (error.fileName) Logger.logError("   文件:", error.fileName);
+      if (error.lineNumber) Logger.logError("   行号:", error.lineNumber);
+      if (error.columnNumber) Logger.logError("   列号:", error.columnNumber);
       Toast.error(`❌ 代码生成失败: ${error.message}`);
     }
   }
@@ -552,8 +568,24 @@ class AutomationApp {
         `✅ 已生成全部日期自动化代码！包含${assigneeDates.length}个日期（不含未来），请查看下方绿色区域复制代码`
       );
     } catch (error) {
-      Logger.logError(`批量代码生成失败: ${error.message}`);
-      Logger.logError("错误堆栈:", error.stack);
+      // 输出详细错误信息，包括具体位置
+      Logger.logError(`❌ 批量代码生成失败: ${error.message}`);
+      Logger.logError("📍 错误详情:");
+      Logger.logError("   错误名称:", error.name);
+      Logger.logError("   错误消息:", error.message);
+      if (error.stack) {
+        Logger.logError("   错误堆栈:");
+        // 解析堆栈，提取关键信息
+        const stackLines = error.stack.split('\n');
+        stackLines.forEach((line, index) => {
+          if (index < 10) { // 只显示前10行堆栈
+            Logger.logError("     ", line.trim());
+          }
+        });
+      }
+      if (error.fileName) Logger.logError("   文件:", error.fileName);
+      if (error.lineNumber) Logger.logError("   行号:", error.lineNumber);
+      if (error.columnNumber) Logger.logError("   列号:", error.columnNumber);
       Toast.error(`❌ 批量代码生成失败: ${error.message}`);
     }
   }
