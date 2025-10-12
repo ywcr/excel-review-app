@@ -5,10 +5,9 @@ export const AUTH_CONFIG = {
     process.env.JWT_SECRET ||
     "your-super-secret-jwt-key-change-this-in-production",
 
-  // 令牌过期时间设置 - 在生产环境中使用更长的过期时间
+  // 令牌过期时间设置 - 使用长期过期时间，避免频繁登录
   JWT_EXPIRES_IN:
-    process.env.JWT_EXPIRES_IN ||
-    (process.env.NODE_ENV === "production" ? "365d" : "24h"),
+    process.env.JWT_EXPIRES_IN || "365d", // 所有环境统一使用1年过期时间
   
   // 单设备登录控制
   SINGLE_DEVICE_LOGIN: process.env.SINGLE_DEVICE_LOGIN !== "false", // 默认启用
@@ -25,12 +24,9 @@ export const AUTH_CONFIG = {
     process.env.TASK_REFRESH_INTERVAL || "300000"
   ), // 5分钟
 
-  // Cookie设置 - 在生产环境中使用更长的过期时间
+  // Cookie设置 - 使用长期过期时间，避免频繁登录
   COOKIE_NAME: "auth-token",
-  COOKIE_MAX_AGE:
-    process.env.NODE_ENV === "production"
-      ? 365 * 24 * 60 * 60 * 1000 // 生产环境：1年
-      : 24 * 60 * 60 * 1000, // 开发环境：24小时
+  COOKIE_MAX_AGE: 365 * 24 * 60 * 60 * 1000, // 所有环境统一使用1年
 
   // 安全设置
   SECURE_COOKIES: process.env.NODE_ENV === "production",

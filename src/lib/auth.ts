@@ -508,7 +508,7 @@ export function cleanupExpiredSessions(): void {
       if (user.activeSession) {
         const sessionTime = new Date(user.activeSession.loginTime).getTime();
         const now = Date.now();
-        const maxAge = 24 * 60 * 60 * 1000; // 24小时
+        const maxAge = 365 * 24 * 60 * 60 * 1000; // 365天（从24小时延长到1年）
 
         if (now - sessionTime > maxAge) {
           user.activeSession = null;

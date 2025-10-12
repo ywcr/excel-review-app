@@ -19,9 +19,9 @@ interface AuthState {
 
 // 会话配置
 const SESSION_CONFIG = {
-  HEARTBEAT_INTERVAL: 5 * 60 * 1000, // 5分钟心跳检测
-  ACTIVITY_TIMEOUT: 30 * 60 * 1000, // 30分钟无活动提醒
-  EXPIRY_WARNING_TIME: 5 * 60 * 1000, // 剩余5分钟时提醒
+  HEARTBEAT_INTERVAL: 15 * 60 * 1000, // 15分钟心跳检测（从5分钟延长到15分钟）
+  ACTIVITY_TIMEOUT: 24 * 60 * 60 * 1000, // 24小时无活动超时（从30分钟延长到24小时）
+  EXPIRY_WARNING_TIME: 30 * 60 * 1000, // 剩余30分钟时提醒（从5分钟延长到30分钟）
 };
 
 export function useAuth() {
