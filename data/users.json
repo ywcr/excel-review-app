@@ -7,14 +7,7 @@
       "role": "admin",
       "createdAt": "2025-09-13T04:06:51.641Z",
       "lastLogin": "2025-10-05T13:27:42.312Z",
-      "activeSession": {
-        "sessionId": "1684b9ea-7ec7-4bb3-9b83-74b0cac35a08",
-        "tokenHash": "b09ae7890ec5c222d974026fc58a2d0292df106a10583e588a8c3ad2ba52d764",
-        "deviceInfo": "Mozilla/5.0 (::1.xxx)",
-        "loginTime": "2025-10-05T13:27:42.316Z",
-        "lastActivity": "2025-10-05T13:27:42.316Z",
-        "loginTimestamp": 1759670862316
-      }
+      "activeSession": null
     },
     {
       "id": "chenrong",
