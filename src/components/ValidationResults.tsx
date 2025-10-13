@@ -370,7 +370,7 @@ export default function ValidationResults({
               <h4 className="text-sm font-semibold text-blue-800 mb-3">
                 图片验证摘要
               </h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <div className="text-center">
                   <p className="text-lg font-bold text-gray-900">
                     {validation.imageValidation.totalImages}
@@ -390,18 +390,42 @@ export default function ValidationResults({
                   <p className="text-xs text-gray-700">重复组</p>
                 </div>
                 <div className="text-center">
+                  <p className="text-lg font-bold text-yellow-600">
+                    {(() => {
+                      const results = validation.imageValidation?.results ?? [];
+                      return results.filter((r: any) => {
+                        // 新系统：可疑度 > 20分
+                        if (typeof r.suspicionScore === 'number' && r.suspicionScore >= 20) {
+                          return true;
+                        }
+                        // 旧系统兼容：网图或尺寸问题
+                        if (!r.suspicionScore) {
+                          if (r.dimensionOK === false) return true;
+                          if (typeof r.webLikelihood === 'number' && r.webLikelihood >= 0.55) return true;
+                        }
+                        return false;
+                      }).length;
+                    })()}
+                  </p>
+                  <p className="text-xs text-gray-700">可疑图片</p>
+                </div>
+                <div className="text-center">
                   <p className="text-lg font-bold text-green-600">
-{(validation.imageValidation?.totalImages ?? 0) -
-                      (validation.imageValidation?.blurryImages ?? 0) -
-                      (validation.imageValidation?.results ?? []).filter(
-                        (r) => (r.duplicates?.length ?? 0) > 0
-                      ).length -
-                      (validation.imageValidation?.results ?? []).filter(
-                        (r) => r.dimensionOK === false
-                      ).length -
-                      (validation.imageValidation?.results ?? []).filter(
-                        (r) => typeof r.webLikelihood === 'number' && r.webLikelihood >= 0.6
-                      ).length}
+                    {(() => {
+                      const total = validation.imageValidation?.totalImages ?? 0;
+                      const blurry = validation.imageValidation?.blurryImages ?? 0;
+                      const results = validation.imageValidation?.results ?? [];
+                      const duplicates = results.filter((r: any) => (r.duplicates?.length ?? 0) > 0).length;
+                      const suspicious = results.filter((r: any) => {
+                        if (typeof r.suspicionScore === 'number' && r.suspicionScore >= 20) return true;
+                        if (!r.suspicionScore) {
+                          if (r.dimensionOK === false) return true;
+                          if (typeof r.webLikelihood === 'number' && r.webLikelihood >= 0.55) return true;
+                        }
+                        return false;
+                      }).length;
+                      return Math.max(0, total - blurry - duplicates - suspicious);
+                    })()}
                   </p>
                   <p className="text-xs text-gray-700">正常图片</p>
                 </div>
@@ -652,7 +676,7 @@ export default function ValidationResults({
                     const isDup = (result.duplicates?.length ?? 0) > 0;
                     const isDimBad = result.dimensionOK === false;
                     const isBlur = !!result.isBlurry;
-                    const isWeb = typeof result.webLikelihood === 'number' && result.webLikelihood >= 0.6;
+                    const isWeb = typeof result.webLikelihood === 'number' && result.webLikelihood >= 0.55;  // 从0.6降到0.55
                     const isLowPixel = !!result.isLowPixel;
                     const hasBorderIssue = !!result.hasBorder;
                     return (
@@ -673,8 +697,8 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                     const bBorder = !!b.hasBorder;
                     const aBlur = !!a.isBlurry;
                     const bBlur = !!b.isBlurry;
-                    const aWeb = typeof a.webLikelihood === 'number' && a.webLikelihood >= 0.6;
-                    const bWeb = typeof b.webLikelihood === 'number' && b.webLikelihood >= 0.6;
+                    const aWeb = typeof a.webLikelihood === 'number' && a.webLikelihood >= 0.55;
+                    const bWeb = typeof b.webLikelihood === 'number' && b.webLikelihood >= 0.55;
                     const aDimBad = a.dimensionOK === false;
                     const bDimBad = b.dimensionOK === false;
                     const aLowPixel = !!a.isLowPixel;
@@ -783,35 +807,212 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                               存在边框
                             </span>
                           )}
-                          {/* 其他错误 */}
-{result.isBlurry && (
+                          
+                          {/* 模糊 */}
+                          {result.isBlurry && (
                             <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
                               模糊
                             </span>
                           )}
-                          {typeof result.webLikelihood === 'number' && result.webLikelihood >= 0.6 && (
-                            <>
-                              <span
-                                className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800"
-                              >
-                                疑似网图
-                              </span>
-                              {(result.webReasons?.length ?? 0) > 0 && (
-                                <span className="ml-2 text-xs text-purple-600 max-w-xs break-words">
-                                  {result.webReasons!.join('；')}
-                                </span>
-                              )}
-                            </>
+                          
+                          {/* 旧系统兼容：网图和非手机拍摄 */}
+                          {typeof result.webLikelihood === 'number' && result.webLikelihood >= 0.55 && !result.suspicionScore && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
+                              疑似网图
+                            </span>
                           )}
-                          {result.dimensionOK === false && (
+                          {result.dimensionOK === false && !result.suspicionScore && (
                             <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
                               疑似非手机拍摄
                             </span>
                           )}
-                          {result.isLowPixel && (
+                          {result.isLowPixel && !result.suspicionScore && (
                             <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
                               低像素
                             </span>
+                          )}
+                          
+                          {/* 🎯 新系统：可疑度评分标签（主标签 + 细节标签） */}
+                          {typeof result.suspicionScore === 'number' && result.suspicionLevel && result.suspicionLevel !== 'LOW' && (
+                            <>
+                              {(() => {
+                                const factors = result.suspicionFactors || [];
+                                const score = result.suspicionScore;
+                                const colorClass = result.suspicionColor === 'red' ? 'bg-red-100 text-red-800' :
+                                                  result.suspicionColor === 'orange' ? 'bg-orange-100 text-orange-800' :
+                                                  'bg-yellow-100 text-yellow-800';
+                                
+                                // 分类因素
+                                const screenshotFactors = factors.filter(f => f.includes('截图'));
+                                const exifFactors = factors.filter(f => f.includes('EXIF') || f.includes('伪造'));
+                                const softwareFactors = factors.filter(f => f.includes('软件'));
+                                const dimensionFactors = factors.filter(f => 
+                                  f.includes('比例') || f.includes('像素') || f.includes('分辨率')
+                                );
+                                const formatFactors = factors.filter(f => 
+                                  f.includes('GIF') || f.includes('WebP') || f.includes('PNG') || f.includes('压缩')
+                                );
+                                const borderFactors = factors.filter(f => f.includes('边框'));
+                                
+                                const tags = [];
+                                
+                                // 1. 主标签：根据最主要问题生成
+                                if (screenshotFactors.length > 0) {
+                                  tags.push(
+                                    <span key="main" className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClass}`}>
+                                      疑似截图 ({score}分)
+                                    </span>
+                                  );
+                                } else if (exifFactors.length > 0 && (exifFactors.some(f => f.includes('异常')) || exifFactors.some(f => f.includes('不符')))) {
+                                  tags.push(
+                                    <span key="main" className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClass}`}>
+                                      疑似伪造 ({score}分)
+                                    </span>
+                                  );
+                                } else if (softwareFactors.some(f => f.includes('专业编辑') || f.includes('Photoshop'))) {
+                                  tags.push(
+                                    <span key="main" className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClass}`}>
+                                      疑似编辑过 ({score}分)
+                                    </span>
+                                  );
+                                } else if (formatFactors.some(f => f.includes('GIF'))) {
+                                  tags.push(
+                                    <span key="main" className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClass}`}>
+                                      GIF动图 ({score}分)
+                                    </span>
+                                  );
+                                } else if (dimensionFactors.length > 0) {
+                                  tags.push(
+                                    <span key="main" className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClass}`}>
+                                      尺寸异常 ({score}分)
+                                    </span>
+                                  );
+                                } else {
+                                  tags.push(
+                                    <span key="main" className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClass}`}>
+                                      图片异常 ({score}分)
+                                    </span>
+                                  );
+                                }
+                                
+                                // 2. 细节标签：显示具体问题点
+                                const detailColorClass = 'bg-gray-100 text-gray-700';
+                                
+                                // 比例问题
+                                if (dimensionFactors.some(f => f.includes('罕见比例'))) {
+                                  const ratio = dimensionFactors.find(f => f.includes('罕见比例'));
+                                  const match = ratio?.match(/(\d+\.\d+):1/);
+                                  tags.push(
+                                    <span key="ratio" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
+                                      罕见比例{match ? match[1] + ':1' : ''}
+                                    </span>
+                                  );
+                                } else if (dimensionFactors.some(f => f.includes('非标准比例'))) {
+                                  const ratio = dimensionFactors.find(f => f.includes('非标准比例'));
+                                  const match = ratio?.match(/(\d+\.\d+):1/);
+                                  tags.push(
+                                    <span key="ratio" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
+                                      非标准比例{match ? match[1] + ':1' : ''}
+                                    </span>
+                                  );
+                                }
+                                
+                                // 像素问题
+                                if (dimensionFactors.some(f => f.includes('像素'))) {
+                                  const pixelFactor = dimensionFactors.find(f => f.includes('像素'));
+                                  const match = pixelFactor?.match(/(\d+\.\d+MP)/);
+                                  if (pixelFactor?.includes('过低')) {
+                                    tags.push(
+                                      <span key="pixel" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
+                                        像素过低{match ? match[1] : ''}
+                                      </span>
+                                    );
+                                  } else if (pixelFactor?.includes('较低') || pixelFactor?.includes('偏低')) {
+                                    tags.push(
+                                      <span key="pixel" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
+                                        像素偏低{match ? match[1] : ''}
+                                      </span>
+                                    );
+                                  }
+                                }
+                                
+                                // EXIF问题
+                                if (exifFactors.some(f => f.includes('无EXIF'))) {
+                                  tags.push(
+                                    <span key="no-exif" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
+                                      无EXIF信息
+                                    </span>
+                                  );
+                                } else if (exifFactors.some(f => f.includes('EXIF不完整'))) {
+                                  tags.push(
+                                    <span key="incomplete-exif" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
+                                      EXIF不完整
+                                    </span>
+                                  );
+                                }
+                                if (exifFactors.some(f => f.includes('EXIF时间异常'))) {
+                                  tags.push(
+                                    <span key="exif-time" className={`inline-flex px-2 py-1 text-xs rounded-full bg-red-50 text-red-700`}>
+                                      EXIF时间异常
+                                    </span>
+                                  );
+                                }
+                                if (exifFactors.some(f => f.includes('不符'))) {
+                                  tags.push(
+                                    <span key="exif-mismatch" className={`inline-flex px-2 py-1 text-xs rounded-full bg-red-50 text-red-700`}>
+                                      设备信息不符
+                                    </span>
+                                  );
+                                }
+                                
+                                // 软件问题
+                                if (softwareFactors.length > 0) {
+                                  softwareFactors.forEach((f, idx) => {
+                                    if (f.includes('专业编辑软件')) {
+                                      const soft = f.match(/:(\w+)/);
+                                      tags.push(
+                                        <span key={`software-${idx}`} className={`inline-flex px-2 py-1 text-xs rounded-full bg-orange-50 text-orange-700`}>
+                                          {soft ? soft[1] : '专业软件'}
+                                        </span>
+                                      );
+                                    } else if (f.includes('美化软件')) {
+                                      tags.push(
+                                        <span key={`software-${idx}`} className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
+                                          美化软件
+                                        </span>
+                                      );
+                                    }
+                                  });
+                                }
+                                
+                                // 格式问题
+                                if (formatFactors.some(f => f.includes('WebP'))) {
+                                  tags.push(
+                                    <span key="webp" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
+                                      WebP格式
+                                    </span>
+                                  );
+                                }
+                                if (formatFactors.some(f => f.includes('小像素PNG'))) {
+                                  tags.push(
+                                    <span key="small-png" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
+                                      小像素PNG
+                                    </span>
+                                  );
+                                }
+                                if (formatFactors.some(f => f.includes('强压缩'))) {
+                                  const compressionFactor = formatFactors.find(f => f.includes('强压缩'));
+                                  const match = compressionFactor?.match(/(\d+KB\/MP)/);
+                                  tags.push(
+                                    <span key="compression" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
+                                      强压缩{match ? match[1] : ''}
+                                    </span>
+                                  );
+                                }
+                                
+                                return tags;
+                              })()}
+                            </>
                           )}
                         </div>
                       </td>
@@ -826,16 +1027,25 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                       <td className="px-6 py-4 text-sm text-gray-700">
                         {(() => {
                           const details: string[] = [];
-                          if (result.isBlurry) details.push("清晰度低");
-                          if (result.isLowPixel) details.push("像素不足");
-                          if (result.dimensionOK === false) details.push("疑似非手机拍摄");
-                          if (typeof result.webLikelihood === 'number' && result.webLikelihood >= 0.6) {
-                            const reasons = (result.webReasons || []).join('；');
-                            details.push(`疑似网图${reasons ? '：' + reasons : ''}`);
+                          
+                          // 🎯 方案B：优先显示新评分系统的因素
+                          if (result.suspicionFactors && result.suspicionFactors.length > 0) {
+                            details.push(...result.suspicionFactors);
+                          } else {
+                            // 回退到旧系统逻辑
+                            if (result.isBlurry) details.push("清晰度低");
+                            if (result.isLowPixel) details.push("像素不足");
+                            if (result.dimensionOK === false) details.push("疑似非手机拍摄");
+                            if (typeof result.webLikelihood === 'number' && result.webLikelihood >= 0.55) {
+                              const reasons = (result.webReasons || []).join('；');
+                              details.push(`疑似网图${reasons ? '：' + reasons : ''}`);
+                            }
+                            if (result.mimeType && !/jpe?g/i.test(result.mimeType)) {
+                              details.push('无EXIF');
+                            }
                           }
-                          if (result.mimeType && !/jpe?g/i.test(result.mimeType)) {
-                            details.push('无EXIF');
-                          }
+                          
+                          // 重复和边框始终显示
                           const dupPositions = (result.duplicates || [])
                             .map((d: any) => (typeof d === 'string' ? d : (d?.position || `${d?.column ?? ''}${d?.row ?? ''}`)))
                             .filter(Boolean);
@@ -855,6 +1065,7 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                             }).join('、');
                             details.push(`边框: ${borderDesc}`);
                           }
+                          
                           const text = details.join('；');
                           return text || '-';
                         })()}

@@ -1,0 +1,1665 @@
+{
+  "metadata": {
+    "source": "excel-review-app",
+    "worker": "validation-worker.js (Node.js adapted)",
+    "excelFile": "C:\\Users\\123mi\\Downloads\\不盈科技2025-9-19.xlsx",
+    "sheetName": "sheet213",
+    "taskType": "药店拜访",
+    "timestamp": "2025-10-11T07:28:16.132Z"
+  },
+  "result": {
+    "isValid": false,
+    "sheetName": "sheet213",
+    "dataRowCount": 78,
+    "dataWarnings": [
+      {
+        "row": 4,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 5,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 6,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 7,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 8,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 9,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 10,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 11,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 12,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 13,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 14,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 15,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 16,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 17,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 18,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 19,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 20,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 21,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 22,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 23,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 24,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 25,
+        "field": "拜訪開始時間",
+        "value": "Tue Sep 02 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 26,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 03 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 27,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 03 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 28,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 03 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 29,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 03 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 30,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 31,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 32,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 33,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 34,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 35,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 36,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 37,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 38,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 39,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 40,
+        "field": "拜訪開始時間",
+        "value": "Fri Sep 05 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 41,
+        "field": "拜訪開始時間",
+        "value": "Fri Sep 05 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 42,
+        "field": "拜訪開始時間",
+        "value": "Fri Sep 05 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 43,
+        "field": "拜訪開始時間",
+        "value": "Sat Sep 06 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 44,
+        "field": "拜訪開始時間",
+        "value": "Sat Sep 06 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 45,
+        "field": "拜訪開始時間",
+        "value": "Sat Sep 06 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 46,
+        "field": "拜訪開始時間",
+        "value": "Sat Sep 06 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 47,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 48,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 49,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 50,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 51,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 52,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 53,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 54,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 55,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 56,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 57,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 58,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 59,
+        "field": "拜訪開始時間",
+        "value": "Tue Sep 09 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 60,
+        "field": "拜訪開始時間",
+        "value": "Tue Sep 09 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 61,
+        "field": "拜訪開始時間",
+        "value": "Tue Sep 09 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 62,
+        "field": "拜訪開始時間",
+        "value": "Tue Sep 09 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 63,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 64,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 65,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 66,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 67,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 68,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 69,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 11 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 70,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 11 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 71,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 11 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 72,
+        "field": "拜訪開始時間",
+        "value": "Fri Sep 12 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 73,
+        "field": "拜訪開始時間",
+        "value": "Fri Sep 12 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 74,
+        "field": "拜訪開始時間",
+        "value": "Fri Sep 12 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 75,
+        "field": "拜訪開始時間",
+        "value": "Fri Sep 12 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 76,
+        "field": "拜訪開始時間",
+        "value": "Sat Sep 13 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 77,
+        "field": "拜訪開始時間",
+        "value": "Sat Sep 13 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 78,
+        "field": "拜訪開始時間",
+        "value": "Sat Sep 13 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 79,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 14 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 80,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 14 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 81,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 14 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪開始時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 4,
+        "field": "調研時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 5,
+        "field": "調研時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 6,
+        "field": "調研時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 7,
+        "field": "調研時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 8,
+        "field": "調研時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 9,
+        "field": "調研時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 10,
+        "field": "調研時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 11,
+        "field": "調研時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 12,
+        "field": "調研時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 13,
+        "field": "調研時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 14,
+        "field": "調研時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 15,
+        "field": "調研時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 16,
+        "field": "調研時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 17,
+        "field": "調研時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 18,
+        "field": "調研時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 19,
+        "field": "調研時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 20,
+        "field": "調研時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 21,
+        "field": "調研時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 22,
+        "field": "調研時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 23,
+        "field": "調研時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 24,
+        "field": "調研時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 25,
+        "field": "調研時間",
+        "value": "Tue Sep 02 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 26,
+        "field": "調研時間",
+        "value": "Wed Sep 03 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 27,
+        "field": "調研時間",
+        "value": "Wed Sep 03 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 28,
+        "field": "調研時間",
+        "value": "Wed Sep 03 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 29,
+        "field": "調研時間",
+        "value": "Wed Sep 03 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 30,
+        "field": "調研時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 31,
+        "field": "調研時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 32,
+        "field": "調研時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 33,
+        "field": "調研時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 34,
+        "field": "調研時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 35,
+        "field": "調研時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 36,
+        "field": "調研時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 37,
+        "field": "調研時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 38,
+        "field": "調研時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 39,
+        "field": "調研時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 40,
+        "field": "調研時間",
+        "value": "Fri Sep 05 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 41,
+        "field": "調研時間",
+        "value": "Fri Sep 05 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 42,
+        "field": "調研時間",
+        "value": "Fri Sep 05 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 43,
+        "field": "調研時間",
+        "value": "Sat Sep 06 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 44,
+        "field": "調研時間",
+        "value": "Sat Sep 06 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 45,
+        "field": "調研時間",
+        "value": "Sat Sep 06 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 46,
+        "field": "調研時間",
+        "value": "Sat Sep 06 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 47,
+        "field": "調研時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 48,
+        "field": "調研時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 49,
+        "field": "調研時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 50,
+        "field": "調研時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 51,
+        "field": "調研時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 52,
+        "field": "調研時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 53,
+        "field": "調研時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 54,
+        "field": "調研時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 55,
+        "field": "調研時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 56,
+        "field": "調研時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 57,
+        "field": "調研時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 58,
+        "field": "調研時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 59,
+        "field": "調研時間",
+        "value": "Tue Sep 09 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 60,
+        "field": "調研時間",
+        "value": "Tue Sep 09 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 61,
+        "field": "調研時間",
+        "value": "Tue Sep 09 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 62,
+        "field": "調研時間",
+        "value": "Tue Sep 09 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 63,
+        "field": "調研時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 64,
+        "field": "調研時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 65,
+        "field": "調研時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 66,
+        "field": "調研時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 67,
+        "field": "調研時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 68,
+        "field": "調研時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 69,
+        "field": "調研時間",
+        "value": "Thu Sep 11 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 70,
+        "field": "調研時間",
+        "value": "Thu Sep 11 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 71,
+        "field": "調研時間",
+        "value": "Thu Sep 11 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 72,
+        "field": "調研時間",
+        "value": "Fri Sep 12 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 73,
+        "field": "調研時間",
+        "value": "Fri Sep 12 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 74,
+        "field": "調研時間",
+        "value": "Fri Sep 12 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 75,
+        "field": "調研時間",
+        "value": "Fri Sep 12 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 76,
+        "field": "調研時間",
+        "value": "Sat Sep 13 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 77,
+        "field": "調研時間",
+        "value": "Sat Sep 13 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 78,
+        "field": "調研時間",
+        "value": "Sat Sep 13 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 79,
+        "field": "調研時間",
+        "value": "Sun Sep 14 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 80,
+        "field": "調研時間",
+        "value": "Sun Sep 14 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      },
+      {
+        "row": 81,
+        "field": "調研時間",
+        "value": "Sun Sep 14 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "調研時間格式不正確，應為純日期格式（如：2025-08-01）",
+        "type": "dateFormat"
+      }
+    ],
+    "dataErrors": [
+      {
+        "row": 4,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 5,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 6,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 7,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 8,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 9,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 10,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 11,
+        "field": "拜訪開始時間",
+        "value": "Sun Aug 31 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 12,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 13,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 14,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 15,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 16,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 17,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 18,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 19,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 20,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 21,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 22,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 23,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 24,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 01 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 25,
+        "field": "拜訪開始時間",
+        "value": "Tue Sep 02 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 26,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 03 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 27,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 03 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 28,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 03 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 29,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 03 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 30,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 31,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 32,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 33,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 34,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 35,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 36,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 37,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 38,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 39,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 04 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 40,
+        "field": "拜訪開始時間",
+        "value": "Fri Sep 05 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 41,
+        "field": "拜訪開始時間",
+        "value": "Fri Sep 05 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 42,
+        "field": "拜訪開始時間",
+        "value": "Fri Sep 05 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 43,
+        "field": "拜訪開始時間",
+        "value": "Sat Sep 06 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 44,
+        "field": "拜訪開始時間",
+        "value": "Sat Sep 06 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 45,
+        "field": "拜訪開始時間",
+        "value": "Sat Sep 06 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 46,
+        "field": "拜訪開始時間",
+        "value": "Sat Sep 06 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 47,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 48,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 49,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 50,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 51,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 52,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 07 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 53,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 54,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 55,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 56,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 57,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 58,
+        "field": "拜訪開始時間",
+        "value": "Mon Sep 08 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 59,
+        "field": "拜訪開始時間",
+        "value": "Tue Sep 09 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 60,
+        "field": "拜訪開始時間",
+        "value": "Tue Sep 09 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 61,
+        "field": "拜訪開始時間",
+        "value": "Tue Sep 09 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 62,
+        "field": "拜訪開始時間",
+        "value": "Tue Sep 09 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 63,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 64,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 65,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 66,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 67,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 68,
+        "field": "拜訪開始時間",
+        "value": "Wed Sep 10 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 69,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 11 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 70,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 11 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 71,
+        "field": "拜訪開始時間",
+        "value": "Thu Sep 11 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 72,
+        "field": "拜訪開始時間",
+        "value": "Fri Sep 12 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 73,
+        "field": "拜訪開始時間",
+        "value": "Fri Sep 12 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 74,
+        "field": "拜訪開始時間",
+        "value": "Fri Sep 12 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 75,
+        "field": "拜訪開始時間",
+        "value": "Fri Sep 12 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 76,
+        "field": "拜訪開始時間",
+        "value": "Sat Sep 13 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 77,
+        "field": "拜訪開始時間",
+        "value": "Sat Sep 13 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 78,
+        "field": "拜訪開始時間",
+        "value": "Sat Sep 13 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 79,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 14 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 80,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 14 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      },
+      {
+        "row": 81,
+        "field": "拜訪開始時間",
+        "value": "Sun Sep 14 2025 23:59:17 GMT+0800 (中国标准时间)",
+        "message": "拜訪時間必須在 8:00-19:00 範圍內",
+        "type": "timeRange"
+      }
+    ],
+    "imageStats": {
+      "total": 198,
+      "qualityIssues": 0,
+      "watermarkDetections": 0,
+      "duplicates": 0
+    },
+    "imageWarnings": [],
+    "imageErrors": []
+  }
+}

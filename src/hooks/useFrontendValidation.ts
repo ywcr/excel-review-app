@@ -55,6 +55,12 @@ export interface ValidationResult {
         webLikelihood?: number; // 0~1
         webReasons?: string[];
         isLowPixel?: boolean;
+        // 🎯 方案B：新增统一可疑度评分系统字段
+        suspicionScore?: number;     // 0-100分
+        suspicionLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+        suspicionLabel?: string;     // '正常' | '可疑' | '疑似异常' | '高度可疑'
+        suspicionColor?: string;     // 'green' | 'yellow' | 'orange' | 'red'
+        suspicionFactors?: string[]; // 可疑因素列表
     }>;
   };
   summary?: {

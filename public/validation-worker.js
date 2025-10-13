@@ -9,6 +9,14 @@
 importScripts("/vendor/xlsx.full.min.js");
 importScripts("/vendor/jszip.min.js");
 
+// 📊 加载新的可疑度评分系统 （方案B）
+try {
+  importScripts("/image-suspicion-scorer.js");
+  console.log("✅ 可疑度评分系统加载成功");
+} catch (error) {
+  console.warn("⚠️ 可疑度评分系统加载失败，将使用旧系统", error);
+}
+
 // 尝试加载 blockhash-core.js，如果失败则跳过图片验证
 let blockHashAvailable = false;
 try {
@@ -69,17 +77,26 @@ const IMAGE_DUP_CONFIG = {
 };
 
 // Mobile-like dimension heuristics (configurable)
+// 🔧 方案A快速修复：放宽阈值以支持微信压缩图和现代全面屏手机
 const MOBILE_DIMENSION_CONFIG = {
   ENABLED: true,
-  MIN_SHORT_SIDE: 720,
-  MIN_LONG_SIDE: 1280,
-  MIN_MEGAPIXELS: 2,
+  MIN_SHORT_SIDE: 480,      // 从720降到480 - 支持压缩后的图片
+  MIN_LONG_SIDE: 640,       // 从1280降到640 - 兼容早期手机
+  MIN_MEGAPIXELS: 0.5,      // 从2降到0.5 - 允许微信/QQ压缩图
   ALLOWED_ASPECTS: [
-    { ratio: 4 / 3, tolerance: 0.08 },
-    { ratio: 3 / 4, tolerance: 0.08 },
-    { ratio: 16 / 9, tolerance: 0.08 },
-    { ratio: 9 / 16, tolerance: 0.08 },
-    // { ratio: 1, tolerance: 0.02 }, // 如需允许正方形，可取消注释
+    { ratio: 4 / 3, tolerance: 0.1 },      // 传统手机比例
+    { ratio: 3 / 4, tolerance: 0.1 },
+    { ratio: 16 / 9, tolerance: 0.1 },     // 标准宽屏
+    { ratio: 9 / 16, tolerance: 0.1 },
+    { ratio: 18 / 9, tolerance: 0.1 },     // 全面屏 (2:1)
+    { ratio: 9 / 18, tolerance: 0.1 },
+    { ratio: 19.5 / 9, tolerance: 0.1 },   // iPhone X/11/12/13 系列
+    { ratio: 9 / 19.5, tolerance: 0.1 },
+    { ratio: 20 / 9, tolerance: 0.1 },     // 小米/OPPO/Vivo等
+    { ratio: 9 / 20, tolerance: 0.1 },
+    { ratio: 21 / 9, tolerance: 0.12 },    // Sony Xperia等超宽屏
+    { ratio: 9 / 21, tolerance: 0.12 },
+    { ratio: 1, tolerance: 0.05 },         // 正方形 (Instagram裁剪等)
   ],
 };
 
@@ -2262,21 +2279,51 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null) {
               if (thumb) result.imageData = thumb;
             }
 
-            // 网图嫌疑度评分（不改变结果，只做提示）
+            // 🎯 方案B：使用新的统一评分系统
             try {
               const exif = exifQuickScan(image.data, result.mimeType);
-              const webEval = scoreWebLikelihood({
-                mimeType: result.mimeType,
-                width: hashInfo.width,
-                height: hashInfo.height,
-                megapixels: result.megapixels || ((hashInfo.width * hashInfo.height) / 1_000_000),
-                exif,
-                sizeBytes: image.data.length,
-                hashFrequency: undefined,
-              });
-              result.webLikelihood = webEval.webLikelihood;
-              result.webReasons = webEval.reasons;
-            } catch {}
+              
+              // 尝试使用新评分系统
+              if (typeof calculateImageSuspicionScore === 'function') {
+                const suspicionResult = calculateImageSuspicionScore({
+                  width: hashInfo.width,
+                  height: hashInfo.height,
+                  megapixels: result.megapixels || ((hashInfo.width * hashInfo.height) / 1_000_000),
+                  mimeType: result.mimeType,
+                  sizeBytes: image.data.length,
+                  exif,
+                  hasBorder: result.hasBorder || false,
+                  borderSides: result.borderSides || [],
+                  borderWidth: result.borderWidth || {}
+                });
+                
+                // 将新的评分结果添加到result中
+                result.suspicionScore = suspicionResult.suspicionScore;
+                result.suspicionLevel = suspicionResult.suspicionLevel;
+                result.suspicionLabel = suspicionResult.suspicionLabel;
+                result.suspicionColor = suspicionResult.suspicionColor;
+                result.suspicionFactors = suspicionResult.factors;
+                
+                // 保留旧的webLikelihood以兼容现有UI
+                result.webLikelihood = suspicionResult.suspicionScore / 100;
+                result.webReasons = suspicionResult.factors;
+              } else {
+                // 回退到旧系统
+                const webEval = scoreWebLikelihood({
+                  mimeType: result.mimeType,
+                  width: hashInfo.width,
+                  height: hashInfo.height,
+                  megapixels: result.megapixels || ((hashInfo.width * hashInfo.height) / 1_000_000),
+                  exif,
+                  sizeBytes: image.data.length,
+                  hashFrequency: undefined,
+                });
+                result.webLikelihood = webEval.webLikelihood;
+                result.webReasons = webEval.reasons;
+              }
+            } catch (scoringError) {
+              console.warn(`评分系统失败: ${image.name}`, scoringError);
+            }
 
             // 边框检测
             try {
@@ -2887,41 +2934,65 @@ function exifQuickScan(imageData, mimeType) {
 }
 
 // 网图嫌疑度评分（0~1）
+// 🔧 方案A快速修复：调整权重以减少误判
 function scoreWebLikelihood({ mimeType, width, height, megapixels, exif, sizeBytes, hashFrequency }) {
   let score = 0;
   const reasons = [];
 
-  // EXIF
+  // EXIF - 降低权重（EXIF可伪造，微信会剥离）
   if (exif?.hasExif && (exif.make || exif.model) && exif.dateTimeOriginal) {
-    score -= 2; reasons.push('有EXIF(品牌/机型/拍摄时间)');
+    score -= 1; reasons.push('有EXIF(品牌/机型/拍摄时间)');  // 从-2改为-1
   } else if (!exif?.hasExif) {
-    score += 2; reasons.push('无EXIF');
+    score += 1; reasons.push('无EXIF');  // 从+2改为+1（考虑微信剥离EXIF）
   }
-  if (exif?.software && /photoshop|illustrator|adobe|meitu|美图|wechat|微信|qq/i.test(exif.software)) {
-    score += 1; reasons.push(`处理软件:${exif.software.slice(0,20)}`);
+  if (exif?.software && /photoshop|illustrator|adobe|gimp/i.test(exif.software)) {
+    score += 2; reasons.push(`专业编辑软件:${exif.software.slice(0,20)}`);
+  } else if (exif?.software && /meitu|美图|picsart/i.test(exif.software)) {
+    score += 1; reasons.push(`美化软件:${exif.software.slice(0,20)}`);
+  } else if (exif?.software && /wechat|微信|qq/i.test(exif.software)) {
+    score += 0; reasons.push('社交软件处理');  // 社交软件处理不扣分
   }
 
-  // 格式
-  if (/webp|gif/i.test(mimeType || '')) { score += 2; reasons.push(`格式:${mimeType}`); }
-  if (/png/i.test(mimeType || '') && (megapixels || 0) < 1) { score += 1; reasons.push('小像素PNG'); }
+  // 格式 - 降低WebP权重（现代格式）
+  if (/gif/i.test(mimeType || '')) { 
+    score += 2; reasons.push('GIF格式'); 
+  } else if (/webp/i.test(mimeType || '')) { 
+    score += 1; reasons.push('WebP格式');  // 从+2改为+1
+  }
+  if (/png/i.test(mimeType || '') && (megapixels || 0) < 1) { 
+    score += 1; reasons.push('小像素PNG'); 
+  }
 
-  // 尺寸/比例
+  // 尺寸/比例 - 扩大手机比例判断范围
   const longSide = Math.max(width||0, height||0), shortSide = Math.min(width||0, height||0);
   const aspect = shortSide>0 ? longSide/shortSide : 0;
   const approx = (x, y, tol) => Math.abs(x-y) <= tol*y;
-  const isPhoneAspect = approx(aspect, 4/3, 0.08) || approx(aspect, 16/9, 0.08) || approx(aspect, 9/16, 0.08) || approx(aspect, 3/4, 0.08);
-  if (!isPhoneAspect && (megapixels || 0) < 1.0) { score += 2; reasons.push(`非常见手机比例(${aspect.toFixed(2)}:1)+低像素`); }
-  else if ((megapixels || 0) >= 2.0 && isPhoneAspect) { score -= 1; reasons.push('像素/比例似手机'); }
+  // 增加更多手机比例
+  const isPhoneAspect = approx(aspect, 4/3, 0.1) || approx(aspect, 3/4, 0.1) ||
+                        approx(aspect, 16/9, 0.1) || approx(aspect, 9/16, 0.1) ||
+                        approx(aspect, 18/9, 0.1) || approx(aspect, 9/18, 0.1) ||
+                        approx(aspect, 19.5/9, 0.1) || approx(aspect, 9/19.5, 0.1) ||
+                        approx(aspect, 20/9, 0.1) || approx(aspect, 9/20, 0.1) ||
+                        approx(aspect, 1, 0.05);  // 正方形
+  
+  if (!isPhoneAspect && (megapixels || 0) < 1.0) { 
+    score += 2; reasons.push(`非常见手机比例(${aspect.toFixed(2)}:1)+低像素`); 
+  } else if ((megapixels || 0) >= 2.0 && isPhoneAspect) { 
+    score -= 1; reasons.push('像素/比例似手机'); 
+  }
 
   // 压缩强度
   if (megapixels && megapixels > 0) {
     const kbPerMP = (sizeBytes/1024) / megapixels;
-    if (megapixels < 1.0 && kbPerMP < 120) { score += 1; reasons.push(`强压缩(${kbPerMP.toFixed(0)}KB/MP)`); }
+    if (megapixels < 1.0 && kbPerMP < 120) { 
+      score += 1; reasons.push(`强压缩(${kbPerMP.toFixed(0)}KB/MP)`); 
+    }
   }
 
   // 重复图片不会再作为网图判断依据
 
-  const webLikelihood = Math.max(0, Math.min(1, (score + 3) / 8));
+  // 调整评分公式：从(score+3)/8改为(score+2)/6，降低基线偏移
+  const webLikelihood = Math.max(0, Math.min(1, (score + 2) / 6));
   return { webLikelihood, reasons };
 }
 
