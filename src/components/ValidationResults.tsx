@@ -843,16 +843,16 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                                                   'bg-yellow-100 text-yellow-800';
                                 
                                 // 分类因素
-                                const screenshotFactors = factors.filter(f => f.includes('截图'));
-                                const exifFactors = factors.filter(f => f.includes('EXIF') || f.includes('伪造'));
-                                const softwareFactors = factors.filter(f => f.includes('软件'));
-                                const dimensionFactors = factors.filter(f => 
+                                const screenshotFactors = factors.filter((f: string) => f.includes('截图'));
+                                const exifFactors = factors.filter((f: string) => f.includes('EXIF') || f.includes('伪造'));
+                                const softwareFactors = factors.filter((f: string) => f.includes('软件'));
+                                const dimensionFactors = factors.filter((f: string) => 
                                   f.includes('比例') || f.includes('像素') || f.includes('分辨率')
                                 );
-                                const formatFactors = factors.filter(f => 
+                                const formatFactors = factors.filter((f: string) => 
                                   f.includes('GIF') || f.includes('WebP') || f.includes('PNG') || f.includes('压缩')
                                 );
-                                const borderFactors = factors.filter(f => f.includes('边框'));
+                                const borderFactors = factors.filter((f: string) => f.includes('边框'));
                                 
                                 const tags = [];
                                 
@@ -863,19 +863,19 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                                       疑似截图 ({score}分)
                                     </span>
                                   );
-                                } else if (exifFactors.length > 0 && (exifFactors.some(f => f.includes('异常')) || exifFactors.some(f => f.includes('不符')))) {
+                                } else if (exifFactors.length > 0 && (exifFactors.some((f: string) => f.includes('异常')) || exifFactors.some((f: string) => f.includes('不符')))) {
                                   tags.push(
                                     <span key="main" className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClass}`}>
                                       疑似伪造 ({score}分)
                                     </span>
                                   );
-                                } else if (softwareFactors.some(f => f.includes('专业编辑') || f.includes('Photoshop'))) {
+                                } else if (softwareFactors.some((f: string) => f.includes('专业编辑') || f.includes('Photoshop'))) {
                                   tags.push(
                                     <span key="main" className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClass}`}>
                                       疑似编辑过 ({score}分)
                                     </span>
                                   );
-                                } else if (formatFactors.some(f => f.includes('GIF'))) {
+                                } else if (formatFactors.some((f: string) => f.includes('GIF'))) {
                                   tags.push(
                                     <span key="main" className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClass}`}>
                                       GIF动图 ({score}分)
@@ -899,16 +899,16 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                                 const detailColorClass = 'bg-gray-100 text-gray-700';
                                 
                                 // 比例问题
-                                if (dimensionFactors.some(f => f.includes('罕见比例'))) {
-                                  const ratio = dimensionFactors.find(f => f.includes('罕见比例'));
+                                if (dimensionFactors.some((f: string) => f.includes('罕见比例'))) {
+                                  const ratio = dimensionFactors.find((f: string) => f.includes('罕见比例'));
                                   const match = ratio?.match(/(\d+\.\d+):1/);
                                   tags.push(
                                     <span key="ratio" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
                                       罕见比例{match ? match[1] + ':1' : ''}
                                     </span>
                                   );
-                                } else if (dimensionFactors.some(f => f.includes('非标准比例'))) {
-                                  const ratio = dimensionFactors.find(f => f.includes('非标准比例'));
+                                } else if (dimensionFactors.some((f: string) => f.includes('非标准比例'))) {
+                                  const ratio = dimensionFactors.find((f: string) => f.includes('非标准比例'));
                                   const match = ratio?.match(/(\d+\.\d+):1/);
                                   tags.push(
                                     <span key="ratio" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
@@ -918,8 +918,8 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                                 }
                                 
                                 // 像素问题
-                                if (dimensionFactors.some(f => f.includes('像素'))) {
-                                  const pixelFactor = dimensionFactors.find(f => f.includes('像素'));
+                                if (dimensionFactors.some((f: string) => f.includes('像素'))) {
+                                  const pixelFactor = dimensionFactors.find((f: string) => f.includes('像素'));
                                   const match = pixelFactor?.match(/(\d+\.\d+MP)/);
                                   if (pixelFactor?.includes('过低')) {
                                     tags.push(
@@ -937,27 +937,27 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                                 }
                                 
                                 // EXIF问题
-                                if (exifFactors.some(f => f.includes('无EXIF'))) {
+                                if (exifFactors.some((f: string) => f.includes('无EXIF'))) {
                                   tags.push(
                                     <span key="no-exif" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
                                       无EXIF信息
                                     </span>
                                   );
-                                } else if (exifFactors.some(f => f.includes('EXIF不完整'))) {
+                                } else if (exifFactors.some((f: string) => f.includes('EXIF不完整'))) {
                                   tags.push(
                                     <span key="incomplete-exif" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
                                       EXIF不完整
                                     </span>
                                   );
                                 }
-                                if (exifFactors.some(f => f.includes('EXIF时间异常'))) {
+                                if (exifFactors.some((f: string) => f.includes('EXIF时间异常'))) {
                                   tags.push(
                                     <span key="exif-time" className={`inline-flex px-2 py-1 text-xs rounded-full bg-red-50 text-red-700`}>
                                       EXIF时间异常
                                     </span>
                                   );
                                 }
-                                if (exifFactors.some(f => f.includes('不符'))) {
+                                if (exifFactors.some((f: string) => f.includes('不符'))) {
                                   tags.push(
                                     <span key="exif-mismatch" className={`inline-flex px-2 py-1 text-xs rounded-full bg-red-50 text-red-700`}>
                                       设备信息不符
@@ -967,7 +967,7 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                                 
                                 // 软件问题
                                 if (softwareFactors.length > 0) {
-                                  softwareFactors.forEach((f, idx) => {
+                                  softwareFactors.forEach((f: string, idx: number) => {
                                     if (f.includes('专业编辑软件')) {
                                       const soft = f.match(/:(\w+)/);
                                       tags.push(
@@ -986,22 +986,22 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                                 }
                                 
                                 // 格式问题
-                                if (formatFactors.some(f => f.includes('WebP'))) {
+                                if (formatFactors.some((f: string) => f.includes('WebP'))) {
                                   tags.push(
                                     <span key="webp" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
                                       WebP格式
                                     </span>
                                   );
                                 }
-                                if (formatFactors.some(f => f.includes('小像素PNG'))) {
+                                if (formatFactors.some((f: string) => f.includes('小像素PNG'))) {
                                   tags.push(
                                     <span key="small-png" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
                                       小像素PNG
                                     </span>
                                   );
                                 }
-                                if (formatFactors.some(f => f.includes('强压缩'))) {
-                                  const compressionFactor = formatFactors.find(f => f.includes('强压缩'));
+                                if (formatFactors.some((f: string) => f.includes('强压缩'))) {
+                                  const compressionFactor = formatFactors.find((f: string) => f.includes('强压缩'));
                                   const match = compressionFactor?.match(/(\d+KB\/MP)/);
                                   tags.push(
                                     <span key="compression" className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
