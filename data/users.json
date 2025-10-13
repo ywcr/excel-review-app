@@ -30,14 +30,14 @@
       "passwordHash": "$2b$10$lGQLdVxm159LLZKEnqXQEuPx305P7QHSrtpnL8MMl8y0KMT4GNdmG",
       "role": "admin",
       "createdAt": "2025-09-18T03:29:25.098Z",
-      "lastLogin": "2025-09-26T01:13:40.169Z",
+      "lastLogin": "2025-10-13T15:12:13.326Z",
       "activeSession": {
-        "sessionId": "1d6b4ec6-52c7-4b7b-8203-8a7e3ed1698f",
-        "tokenHash": "1f28be8ff4a214d7440bc26bbf5166bbb24a4832745c16f9e5e8b26641767034",
+        "sessionId": "357a4aca-a0ad-4fe0-92d4-6c21cc3fbf11",
+        "tokenHash": "62f57f6fcafd285c4702f37384d4012fe6a113cf2837b16e02741a9fc1db6fde",
         "deviceInfo": "Mozilla/5.0 (::1.xxx)",
-        "loginTime": "2025-09-26T01:13:40.197Z",
-        "lastActivity": "2025-09-26T01:13:40.197Z",
-        "loginTimestamp": 1758849220197
+        "loginTime": "2025-10-13T15:12:13.330Z",
+        "lastActivity": "2025-10-13T15:12:13.330Z",
+        "loginTimestamp": 1760368333330
       }
     }
   ]
