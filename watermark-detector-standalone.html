@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>水印检测测试工具 - 独立版</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      color: #333;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+    
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+    
+    .header p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+    
+    .content {
+      padding: 30px;
+    }
+    
+    .upload-area {
+      border: 3px dashed #667eea;
+      border-radius: 15px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: #f8f9ff;
+    }
+    
+    .upload-area:hover {
+      border-color: #764ba2;
+      background: #f0f2ff;
+      transform: translateY(-2px);
+    }
+    
+    .upload-area.dragging {
+      border-color: #764ba2;
+      background: #e8ebff;
+      transform: scale(1.02);
+    }
+    
+    .upload-icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+    
+    #fileInput {
+      display: none;
+    }
+    
+    .btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 25px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+    
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .preview-section {
+      margin-top: 30px;
+      display: none;
+    }
+    
+    .preview-section.active {
+      display: block;
+    }
+    
+    .image-preview {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .image-preview img {
+      max-width: 100%;
+      max-height: 500px;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    .results {
+      background: #f8f9ff;
+      border-radius: 15px;
+      padding: 25px;
+      margin-top: 20px;
+    }
+    
+    .result-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px;
+      background: white;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    
+    .result-label {
+      font-weight: 600;
+      color: #555;
+    }
+    
+    .result-value {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    
+    .result-value.positive {
+      color: #e74c3c;
+    }
+    
+    .result-value.negative {
+      color: #27ae60;
+    }
+    
+    .confidence-bar {
+      width: 100%;
+      height: 30px;
+      background: #e0e0e0;
+      border-radius: 15px;
+      overflow: hidden;
+      margin-top: 10px;
+      position: relative;
+    }
+    
+    .confidence-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #27ae60, #f39c12, #e74c3c);
+      transition: width 1s ease;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 10px;
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    
+    .analysis-details {
+      margin-top: 20px;
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+    }
+    
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+    
+    .detail-card {
+      background: #f8f9ff;
+      padding: 15px;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+    
+    .detail-title {
+      font-size: 12px;
+      color: #888;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    
+    .detail-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: #333;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      display: none;
+    }
+    
+    .loading.active {
+      display: block;
+    }
+    
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .log-section {
+      margin-top: 30px;
+      background: #1e1e1e;
+      border-radius: 10px;
+      padding: 20px;
+      color: #d4d4d4;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .log-entry {
+      margin-bottom: 5px;
+      padding: 5px;
+      border-left: 3px solid #667eea;
+      padding-left: 10px;
+    }
+    
+    .log-entry.info { border-color: #3498db; }
+    .log-entry.success { border-color: #27ae60; }
+    .log-entry.warning { border-color: #f39c12; }
+    .log-entry.error { border-color: #e74c3c; }
+    
+    .notice {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      color: #856404;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔍 水印检测测试工具</h1>
+      <p>上传图片，实时检测水印 - 高级像素级分析（独立版）</p>
+    </div>
+    
+    <div class="content">
+      <div class="notice">
+        <strong>💡 使用说明：</strong><br>
+        1. 直接在浏览器中打开此文件（双击或右键"打开方式" → 浏览器）<br>
+        2. 点击"选择图片"或拖拽图片到上传区域<br>
+        3. 查看详细的检测结果和分析数据<br>
+        <strong>⚠️ 当前阈值：40%（置信度 ≥ 40 判定为有水印，平衡配置）</strong>
+      </div>
+      
+      <div class="upload-area" id="uploadArea">
+        <div class="upload-icon">📤</div>
+        <h3>点击或拖拽上传图片</h3>
+        <p style="color: #888; margin-top: 10px;">支持 JPG, PNG, WebP 格式</p>
+        <input type="file" id="fileInput" accept="image/*">
+        <input type="file" id="folderInput" webkitdirectory directory multiple style="display: none;">
+        <button class="btn" style="margin-top: 20px;" onclick="document.getElementById('fileInput').click()">
+          选择图片
+        </button>
+        <button class="btn" style="margin-top: 20px; background: linear-gradient(135deg, #e67e22 0%, #e74c3c 100%);" onclick="document.getElementById('folderInput').click()">
+          批量检测文件夹
+        </button>
+        <div style="margin-top: 12px; color: #555; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;">
+          <label style="display: flex; align-items: center; gap: 6px;">
+            <input type="checkbox" id="aiModeToggle" checked>
+            启用AI检测（掩膜启发式）
+          </label>
+        </div>
+      </div>
+      
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>正在分析图片...</p>
+      </div>
+      
+      <div class="preview-section" id="previewSection">
+        <h2 style="margin-bottom: 20px;">📊 检测结果</h2>
+        
+        <div class="image-preview">
+          <img id="previewImage" src="" alt="Preview">
+        </div>
+        
+        <div class="results">
+          <div class="result-item">
+            <span class="result-label">🔍 水印检测结果</span>
+            <span class="result-value" id="watermarkResult">-</span>
+          </div>
+          
+          <div class="result-item">
+            <span class="result-label">📈 置信度</span>
+            <span class="result-value" id="confidenceValue">-</span>
+          </div>
+          
+          <div class="confidence-bar">
+            <div class="confidence-fill" id="confidenceFill" style="width: 0%">
+              <span id="confidencePercent">0%</span>
+            </div>
+          </div>
+          
+          <div class="result-item" style="margin-top: 15px;">
+            <span class="result-label">⚡ 处理时间</span>
+            <span class="result-value" id="processingTime">-</span>
+          </div>
+          
+          <div class="result-item">
+            <span class="result-label">📏 图片尺寸</span>
+            <span class="result-value" id="imageSize">-</span>
+          </div>
+        </div>
+        
+        <div class="analysis-details">
+          <h3 style="margin-bottom: 15px;">🧪 详细分析指标</h3>
+          <div class="detail-grid" id="detailGrid">
+            <!-- 动态生成 -->
+          </div>
+        </div>
+        
+        <div class="log-section" id="logSection">
+          <strong style="display: block; margin-bottom: 10px;">📝 检测日志</strong>
+          <div id="logEntries"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========== 双分支融合水印检测（Repeated + Single） ==========
+    async function detectWatermarkSimple(imageData) {
+      const startTime = performance.now();
+      console.log('[水印检测] 开始检测...');
+
+      // 配置（可调）- 方案4优化版
+      const CFG = {
+        preprocess: { maxSize: 1200, edgeThreshold: 30, blurRadius: 1.0 },
+        gating: {
+          centerEdgePenalty: { centerRatio: 0.70, factor: 0.50 },
+          uniformRegionPenalty: { regionScore: 75, whiteness: 12, factor: 0.65 },
+          lowAnglePenalty: { angleCoherence: 25, factor: 0.75 }
+        },
+        repeated: {
+          angles: [-45,-30,-15,0,15,30,45],
+          thresholds: { periodicity: 58, angleCoherence: 55, whiteness: 25 },
+          weights: { periodicity: 0.5, angleCoherence: 0.25, whiteness: 0.15, strokeWidth: 0.10 },
+          pass: 45
+        },
+      single: {
+        roi: { edgeBand: 0.15, cornerBox: 0.20 },
+        thresholds: { textlikeness: 65, overlayConsistency: 30, alphaLike: 18, alphaLikeStrong: 35, whiteEdgeMin: 10, positionMin: 55, strokeWidthMax: 11 },
+        weights: { textlikeness: 0.4, overlayConsistency: 0.25, position: 0.2, alphaLike: 0.15 },
+        pass: 36
+      },
+        fusion: { scale: { repeated: 0.7, single: 0.75, baseline: 1.2 }, decision: 40 }
+      };
+
+      const AI_MODE = (typeof document !== 'undefined') ? (document.getElementById('aiModeToggle')?.checked === true) : false;
+      if (AI_MODE) console.log('[AI检测] 启用掩膜启发式检测（无模型）');
+
+      // 解码图片
+      const blob = new Blob([imageData]);
+      const bitmap = await createImageBitmap(blob);
+
+      // Resize
+      const maxSize = CFG.preprocess.maxSize;
+      const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
+      const width = Math.floor(bitmap.width * scale);
+      const height = Math.floor(bitmap.height * scale);
+
+      const canvas = new OffscreenCanvas(width, height);
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(bitmap, 0, 0, width, height);
+      bitmap.close();
+
+      const imgData = ctx.getImageData(0, 0, width, height);
+      const data = imgData.data;
+      console.log(`[水印检测] 图片尺寸: ${width}×${height}`);
+
+      // 灰度与梯度、边缘图
+      const gray = toGrayscale(data);
+      const grad = computeGradients(gray, width, height);
+      const edgeMap = buildEdgeMap(grad.mag, width, height, CFG.preprocess.edgeThreshold);
+
+      // 基本分析（已有函数）
+      const edgeInfo = analyzeEdgeDistribution(data, width, height);
+      const regionInfo = analyzeRegionConsistency(data, width, height);
+      const colorInfo = analyzeColorFeatures(data, width, height);
+      const alphaInfo = analyzeAlphaFeatures(data);
+      console.log('[边缘分析]', edgeInfo);
+      console.log('[区域分析]', regionInfo);
+      console.log('[颜色分析]', colorInfo);
+      console.log('[透明度分析]', alphaInfo);
+
+      // Repeated/Tiled 专家
+      const periodicity = computePeriodicityScore(edgeMap, width, height, CFG.repeated.angles);
+      const angleCoh = computeAngleCoherence(grad.ori, grad.mag, width, height, CFG.preprocess.edgeThreshold);
+      const whiteness = computeWhitenessNearEdges(data, edgeMap, width, height);
+      const strokeWidth = estimateStrokeWidth(edgeMap, width, height);
+      const strokeScore = mapStrokeWidthToScore(strokeWidth);
+
+      let repeatedScore = 0; let repeatedPassed = false;
+      const repeatedGate = (periodicity >= CFG.repeated.thresholds.periodicity) && (angleCoh >= CFG.repeated.thresholds.angleCoherence) && (whiteness >= CFG.repeated.thresholds.whiteness);
+      if (repeatedGate) {
+        repeatedScore = CFG.repeated.weights.periodicity * periodicity + CFG.repeated.weights.angleCoherence * angleCoh + CFG.repeated.weights.whiteness * whiteness + CFG.repeated.weights.strokeWidth * strokeScore;
+        repeatedPassed = repeatedScore >= CFG.repeated.pass;
+      }
+      console.log('[Repeated分支]', { periodicity, angleCoh, whiteness, strokeWidth, strokeScore, repeatedScore, repeatedPassed });
+
+      // Single/Logo 专家（基于 ROI 的文本样性/覆盖一致性/位置）
+      const singleFeatures = analyzeSingleWatermark(gray, data, edgeMap, grad, width, height, CFG.single);
+      let singleScore = 0; let singlePassed = false;
+      // 门控（标准）
+      if (
+        singleFeatures.textlikeness >= CFG.single.thresholds.textlikeness &&
+        singleFeatures.positionWeight >= CFG.single.thresholds.positionMin &&
+        strokeWidth <= CFG.single.thresholds.strokeWidthMax &&
+        (
+          singleFeatures.overlayConsistency >= CFG.single.thresholds.overlayConsistency ||
+          (singleFeatures.alphaLike >= CFG.single.thresholds.alphaLikeStrong && ((singleFeatures.whiteEdgeRatio || 0) >= CFG.single.thresholds.whiteEdgeMin || angleCoh >= 45))
+        )
+      ) {
+        singleScore = CFG.single.weights.textlikeness * singleFeatures.textlikeness + CFG.single.weights.overlayConsistency * singleFeatures.overlayConsistency + CFG.single.weights.position * singleFeatures.positionWeight + CFG.single.weights.alphaLike * singleFeatures.alphaLike;
+        singlePassed = singleScore >= CFG.single.pass;
+      }
+      console.log('[Single分支]', { ...singleFeatures, singleScore, singlePassed });
+
+      // Baseline + 惩罚（方案4增强版）
+      let baseline = 0;
+      if (edgeInfo.positionScore > 30) baseline += edgeInfo.positionScore * 0.40;
+      if (regionInfo.score > 20) baseline += regionInfo.score * 0.20;
+      if (colorInfo.uniformity > 0.6 || colorInfo.isMonochromatic) baseline += colorInfo.score * 0.25;
+      if (alphaInfo.score > 15) baseline += alphaInfo.score * 0.15;
+      baseline = Math.min(baseline, 100);
+      // 惩罚项（更宽松）
+      if (edgeInfo.centerRatio >= CFG.gating.centerEdgePenalty.centerRatio) baseline *= CFG.gating.centerEdgePenalty.factor;
+      if (regionInfo.score >= CFG.gating.uniformRegionPenalty.regionScore && whiteness < CFG.gating.uniformRegionPenalty.whiteness) baseline *= CFG.gating.uniformRegionPenalty.factor;
+      if (angleCoh < CFG.gating.lowAnglePenalty.angleCoherence) baseline *= CFG.gating.lowAnglePenalty.factor;
+
+      // AI 掩膜启发式检测（无模型）
+      let ai = null;
+      if (AI_MODE) {
+        ai = computeAIMaskHeuristic(gray, data, grad, edgeMap, width, height);
+      }
+
+      // 融合
+      let fused = Math.max(
+        CFG.fusion.scale.repeated * (repeatedPassed ? repeatedScore : 0),
+        CFG.fusion.scale.single * (singlePassed ? singleScore : 0),
+        CFG.fusion.scale.baseline * baseline,
+        (ai && ai.aiScore) ? ai.aiScore : 0
+      );
+
+      const confidence = Math.min(100, fused);
+      const processingTime = performance.now() - startTime;
+      const hasWatermark = confidence >= CFG.fusion.decision;
+
+      // 🔍 详细调试日志
+      console.log('[水印检测详情]', {
+        '图片尺寸': `${width}×${height}`,
+        'Repeated分支': { periodicity, angleCoh, whiteness, strokeWidth, strokeScore, repeatedScore, repeatedPassed },
+        'Single分支': { ...singleFeatures, singleScore, singlePassed },
+        'Baseline': { edgeInfo, regionInfo: regionInfo.score, colorInfo: colorInfo.score, alphaInfo: alphaInfo.score, baseline },
+'最终置信度': confidence,
+'AI分数': ai?.aiScore || 0,
+        '判定结果': confidence >= CFG.fusion.decision ? '有水印' : '无水印'
+      });
+      console.log('[水印检测] 完成！', { confidence, repeatedScore, singleScore, baseline, processingTime });
+
+      return {
+        hasWatermark,
+        watermarkConfidence: confidence,
+        processingTime,
+        analysisDetails: {
+          // 为兼容UI：
+          frequencyScore: periodicity.toFixed(2),   // 映射为"频域"
+          textureScore: angleCoh.toFixed(2),        // 映射为"纹理/方向"
+          gradientScore: edgeInfo.positionScore.toFixed(2),
+          regionScore: regionInfo.score.toFixed(2),
+          colorChannelScore: colorInfo.score.toFixed(2),
+          alphaScore: alphaInfo.score.toFixed(2)
+        },
+        watermarkRegions: regionInfo.regions,
+        detectionMethod: 'two-branch-fusion',
+        debugInfo: {
+          repeated: { periodicity, angleCoh, whiteness, strokeWidth, strokeScore, repeatedScore, repeatedPassed },
+          single: singleFeatures,
+          baseline, CFG,
+          edgeInfo,
+          regionInfo: regionInfo.score,
+          colorInfo: colorInfo.score,
+          alphaInfo: alphaInfo.score,
+          ai: ai || { aiScore: 0, maskAreaRatio: 0, edgeRemovalGain: 0, varGain: 0, compCount: 0, used: 'off' }
+        }
+      };
+    }
+    
+    // 边缘分布分析 - 关键改进：区分位置
+    function analyzeEdgeDistribution(data, width, height) {
+      let edgeCount = 0;
+      let cornerEdges = 0;
+      let borderEdges = 0;
+      let centerEdges = 0;
+      
+      const cornerSize = Math.min(width, height) * 0.25;
+      const borderSize = Math.min(width, height) * 0.15;
+      
+      // 使用采样优化性能，每2个像素取样一次
+      const step = 2;
+      
+      // 使用Sobel算子检测边缘
+      for (let y = 1; y < height - 1; y += step) {
+        for (let x = 1; x < width - 1; x += step) {
+          const idx = (y * width + x) * 4;
+          
+          // 简化的Sobel
+          const gx = -data[idx - 4 - width * 4] - 2 * data[idx - width * 4] - data[idx + 4 - width * 4] +
+                      data[idx - 4 + width * 4] + 2 * data[idx + width * 4] + data[idx + 4 + width * 4];
+          const gy = -data[idx - 4 - width * 4] - 2 * data[idx - 4] - data[idx - 4 + width * 4] +
+                      data[idx + 4 - width * 4] + 2 * data[idx + 4] + data[idx + 4 + width * 4];
+          
+          const magnitude = Math.sqrt(gx * gx + gy * gy);
+          
+          if (magnitude > 30) {
+            edgeCount++;
+            
+            // 判断边缘位置
+            const isInCorner = (x < cornerSize || x > width - cornerSize) && 
+                              (y < cornerSize || y > height - cornerSize);
+            const isOnBorder = x < borderSize || x > width - borderSize || 
+                              y < borderSize || y > height - borderSize;
+            
+            if (isInCorner) {
+              cornerEdges++;
+            } else if (isOnBorder) {
+              borderEdges++;
+            } else {
+              centerEdges++;
+            }
+          }
+        }
+      }
+      
+      const totalPixels = width * height;
+      const density = (edgeCount / totalPixels) * 100;
+      
+      const cornerRatio = cornerEdges / (edgeCount || 1);
+      const borderRatio = borderEdges / (edgeCount || 1);
+      const centerRatio = centerEdges / (edgeCount || 1);
+      
+      // 关键逻辑：中心边缘占比过高说明是正常图片内容
+      let positionScore = 0;
+      if (centerRatio < 0.6) {
+        // 角落和边界边缘占主导，可能是水印
+        positionScore = (cornerRatio * 50 + borderRatio * 30) * (density / 5);
+      } else {
+        // 中心边缘过多，大幅降低评分
+        positionScore = density * 0.2;
+      }
+      
+      return {
+        density,
+        positionScore: Math.min(positionScore, 100),
+        cornerRatio,
+        borderRatio,
+        centerRatio
+      };
+    }
+    
+    // 区域一致性分析
+    function analyzeRegionConsistency(data, width, height) {
+      const regionSize = Math.min(width, height) * 0.2;
+      const regionScores = [];
+      const detectedRegions = [];
+      
+      const regionPositions = [
+        { x: 0, y: 0, name: '左上' },
+        { x: width - regionSize, y: 0, name: '右上' },
+        { x: 0, y: height - regionSize, name: '左下' },
+        { x: width - regionSize, y: height - regionSize, name: '右下' }
+      ];
+      
+      regionPositions.forEach(region => {
+        const score = analyzeRegionUniformity(data, width, height, region.x, region.y, regionSize);
+        regionScores.push(score);
+        
+        if (score > 30) {
+          detectedRegions.push(region.name);
+        }
+      });
+      
+      const avgScore = regionScores.reduce((a, b) => a + b, 0) / regionScores.length;
+      
+      return {
+        score: avgScore,
+        regions: detectedRegions
+      };
+    }
+    
+    // 分析单个区域的均匀性
+    function analyzeRegionUniformity(data, width, height, startX, startY, size) {
+      const colors = [];
+      let alphaCount = 0;
+      
+      // 使用采样优化，每3个像素取样一次
+      const step = 3;
+      
+      for (let y = Math.floor(startY); y < Math.min(Math.ceil(startY + size), height); y += step) {
+        for (let x = Math.floor(startX); x < Math.min(Math.ceil(startX + size), width); x += step) {
+          const idx = (y * width + x) * 4;
+          colors.push({ r: data[idx], g: data[idx + 1], b: data[idx + 2] });
+          
+          if (data[idx + 3] < 255) {
+            alphaCount++;
+          }
+        }
+      }
+      
+      // 防止空数组导致NaN
+      if (colors.length === 0) {
+        return 0;
+      }
+      
+      // 计算颜色方差
+      const avgR = colors.reduce((sum, c) => sum + c.r, 0) / colors.length;
+      const avgG = colors.reduce((sum, c) => sum + c.g, 0) / colors.length;
+      const avgB = colors.reduce((sum, c) => sum + c.b, 0) / colors.length;
+      
+      const variance = colors.reduce((sum, c) => {
+        return sum + Math.pow(c.r - avgR, 2) + Math.pow(c.g - avgG, 2) + Math.pow(c.b - avgB, 2);
+      }, 0) / colors.length;
+      
+      // 方差越小，得分越高
+      const uniformityScore = Math.max(0, 100 - variance / 100);
+      const alphaBonus = (alphaCount / colors.length) * 20;
+      
+      return Math.min(uniformityScore + alphaBonus, 100);
+    }
+    
+    // 颜色特征分析
+    function analyzeColorFeatures(data, width, height) {
+      const colorCounts = new Map();
+      let totalPixels = 0;
+      
+      // 使用采样优化，每5个像素取样一次
+      const step = 5;
+      for (let i = 0; i < data.length; i += 4 * step) {
+        const color = `${data[i]},${data[i + 1]},${data[i + 2]}`;
+        colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
+        totalPixels++;
+      }
+      
+      const uniqueColors = colorCounts.size;
+      // 安全计算最大计数，避免使用展开导致的栈溢出
+      let maxColorCount = 0;
+      for (const v of colorCounts.values()) {
+        if (v > maxColorCount) maxColorCount = v;
+      }
+      const dominantColorRatio = totalPixels > 0 ? maxColorCount / totalPixels : 0;
+      
+      const isMonochromatic = uniqueColors < totalPixels * 0.05 || dominantColorRatio > 0.7;
+      const uniformity = Math.max(0, 1 - uniqueColors / (totalPixels * 0.1));
+      
+      let score = 0;
+      if (isMonochromatic) {
+        score += 40;
+      }
+      score += uniformity * 60;
+      
+      return {
+        uniformity,
+        isMonochromatic,
+        uniqueColors,
+        dominantColorRatio,
+        score: Math.min(score, 100)
+      };
+    }
+    
+    // 重复模式分析 - 检测平铺文字水印（周期性重复）
+    function analyzeRepetitivePattern(data, width, height) {
+      // 将图像分成多个块，检浌块之间的相似度
+      const blockSize = Math.min(width, height) / 5; // 分成5x5的网格（更细致）
+      const blocks = [];
+      
+      // 采样块的特征
+      for (let by = 0; by < 5; by++) {
+        for (let bx = 0; bx < 5; bx++) {
+          const startX = Math.floor(bx * blockSize);
+          const startY = Math.floor(by * blockSize);
+          const endX = Math.min(Math.floor((bx + 1) * blockSize), width);
+          const endY = Math.min(Math.floor((by + 1) * blockSize), height);
+          
+          // 计算每个块的简单特征（平均亮度和边缘密度）
+          let brightness = 0;
+          let edgeDensity = 0;
+          let pixelCount = 0;
+          
+          for (let y = startY; y < endY; y += 3) {
+            for (let x = startX; x < endX; x += 3) {
+              const idx = (y * width + x) * 4;
+              const gray = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+              brightness += gray;
+              
+              // 简单边缘检测
+              if (x < endX - 1) {
+                const idxRight = (y * width + (x + 1)) * 4;
+                const grayRight = 0.299 * data[idxRight] + 0.587 * data[idxRight + 1] + 0.114 * data[idxRight + 2];
+                if (Math.abs(gray - grayRight) > 30) edgeDensity++;
+              }
+              pixelCount++;
+            }
+          }
+          
+          blocks.push({
+            brightness: brightness / (pixelCount || 1),
+            edgeDensity: edgeDensity / (pixelCount || 1)
+          });
+        }
+      }
+      
+      // 检测周期性重复模式
+      // 策略：比较水平和垂直相邻块的相似度，而不是所有块
+      // 平铺水印的特征：相邻块之间差异大（因为有重复的文字模式）
+      let neighborSimilaritySum = 0;
+      let diagonalSimilaritySum = 0;
+      let neighborComparisons = 0;
+      let diagonalComparisons = 0;
+      
+      for (let by = 0; by < 5; by++) {
+        for (let bx = 0; bx < 5; bx++) {
+          const idx = by * 5 + bx;
+          
+          // 水平相邻
+          if (bx < 4) {
+            const rightIdx = by * 5 + (bx + 1);
+            const brightnessDiff = Math.abs(blocks[idx].brightness - blocks[rightIdx].brightness);
+            const edgeDiff = Math.abs(blocks[idx].edgeDensity - blocks[rightIdx].edgeDensity);
+            const similarity = Math.max(0, 100 - brightnessDiff / 2 - edgeDiff * 1000);
+            neighborSimilaritySum += similarity;
+            neighborComparisons++;
+          }
+          
+          // 垂直相邻
+          if (by < 4) {
+            const downIdx = (by + 1) * 5 + bx;
+            const brightnessDiff = Math.abs(blocks[idx].brightness - blocks[downIdx].brightness);
+            const edgeDiff = Math.abs(blocks[idx].edgeDensity - blocks[downIdx].edgeDensity);
+            const similarity = Math.max(0, 100 - brightnessDiff / 2 - edgeDiff * 1000);
+            neighborSimilaritySum += similarity;
+            neighborComparisons++;
+          }
+          
+          // 对角线相邻（用于对比）
+          if (bx < 4 && by < 4) {
+            const diagIdx = (by + 1) * 5 + (bx + 1);
+            const brightnessDiff = Math.abs(blocks[idx].brightness - blocks[diagIdx].brightness);
+            const edgeDiff = Math.abs(blocks[idx].edgeDensity - blocks[diagIdx].edgeDensity);
+            const similarity = Math.max(0, 100 - brightnessDiff / 2 - edgeDiff * 1000);
+            diagonalSimilaritySum += similarity;
+            diagonalComparisons++;
+          }
+        }
+      }
+      
+      const avgNeighborSimilarity = neighborComparisons > 0 ? neighborSimilaritySum / neighborComparisons : 0;
+      const avgDiagonalSimilarity = diagonalComparisons > 0 ? diagonalSimilaritySum / diagonalComparisons : 0;
+      
+      // 计算所有块的平均边缘密度
+      const avgEdgeDensity = blocks.reduce((sum, b) => sum + b.edgeDensity, 0) / blocks.length;
+      
+      // 计算边缘密度的方差
+      const edgeVariance = blocks.reduce((sum, b) => {
+        return sum + Math.pow(b.edgeDensity - avgEdgeDensity, 2);
+      }, 0) / blocks.length;
+      
+      // 重新设计：简化且更严格的判断逻辑
+      // 平铺水印的关键特征：
+      // 1. 高度均匀（相邻相似度高）
+      // 2. 边缘密度方差极小（说明各区域特征一致）
+      // 3. 边缘密度在合适范围（不是纯色也不是过于复杂）
+      let score = 0;
+      
+      console.log('[DEBUG 模式分析]', {
+        avgNeighborSimilarity: avgNeighborSimilarity.toFixed(2),
+        avgDiagonalSimilarity: avgDiagonalSimilarity.toFixed(2),
+        avgEdgeDensity: avgEdgeDensity.toFixed(6),
+        edgeVariance: edgeVariance.toFixed(8)
+      });
+      
+      // 重新分析完整数据：
+      // 有水印: sim=73.83-77.76, diagDiff=16.59-7.27, variance=0.00007-0.00061
+      // 无水印: sim=69.34-74.54, diagDiff=10.79-13.99, variance=0.00015-0.00018
+      
+      // 关键发现：对角线差异（diagDiff）是重要特征！
+      const diagDiff = Math.abs(avgNeighborSimilarity - avgDiagonalSimilarity);
+      
+      // 特征定义
+      const isModerateSimilarity = avgNeighborSimilarity > 72;
+      const isHighSimilarity = avgNeighborSimilarity > 76;
+      const hasLargeDiagDiff = diagDiff > 14;
+      const hasModerateDiagDiff = diagDiff > 7;
+      const hasSmallDiagDiff = diagDiff > 5;  // 小对角线差异
+      const hasReasonableEdge = avgEdgeDensity > 0.005;
+      const isVeryLowVariance = edgeVariance < 0.0001;
+      const isLowVariance = edgeVariance < 0.0007;
+      const isModerateVariance = edgeVariance < 0.0010;
+      
+      // 多路径判断：组合多个特征，只保留高精度路径
+      if (isHighSimilarity && hasModerateDiagDiff && hasReasonableEdge) {
+        // 路径1：高相似度 + 对角线差异 + 有边缘
+        score = 75;
+        console.log('[DEBUG] 命中条件: 高相似度 + 对角线差异 + 有边缘');
+      } else if (isModerateSimilarity && hasLargeDiagDiff && hasReasonableEdge) {
+        // 路径2：中等相似度 + 大对角线差异 (>14) + 有边缘
+        score = 70;
+        console.log('[DEBUG] 命中条件: 中等相似度 + 大对角线差异');
+      } else if (isHighSimilarity && isVeryLowVariance && hasReasonableEdge) {
+        // 路径3：高相似度 + 极低方差
+        score = 72;
+        console.log('[DEBUG] 命中条件: 高相似度 + 极低方差');
+      } else if (isHighSimilarity && hasSmallDiagDiff && isModerateVariance) {
+        // 路径4：高相似度 + 小对角线差异 + 中等方差
+        score = 60;
+        console.log('[DEBUG] 命中条件: 高相似度 + 小对角线差异');
+      } else {
+        // 删除路径5，因为它太容易误判
+        console.log('[DEBUG] 未命中任何条件 (diagDiff=' + diagDiff.toFixed(2) + ', variance=' + edgeVariance.toFixed(6) + ', sim=' + avgNeighborSimilarity.toFixed(2) + ')');
+      }
+      
+      return {
+        avgNeighborSimilarity,
+        avgDiagonalSimilarity,
+        avgEdgeDensity,
+        edgeVariance,
+        score: Math.min(score, 100)
+      };
+    }
+    
+    // 透明度特征分析
+    // ========= AI 掩膜启发式（无模型） =========
+    function computeAIMaskHeuristic(gray, rgba, grad, edge, w, h) {
+      try {
+        // 1) 构建候选掩膜：亮且边缘明显的像素
+        const N = w*h;
+        const mask = new Uint8Array(N);
+        let maskCount = 0;
+        for (let i = 0; i < N; i++) {
+          if (edge[i]) {
+            const idx = i*4;
+            const r = rgba[idx], g = rgba[idx+1], b = rgba[idx+2];
+            const maxc = Math.max(r,g,b), minc = Math.min(r,g,b);
+            const isBrightEdge = (maxc - minc) <= 14 && maxc >= 200; // 接近白色边缘
+            const strongGrad = grad.mag[i] > 35;
+            if (strongGrad && isBrightEdge) { mask[i] = 1; maskCount++; }
+          }
+        }
+        // 如果太稀疏，尝试放宽到浅灰
+        if (maskCount < N*0.0005) {
+          for (let i = 0; i < N; i++) {
+            if (edge[i] && !mask[i]) {
+              const idx = i*4;
+              const r = rgba[idx], g = rgba[idx+1], b = rgba[idx+2];
+              const maxc = Math.max(r,g,b), minc = Math.min(r,g,b);
+              const nearLight = (maxc - minc) <= 25 && maxc >= 170;
+              const strongGrad = grad.mag[i] > 40;
+              if (strongGrad && nearLight) { mask[i] = 1; maskCount++; }
+            }
+          }
+        }
+        // 2) 形态学闭运算 (3x3 膨胀后腐蚀)
+        const dil = new Uint8Array(N);
+        for (let y=1;y<h-1;y++){
+          for (let x=1;x<w-1;x++){
+            let on=0; const i=y*w+x;
+            for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) on|=mask[(y+dy)*w+(x+dx)];
+            dil[i]=on?1:0;
+          }
+        }
+        const close = new Uint8Array(N);
+        for (let y=1;y<h-1;y++){
+          for (let x=1;x<w-1;x++){
+            let all=1; const i=y*w+x;
+            for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) if(!dil[(y+dy)*w+(x+dx)]){all=0;break}
+            close[i]=all?1:0;
+          }
+        }
+        // 3) 连通域计数与面积
+        const visited = new Uint8Array(N);
+        let compCount=0, kept=0; const keep = new Uint8Array(N);
+        const minArea = Math.max(10, Math.floor(0.00005*N));
+        const maxArea = Math.floor(0.06*N);
+        const stackX=new Int32Array(N), stackY=new Int32Array(N);
+        for (let y=1;y<h-1;y++){
+          for (let x=1;x<w-1;x++){
+            const start=y*w+x; if(close[start]!==1||visited[start]) continue;
+            let top=0; stackX[top]=x; stackY[top]=y; visited[start]=1; top++;
+            let area=0, minx=x, maxx=x, miny=y, maxy=y;
+            while(top>0){
+              top--; const cx=stackX[top], cy=stackY[top]; const ci=cy*w+cx;
+              area++; if(cx<minx)minx=cx; if(cx>maxx)maxx=cx; if(cy<miny)miny=cy; if(cy>maxy)maxy=cy;
+              for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+                const nx=cx+dx, ny=cy+dy; const ni=ny*w+nx;
+                if(nx<=0||ny<=0||nx>=w-1||ny>=h-1) continue;
+                if(!visited[ni] && close[ni]===1){ visited[ni]=1; stackX[top]=nx; stackY[top]=ny; top++; }
+              }
+            }
+            if (area>=minArea && area<=maxArea){
+              compCount++;
+              for (let yy=miny; yy<=maxy; yy++){
+                for (let xx=minx; xx<=maxx; xx++){
+                  const ii=yy*w+xx; if(close[ii]===1) { keep[ii]=1; kept++; }
+                }
+              }
+            }
+          }
+        }
+        const maskAreaRatio = kept / N;
+        // 4) 估计“去除增益”：掩膜内边缘减少与灰度方差降低
+        let edgesIn=0; let sum=0, sum2=0, count=0;
+        for (let i=0;i<N;i++){
+          if (keep[i]){
+            if (edge[i]) edgesIn++;
+            const g=gray[i]; sum+=g; sum2+=g*g; count++;
+          }
+        }
+        const varBefore = count>1 ? (sum2/count - Math.pow(sum/count,2)) : 0;
+        // 近似“填充”后方差为邻域均值的方差 → 近似为 0，故增益可用 varBefore 归一化
+        const varGain = Math.min(100, varBefore/5); // 简单映射
+        const edgeRemovalGain = Math.min(100, (edgesIn/Math.max(1,kept)) * 120);
+        // 5) AI分数：更侧重边缘去除，其次方差
+        const aiScore = Math.max(0, Math.min(100, 0.65*edgeRemovalGain + 0.35*varGain));
+        return { aiScore, maskAreaRatio, edgeRemovalGain, varGain, compCount, used: 'heuristic-v1' };
+      } catch (e) {
+        console.warn('[AI掩膜启发式] 失败:', e);
+        return { aiScore: 0, maskAreaRatio: 0, edgeRemovalGain: 0, varGain: 0, compCount: 0, used: 'error' };
+      }
+    }
+
+    function analyzeAlphaFeatures(data){
+      let semiTransparentCount = 0;
+      let fullyTransparentCount = 0;
+      let opaqueCount = 0;
+
+      // 使用采样优化，每5个像素取样一次
+      const step = 5;
+      for (let i = 3; i < data.length; i += 4 * step) {
+        const alpha = data[i];
+
+        if (alpha === 0) {
+          fullyTransparentCount++;
+        } else if (alpha < 255) {
+          semiTransparentCount++;
+        } else {
+          opaqueCount++;
+        }
+      }
+
+      const totalPixels = data.length / 4 / step;
+      const semiTransparentRatio = totalPixels > 0 ? semiTransparentCount / totalPixels : 0;
+
+      let score = 0;
+      if (semiTransparentRatio > 0.1 && semiTransparentRatio < 0.9) {
+        score = semiTransparentRatio * 100;
+      }
+
+      return {
+        semiTransparentRatio,
+        fullyTransparentRatio: totalPixels > 0 ? fullyTransparentCount / totalPixels : 0,
+        opaqueRatio: totalPixels > 0 ? opaqueCount / totalPixels : 0,
+        score: Math.min(score, 100)
+      };
+    }
+
+    // ========= 新增：分支与特征实现 =========
+    function toGrayscale(data) {
+      const gray = new Float32Array(data.length / 4);
+      for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+        gray[j] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      }
+      return gray;
+    }
+
+    function computeGradients(gray, width, height) {
+      const mag = new Float32Array(width * height);
+      const ori = new Float32Array(width * height);
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const i = y * width + x;
+          const gx = -gray[i - 1 - width] - 2 * gray[i - width] - gray[i + 1 - width] + gray[i - 1 + width] + 2 * gray[i + width] + gray[i + 1 + width];
+          const gy = -gray[i - 1 - width] - 2 * gray[i - 1] - gray[i - 1 + width] + gray[i + 1 - width] + 2 * gray[i + 1] + gray[i + 1 + width];
+          const m = Math.hypot(gx, gy);
+          mag[i] = m;
+          let angle = Math.atan2(gy, gx) * 180 / Math.PI; // -180..180
+          if (angle < 0) angle += 180; // 0..180
+          ori[i] = angle;
+        }
+      }
+      return { mag, ori };
+    }
+
+    function buildEdgeMap(mag, width, height, threshold) {
+      const edge = new Uint8Array(width * height);
+      for (let i = 0; i < mag.length; i++) {
+        edge[i] = mag[i] > threshold ? 1 : 0;
+      }
+      return edge;
+    }
+
+    function computeAngleCoherence(ori, mag, width, height, threshold) {
+      const bins = 12; const hist = new Float32Array(bins);
+      for (let i = 0; i < ori.length; i++) {
+        if (mag[i] > threshold) {
+          let a = ori[i];
+          let b = Math.floor((a / 180) * bins);
+          if (b >= bins) b = bins - 1;
+          hist[b] += 1;
+        }
+      }
+      const sum = hist.reduce((a, b) => a + b, 0);
+      if (sum === 0) return 0;
+      const maxBin = Math.max(...hist);
+      const median = [...hist].sort((a, b) => a - b)[Math.floor(bins / 2)];
+      const ratio = maxBin / (median + 1e-6);
+      return Math.max(0, Math.min(100, (ratio - 1) * 20)); // 粗略映射
+    }
+
+    function computePeriodicityScore(edge, width, height, angles) {
+      // 投影-自相关：对每个角度做投影，再做自相关，取非零滞后峰值比
+      const diag = Math.ceil(Math.hypot(width, height));
+      const scores = [];
+      const step = 2;
+      for (const deg of angles) {
+        const rad = deg * Math.PI / 180;
+        const cos = Math.cos(rad), sin = Math.sin(rad);
+        const bins = new Float32Array(diag + 1);
+        for (let y = 0; y < height; y += step) {
+          for (let x = 0; x < width; x += step) {
+            const i = y * width + x;
+            if (edge[i]) {
+              const u = Math.floor(x * cos + y * sin + diag / 2);
+              if (u >= 0 && u <= diag) bins[u] += 1;
+            }
+          }
+        }
+        // 自相关
+        let peak = 0; let baseSum = 0; let baseCnt = 0;
+        const minLag = 8, maxLag = Math.min(150, Math.floor(diag / 3));
+        for (let lag = minLag; lag < maxLag; lag++) {
+          let c = 0;
+          for (let i = 0; i + lag < bins.length; i += 2) c += bins[i] * bins[i + lag];
+          if (c > peak) peak = c;
+          baseSum += c; baseCnt++;
+        }
+        const base = baseCnt ? baseSum / baseCnt : 0;
+        const s = base > 0 ? (peak / base) : 0;
+        const score = Math.max(0, Math.min(100, (s - 1) * 25));
+        scores.push(score);
+      }
+      return Math.max(...scores, 0);
+    }
+
+    function computeWhitenessNearEdges(rgba, edge, width, height) {
+      let whiteCnt = 0, total = 0;
+      const tol = 12;
+      for (let y = 0; y < height; y += 2) {
+        for (let x = 0; x < width; x += 2) {
+          const i = y * width + x;
+          if (!edge[i]) continue;
+          const idx = i * 4;
+          const r = rgba[idx], g = rgba[idx + 1], b = rgba[idx + 2];
+          const minc = Math.min(r, g, b), maxc = Math.max(r, g, b);
+          if (maxc - minc <= tol && maxc >= 200) whiteCnt++;
+          total++;
+        }
+      }
+      const ratio = total ? (whiteCnt / total) : 0;
+      return Math.min(100, ratio * 100);
+    }
+
+    function estimateStrokeWidth(edge, width, height) {
+      // 粗略：按行统计相邻 edge run 的平均长度
+      let runSum = 0, runCnt = 0;
+      for (let y = 0; y < height; y += 2) {
+        let x = 0;
+        while (x < width) {
+          while (x < width && !edge[y * width + x]) x++;
+          let len = 0;
+          while (x < width && edge[y * width + x]) { len++; x++; }
+          if (len > 0) { runSum += len; runCnt++; }
+        }
+      }
+      return runCnt ? (runSum / runCnt) : 0;
+    }
+
+    function mapStrokeWidthToScore(w) {
+      if (w <= 0) return 0;
+      // 目标区间 1.5~3.5 px 得高分，宽度过大/过小降分
+      const center = 2.5, spread = 1.5;
+      const s = Math.exp(-Math.pow((w - center) / spread, 2));
+      return Math.round(s * 100);
+    }
+
+    function analyzeSingleWatermark(gray, rgba, edge, grad, width, height, cfg) {
+      // ROI 定义
+      const eb = Math.floor(Math.min(width, height) * cfg.roi.edgeBand);
+      const cb = Math.floor(Math.min(width, height) * cfg.roi.cornerBox);
+      const rois = [
+        { name: '左上', x: 0, y: 0, w: cb, h: cb, posW: 100 },
+        { name: '右上', x: width - cb, y: 0, w: cb, h: cb, posW: 100 },
+        { name: '左下', x: 0, y: height - cb, w: cb, h: cb, posW: 100 },
+        { name: '右下', x: width - cb, y: height - cb, w: cb, h: cb, posW: 100 },
+        { name: '上边', x: 0, y: 0, w: width, h: eb, posW: 60 },
+        { name: '下边', x: 0, y: height - eb, w: width, h: eb, posW: 60 },
+        { name: '左边', x: 0, y: 0, w: eb, h: height, posW: 60 },
+        { name: '右边', x: width - eb, y: 0, w: eb, h: height, posW: 60 }
+      ];
+
+      let best = { name: '', textlikeness: 0, overlayConsistency: 0, positionWeight: 0, alphaLike: 0, whiteEdgeRatio: 0 };
+
+      for (const r of rois) {
+        const feat = computeROITextAndOverlay(gray, rgba, edge, grad, width, height, r);
+        const tl = feat.textlikeness;
+        const oc = feat.overlayConsistency;
+        const al = feat.alphaLike;
+        const we = feat.whiteEdgeRatio || 0;
+        const pw = r.posW;
+        // 选择得分更高的 ROI（保持原有打分，不引入白边到排序，避免改变原始行为）
+        const tmpScore = 0.4*tl + 0.25*oc + 0.2*pw + 0.15*al;
+        const bestScore = 0.4*best.textlikeness + 0.25*best.overlayConsistency + 0.2*best.positionWeight + 0.15*best.alphaLike;
+        if (tmpScore > bestScore) {
+          best = { name: r.name, textlikeness: tl, overlayConsistency: oc, positionWeight: pw, alphaLike: al, whiteEdgeRatio: we };
+        }
+      }
+      return best;
+    }
+
+    function computeROITextAndOverlay(gray, rgba, edge, grad, width, height, roi) {
+      // 采样
+      const step = 2;
+      let edges = 0, total = 0;
+      const bins = 8; const hist = new Float32Array(bins);
+      let sum = 0, sum2 = 0; // 用于亮度方差
+      let brightEdgeCnt = 0;
+      for (let y = roi.y; y < roi.y + roi.h; y += step) {
+        for (let x = roi.x; x < roi.x + roi.w; x += step) {
+          if (x<=0||y<=0||x>=width-1||y>=height-1) continue;
+          const i = y*width + x;
+          const g = grad.mag[i];
+          if (g > 25) {
+            edges++;
+            let a = grad.ori[i];
+            let b = Math.floor((a/180)*bins); if (b>=bins) b=bins-1; hist[b] += 1;
+            const idx = i*4; const r = rgba[idx], gg = rgba[idx+1], bb = rgba[idx+2];
+            const maxc = Math.max(r,gg,bb), minc=Math.min(r,gg,bb);
+            if (maxc-minc<12 && maxc>200) brightEdgeCnt++;
+          }
+          total++;
+          sum += gray[i]; sum2 += gray[i]*gray[i];
+        }
+      }
+      const edgeDensity = total? edges/total : 0;
+      const variance = total? (sum2/total - Math.pow(sum/total,2)) : 0;
+      // 文本样性：边缘密度+方向主峰占比
+      const histSum = hist.reduce((a,b)=>a+b,0);
+      const maxBin = histSum? Math.max(...hist) : 0;
+      const textlikeness = Math.min(100, (edgeDensity*350) + (histSum? (maxBin/histSum)*100 : 0));
+      // 覆盖一致性：亮度方差越小越像覆盖；再叠加白色边缘比例
+      const overlayConsistency = Math.min(100, (Math.max(0, 50 - variance))*1.2 + (edgeDensity>0? (brightEdgeCnt/edges)*40:0));
+      // 伪alpha：明亮提升但边缘不过强
+      const alphaLike = Math.max(0, Math.min(100, (sum/Math.max(1,total))/2 - (edgeDensity*50)));
+      // ROI 白边比例（只看边缘处近白像素占比）
+      const whiteEdgeRatio = edges>0 ? Math.min(100, (brightEdgeCnt/edges)*100) : 0;
+      return { textlikeness, overlayConsistency, alphaLike, whiteEdgeRatio };
+    }
+    
+    // UI逻辑
+    const fileInput = document.getElementById('fileInput');
+    const uploadArea = document.getElementById('uploadArea');
+    const loading = document.getElementById('loading');
+    const previewSection = document.getElementById('previewSection');
+    const previewImage = document.getElementById('previewImage');
+    const logEntries = document.getElementById('logEntries');
+    
+    function addLog(message, type = 'info') {
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      const timestamp = new Date().toLocaleTimeString();
+      entry.textContent = `[${timestamp}] ${message}`;
+      logEntries.appendChild(entry);
+      logEntries.parentElement.scrollTop = logEntries.parentElement.scrollHeight;
+    }
+    
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragging');
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragging');
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragging');
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        handleFile(files[0]);
+      }
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleFile(e.target.files[0]);
+      }
+    });
+    
+    document.getElementById('folderInput').addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+      if (files.length === 0) {
+        alert('文件夹中没有找到图片文件！');
+        return;
+      }
+      await handleBatchFiles(files);
+    });
+    
+    async function handleBatchFiles(files) {
+      uploadArea.style.display = 'none';
+      loading.classList.add('active');
+      previewSection.classList.remove('active');
+      
+      addLog(`开始批量检测 ${files.length} 张图片...`, 'info');
+      
+      const results = [];
+      let completed = 0;
+      
+      for (const file of files) {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          const result = await detectWatermarkSimple(uint8Array);
+          
+          results.push({
+            filename: file.name,
+            size: `${(file.size / 1024).toFixed(2)} KB`,
+            hasWatermark: result.hasWatermark,
+            confidence: result.watermarkConfidence.toFixed(2),
+            processingTime: result.processingTime.toFixed(2),
+            // 增加详细特征数据
+            debug: result.debugInfo || {}
+          });
+          
+          completed++;
+          addLog(`[${completed}/${files.length}] ${file.name}: ${result.hasWatermark ? '✅ 有水印' : '❌ 无水印'} (置信度: ${result.watermarkConfidence.toFixed(2)})`, 
+                 result.hasWatermark ? 'warning' : 'success');
+        } catch (error) {
+          addLog(`[${completed+1}/${files.length}] ${file.name}: 检测失败 - ${error.message}`, 'error');
+          results.push({
+            filename: file.name,
+            size: `${(file.size / 1024).toFixed(2)} KB`,
+            hasWatermark: false,
+            confidence: '0',
+            processingTime: '0',
+            error: error.message
+          });
+          completed++;
+        }
+      }
+      
+      loading.classList.remove('active');
+      
+      // 显示批量结果汇总
+      const watermarked = results.filter(r => r.hasWatermark).length;
+      const clean = results.filter(r => !r.hasWatermark && !r.error).length;
+      const failed = results.filter(r => r.error).length;
+      
+      addLog(`\n批量检测完成！`, 'success');
+      addLog(`总计: ${files.length} 张 | 有水印: ${watermarked} 张 | 无水印: ${clean} 张 | 失败: ${failed} 张`, 'info');
+      
+      // 生成并下载 CSV 报告
+      downloadBatchReport(results);
+      
+      uploadArea.style.display = 'block';
+    }
+    
+    function downloadBatchReport(results) {
+      // 生成详细 CSV 内容（包含所有特征）
+      let csv = '\ufeff文件名,文件大小,是否有水印,置信度,';
+      csv += 'Repeated分支得分,Repeated通过,Single分支得分,Single通过,Baseline得分,';
+      csv += 'periodicity,angleCoh,whiteness,strokeWidth,';
+      csv += 'textlikeness,overlayConsistency,alphaLike,whiteEdgeRatio,positionWeight,ROI位置,';
+      csv += 'edgeDensity,edgePositionScore,centerRatio,';
+      csv += 'regionScore,colorScore,alphaScore,';
+      csv += 'AI分数,AI掩膜占比(%),AI边缘去除增益,AI方差增益,AI组件数,处理时间(ms),错误\n';
+      
+      results.forEach(r => {
+        const d = r.debug || {};
+        const rep = d.repeated || {};
+        const sing = d.single || {};
+        const baseline = d.baseline || 0;
+        
+        csv += `"${r.filename}",`;
+        csv += `"${r.size}",`;
+        csv += `"${r.hasWatermark ? '\u662f' : '\u5426'}",`;
+        csv += `${r.confidence},`;
+        csv += `${rep.repeatedScore || 0},`;
+        csv += `"${rep.repeatedPassed ? '\u662f' : '\u5426'}",`;
+        csv += `${sing.singleScore || 0},`;
+        csv += `"${sing.singlePassed ? '\u662f' : '\u5426'}",`;
+        csv += `${baseline},`;
+        csv += `${rep.periodicity || 0},`;
+        csv += `${rep.angleCoh || 0},`;
+        csv += `${rep.whiteness || 0},`;
+        csv += `${rep.strokeWidth || 0},`;
+        csv += `${sing.textlikeness || 0},`;
+        csv += `${sing.overlayConsistency || 0},`;
+        csv += `${sing.alphaLike || 0},`;
+        csv += `${sing.whiteEdgeRatio || 0},`;
+        csv += `${sing.positionWeight || 0},`;
+        csv += `"${sing.name || ''}",`;
+        csv += `${d.edgeInfo?.density || 0},`;
+        csv += `${d.edgeInfo?.positionScore || 0},`;
+        csv += `${d.edgeInfo?.centerRatio || 0},`;
+        csv += `${d.regionInfo || 0},`;
+        csv += `${d.colorInfo || 0},`;
+        csv += `${d.alphaInfo || 0},`;
+        const aiData = d.ai || {};
+        csv += `${aiData.aiScore || 0},`;
+        csv += `${typeof aiData.maskAreaRatio === 'number' ? (aiData.maskAreaRatio*100).toFixed(2) : 0},`;
+        csv += `${aiData.edgeRemovalGain || 0},`;
+        csv += `${aiData.varGain || 0},`;
+        csv += `${aiData.compCount || 0},`;
+        csv += `${r.processingTime},`;
+        csv += `"${r.error || ''}"\n`;
+      });
+      
+      // 创建下载链接
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `水印检测报告_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      
+      addLog(`报告已导出: ${link.download}`, 'success');
+    }
+    
+    async function handleFile(file) {
+      if (!file.type.startsWith('image/')) {
+        alert('请选择图片文件！');
+        return;
+      }
+      
+      addLog(`开始处理图片: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`, 'info');
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewImage.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+      
+      uploadArea.style.display = 'none';
+      loading.classList.add('active');
+      previewSection.classList.remove('active');
+      
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        addLog('开始水印检测分析...', 'info');
+        
+        const result = await detectWatermarkSimple(uint8Array);
+        
+        addLog(`检测完成！置信度: ${result.watermarkConfidence.toFixed(2)}`, 'success');
+        
+        displayResults(result, file);
+        
+      } catch (error) {
+        addLog(`检测失败: ${error.message}`, 'error');
+        console.error('检测失败:', error);
+        alert('检测失败: ' + error.message);
+      } finally {
+        loading.classList.remove('active');
+        previewSection.classList.add('active');
+      }
+    }
+    
+    function displayResults(result, file) {
+      const watermarkResult = document.getElementById('watermarkResult');
+      watermarkResult.textContent = result.hasWatermark ? '✅ 检测到水印' : '❌ 未检测到水印';
+      watermarkResult.className = `result-value ${result.hasWatermark ? 'positive' : 'negative'}`;
+      
+      const confidence = result.watermarkConfidence;
+      document.getElementById('confidenceValue').textContent = confidence.toFixed(2);
+      
+      const confidenceFill = document.getElementById('confidenceFill');
+      const confidencePercent = document.getElementById('confidencePercent');
+      setTimeout(() => {
+        confidenceFill.style.width = `${confidence}%`;
+        confidencePercent.textContent = `${confidence.toFixed(1)}%`;
+      }, 100);
+      
+      document.getElementById('processingTime').textContent = 
+        `${result.processingTime.toFixed(2)} ms`;
+      
+      const img = new Image();
+      img.onload = () => {
+        document.getElementById('imageSize').textContent = 
+          `${img.width} × ${img.height} px`;
+      };
+      img.src = previewImage.src;
+      
+      const detailGrid = document.getElementById('detailGrid');
+      detailGrid.innerHTML = '';
+      
+      const details = result.analysisDetails || {};
+      const metrics = [
+        { title: '频域分析', value: details.frequencyScore || '0' },
+        { title: '梯度分析', value: details.gradientScore || '0' },
+        { title: '纹理分析', value: details.textureScore || '0' },
+        { title: '颜色通道', value: details.colorChannelScore || '0' },
+        { title: '区域分析', value: details.regionScore || '0' },
+        { title: '透明度', value: details.alphaScore || '0' },
+        { title: '重复模式', value: details.patternScore || '0' }
+      ];
+      
+      metrics.forEach(metric => {
+        const card = document.createElement('div');
+        card.className = 'detail-card';
+        card.innerHTML = `
+          <div class="detail-title">${metric.title}</div>
+          <div class="detail-value">${metric.value}</div>
+        `;
+        detailGrid.appendChild(card);
+        addLog(`${metric.title}: ${metric.value}`, 'info');
+      });
+      
+      if (result.watermarkRegions && result.watermarkRegions.length > 0) {
+        addLog(`检测到水印区域: ${result.watermarkRegions.join(', ')}`, 'warning');
+      }
+    }
+    
+    addLog('水印检测系统已就绪（独立版 - 基础算法）', 'success');
+    addLog('当前检测阈值: 45% (置信度 ≥ 45 判定为有水印)', 'info');
+    addLog('⚠️ 注意：这是基础版本，仅使用边缘和区域分析，准确率有限', 'warning');
+    addLog('💡 建议：对于重要图片，请使用主系统的高级检测功能', 'info');
+  </script>
+</body>
+</html>

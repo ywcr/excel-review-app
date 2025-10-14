@@ -5,7 +5,7 @@
 // - 尺寸/比例检测 (0-30分)
 // - EXIF完整性检测 (0-25分)
 // - 格式/压缩检测 (0-20分)
-// - 视觉特征检测 (0-15分)
+// - 视觉特征检测 (0-30分) ← 包括截图、边框、水印
 // - 元数据一致性 (0-10分)
 //
 // 总分越高越可疑：
@@ -66,7 +66,10 @@ function calculateImageSuspicionScore({
   exif,
   hasBorder,
   borderSides,
-  borderWidth
+  borderWidth,
+  hasWatermark,
+  watermarkRegions,
+  watermarkConfidence
 }) {
   let totalScore = 0;
   const factors = [];
@@ -86,8 +89,8 @@ function calculateImageSuspicionScore({
   totalScore += formatResult.score;
   factors.push(...formatResult.factors);
 
-  // === 4. 视觉特征检测 (0-15分) ===
-  const visualResult = evaluateVisualFeatures(width, height, hasBorder, borderSides, borderWidth);
+  // === 4. 视觉特征检测 (0-30分)：截图、边框、水印 ===
+  const visualResult = evaluateVisualFeatures(width, height, hasBorder, borderSides, borderWidth, hasWatermark, watermarkRegions, watermarkConfidence);
   totalScore += visualResult.score;
   factors.push(...visualResult.factors);
 
@@ -311,20 +314,21 @@ function evaluateFormat(mimeType, sizeBytes, megapixels) {
 }
 
 /**
- * 4. 视觉特征评分 (0-15分)
+ * 4. 视觉特征评分 (0-30分)
+ * 包括截图、边框、水印检测
  */
-function evaluateVisualFeatures(width, height, hasBorder, borderSides, borderWidth) {
+function evaluateVisualFeatures(width, height, hasBorder, borderSides, borderWidth, hasWatermark, watermarkRegions, watermarkConfidence) {
   let score = 0;
   const factors = [];
 
-  // 截图检测
+  // 截图检测 (0-20分)
   const screenshotCheck = detectScreenshot(width, height);
   if (screenshotCheck.isScreenshot) {
     score += screenshotCheck.anomaly;
     factors.push(screenshotCheck.reason);
   }
 
-  // 边框检测
+  // 边框检测 (0-8分)
   if (hasBorder && borderSides && borderSides.length > 0) {
     score += 8;
     const borderDesc = borderSides.map((side) => {
@@ -333,6 +337,15 @@ function evaluateVisualFeatures(width, height, hasBorder, borderSides, borderWid
       return `${sideNames[side] || side}${width ? `(${width}px)` : ''}`;
     }).join('、');
     factors.push(`存在边框: ${borderDesc}`);
+  }
+
+  // 水印检测 (0-15分)
+  if (hasWatermark && watermarkRegions && watermarkRegions.length > 0) {
+    const watermarkScore = evaluateWatermark(watermarkRegions, watermarkConfidence);
+    score += watermarkScore.score;
+    if (watermarkScore.reason) {
+      factors.push(watermarkScore.reason);
+    }
   }
 
   return { score, factors };
@@ -354,6 +367,70 @@ function detectScreenshot(width, height) {
   }
 
   return { isScreenshot: false, anomaly: 0, reason: null };
+}
+
+/**
+ * 水印检测评分 (0-15分)
+ */
+function evaluateWatermark(watermarkRegions, watermarkConfidence) {
+  const regionCount = watermarkRegions.length;
+  const confidence = watermarkConfidence || 0;
+  let score = 0;
+  let reason = '';
+
+  // 根据检测到的水印区域数量评分
+  if (regionCount >= 3) {
+    // 3个或以上区域有水印：高度可疑
+    score = 12;
+    const regionNames = {
+      topLeft: '左上',
+      topRight: '右上',
+      leftMiddle: '左中',
+      rightMiddle: '右中',
+      bottomLeft: '左下',
+      bottomRight: '右下',
+      centerBottom: '底部中间'
+    };
+    const regionsDesc = watermarkRegions.map(r => regionNames[r] || r).join('、');
+    reason = `多处水印(${regionsDesc})`;
+  } else if (regionCount === 2) {
+    // 2个区域有水印：中度可疑
+    score = 8;
+    const regionNames = {
+      topLeft: '左上',
+      topRight: '右上',
+      leftMiddle: '左中',
+      rightMiddle: '右中',
+      bottomLeft: '左下',
+      bottomRight: '右下',
+      centerBottom: '底部中间'
+    };
+    const regionsDesc = watermarkRegions.map(r => regionNames[r] || r).join('、');
+    reason = `两处水印(${regionsDesc})`;
+  } else if (regionCount === 1) {
+    // 1个区域有水印：低度可疑
+    score = 5;
+    const regionNames = {
+      topLeft: '左上角',
+      topRight: '右上角',
+      leftMiddle: '左中',
+      rightMiddle: '右中',
+      bottomLeft: '左下角',
+      bottomRight: '右下角',
+      centerBottom: '底部中间'
+    };
+    const regionDesc = regionNames[watermarkRegions[0]] || watermarkRegions[0];
+    reason = `边缘水印(${regionDesc})`;
+  }
+
+  // 根据置信度调整分数
+  if (confidence > 0.8) {
+    score = Math.min(15, score + 3); // 高置信度，额外加分
+  } else if (confidence < 0.5) {
+    score = Math.max(0, score - 2); // 低置信度，减分
+  }
+
+  return { score, reason };
 }
 
 /**

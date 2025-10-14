@@ -44,6 +44,7 @@ function HomeContent() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [showSheetSelector, setShowSheetSelector] = useState(false);
   const [includeImageValidation, setIncludeImageValidation] = useState(true);
+  const [enableWatermarkDetection, setEnableWatermarkDetection] = useState(false); // 水印检测默认关闭
   const [skin, setSkin] = useState<"classic" | "baidu">(() => {
     if (typeof window === "undefined") return "classic";
     const stored = window.localStorage.getItem("excel-review-skin");
@@ -248,7 +249,8 @@ function HomeContent() {
         uploadedFile,
         selectedTask,
         undefined,
-        useImageValidation
+        useImageValidation,
+        enableWatermarkDetection  // 传递水印检测开关
       );
 
       // 验证完成 - 更新性能指标
@@ -290,7 +292,8 @@ function HomeContent() {
         uploadedFile,
         selectedTask,
         sheetName,
-        useImageValidation
+        useImageValidation,
+        enableWatermarkDetection  // 传递水印检测开关
       );
     } catch (err) {
       console.error("Validation with selected sheet failed:", err);
@@ -472,17 +475,34 @@ function HomeContent() {
               <h3 className="text-sm font-medium text-gray-900 mb-3">
                 验证选项
               </h3>
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={includeImageValidation}
-                  onChange={(e) => setIncludeImageValidation(e.target.checked)}
-                  className="mr-3 text-blue-600"
-                />
-                <span className="text-gray-700 text-sm">
-                  包含图片验证（清晰度检测和重复检测）
-                </span>
-              </label>
+              <div className="space-y-2">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={includeImageValidation}
+                    onChange={(e) => setIncludeImageValidation(e.target.checked)}
+                    className="mr-3 text-blue-600"
+                  />
+                  <span className="text-gray-700 text-sm">
+                    包含图片验证（清晰度检测和重复检测）
+                  </span>
+                </label>
+                
+                {includeImageValidation && (
+                  <label className="flex items-center ml-6">
+                    <input
+                      type="checkbox"
+                      checked={enableWatermarkDetection}
+                      onChange={(e) => setEnableWatermarkDetection(e.target.checked)}
+                      className="mr-3 text-purple-600"
+                    />
+                    <span className="text-gray-700 text-sm">
+                      启用水印检测 🔍
+                      <span className="text-gray-500 ml-1">(实验性功能，可能增加检测时间)</span>
+                    </span>
+                  </label>
+                )}
+              </div>
             </div>
           )}
 

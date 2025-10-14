@@ -90,7 +90,8 @@ export interface UseFrontendValidationReturn {
     file: File,
     taskName: string,
     selectedSheet?: string,
-    includeImages?: boolean
+    includeImages?: boolean,
+    enableWatermarkDetection?: boolean
   ) => Promise<void>;
   validateImages: (file: File) => Promise<void>;
   cancelValidation: () => void;
@@ -148,7 +149,8 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
       file: File,
       taskName: string,
       selectedSheet?: string,
-      includeImages?: boolean
+      includeImages?: boolean,
+      enableWatermarkDetection?: boolean
     ) => {
       // Clear previous results
       setResult(null);
@@ -254,6 +256,7 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
               selectedSheet,
               template,
               includeImages: includeImages || false,
+              enableWatermarkDetection: enableWatermarkDetection || false,
               isLargeFile: true,
             },
           });
@@ -272,6 +275,7 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
                 selectedSheet,
                 template,
                 includeImages: includeImages || false,
+                enableWatermarkDetection: enableWatermarkDetection || false,
                 isLargeFile: false,
               },
             },

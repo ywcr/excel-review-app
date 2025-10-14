@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>单张图片水印检测测试</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      color: #333;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+    
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+    
+    .header p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+    
+    .content {
+      padding: 30px;
+    }
+    
+    .upload-area {
+      border: 3px dashed #667eea;
+      border-radius: 15px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: #f8f9ff;
+    }
+    
+    .upload-area:hover {
+      border-color: #764ba2;
+      background: #f0f2ff;
+      transform: translateY(-2px);
+    }
+    
+    .upload-area.dragging {
+      border-color: #764ba2;
+      background: #e8ebff;
+      transform: scale(1.02);
+    }
+    
+    .upload-icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+    
+    #fileInput {
+      display: none;
+    }
+    
+    .btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 25px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+    
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .preview-section {
+      margin-top: 30px;
+      display: none;
+    }
+    
+    .preview-section.active {
+      display: block;
+    }
+    
+    .image-preview {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .image-preview img {
+      max-width: 100%;
+      max-height: 500px;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    .results {
+      background: #f8f9ff;
+      border-radius: 15px;
+      padding: 25px;
+      margin-top: 20px;
+    }
+    
+    .result-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px;
+      background: white;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    
+    .result-label {
+      font-weight: 600;
+      color: #555;
+    }
+    
+    .result-value {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    
+    .result-value.positive {
+      color: #e74c3c;
+    }
+    
+    .result-value.negative {
+      color: #27ae60;
+    }
+    
+    .confidence-bar {
+      width: 100%;
+      height: 30px;
+      background: #e0e0e0;
+      border-radius: 15px;
+      overflow: hidden;
+      margin-top: 10px;
+      position: relative;
+    }
+    
+    .confidence-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #27ae60, #f39c12, #e74c3c);
+      transition: width 1s ease;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 10px;
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    
+    .analysis-details {
+      margin-top: 20px;
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+    }
+    
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+    
+    .detail-card {
+      background: #f8f9ff;
+      padding: 15px;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+    
+    .detail-title {
+      font-size: 12px;
+      color: #888;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    
+    .detail-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: #333;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      display: none;
+    }
+    
+    .loading.active {
+      display: block;
+    }
+    
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .log-section {
+      margin-top: 30px;
+      background: #1e1e1e;
+      border-radius: 10px;
+      padding: 20px;
+      color: #d4d4d4;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .log-entry {
+      margin-bottom: 5px;
+      padding: 5px;
+      border-left: 3px solid #667eea;
+      padding-left: 10px;
+    }
+    
+    .log-entry.info { border-color: #3498db; }
+    .log-entry.success { border-color: #27ae60; }
+    .log-entry.warning { border-color: #f39c12; }
+    .log-entry.error { border-color: #e74c3c; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔍 水印检测测试工具</h1>
+      <p>上传图片，实时检测水印 - 高级像素级分析</p>
+    </div>
+    
+    <div class="content">
+      <div class="upload-area" id="uploadArea">
+        <div class="upload-icon">📤</div>
+        <h3>点击或拖拽上传图片</h3>
+        <p style="color: #888; margin-top: 10px;">支持 JPG, PNG, WebP 格式</p>
+        <input type="file" id="fileInput" accept="image/*">
+        <button class="btn" style="margin-top: 20px;" onclick="document.getElementById('fileInput').click()">
+          选择图片
+        </button>
+      </div>
+      
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>正在分析图片...</p>
+      </div>
+      
+      <div class="preview-section" id="previewSection">
+        <h2 style="margin-bottom: 20px;">📊 检测结果</h2>
+        
+        <div class="image-preview">
+          <img id="previewImage" src="" alt="Preview">
+        </div>
+        
+        <div class="results">
+          <div class="result-item">
+            <span class="result-label">🔍 水印检测结果</span>
+            <span class="result-value" id="watermarkResult">-</span>
+          </div>
+          
+          <div class="result-item">
+            <span class="result-label">📈 置信度</span>
+            <span class="result-value" id="confidenceValue">-</span>
+          </div>
+          
+          <div class="confidence-bar">
+            <div class="confidence-fill" id="confidenceFill" style="width: 0%">
+              <span id="confidencePercent">0%</span>
+            </div>
+          </div>
+          
+          <div class="result-item" style="margin-top: 15px;">
+            <span class="result-label">⚡ 处理时间</span>
+            <span class="result-value" id="processingTime">-</span>
+          </div>
+          
+          <div class="result-item">
+            <span class="result-label">📏 图片尺寸</span>
+            <span class="result-value" id="imageSize">-</span>
+          </div>
+        </div>
+        
+        <div class="analysis-details">
+          <h3 style="margin-bottom: 15px;">🧪 详细分析指标</h3>
+          <div class="detail-grid" id="detailGrid">
+            <!-- 动态生成 -->
+          </div>
+        </div>
+        
+        <div class="log-section" id="logSection">
+          <strong style="display: block; margin-bottom: 10px;">📝 检测日志</strong>
+          <div id="logEntries"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/validation-worker.js"></script>
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const uploadArea = document.getElementById('uploadArea');
+    const loading = document.getElementById('loading');
+    const previewSection = document.getElementById('previewSection');
+    const previewImage = document.getElementById('previewImage');
+    const logEntries = document.getElementById('logEntries');
+    
+    // 日志记录
+    function addLog(message, type = 'info') {
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      const timestamp = new Date().toLocaleTimeString();
+      entry.textContent = `[${timestamp}] ${message}`;
+      logEntries.appendChild(entry);
+      logEntries.parentElement.scrollTop = logEntries.parentElement.scrollHeight;
+    }
+    
+    // 拖拽上传
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragging');
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragging');
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragging');
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        handleFile(files[0]);
+      }
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleFile(e.target.files[0]);
+      }
+    });
+    
+    async function handleFile(file) {
+      if (!file.type.startsWith('image/')) {
+        alert('请选择图片文件！');
+        return;
+      }
+      
+      addLog(`开始处理图片: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`, 'info');
+      
+      // 显示预览
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewImage.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+      
+      // 显示加载状态
+      uploadArea.style.display = 'none';
+      loading.classList.add('active');
+      previewSection.classList.remove('active');
+      
+      try {
+        // 读取文件为ArrayBuffer
+        const arrayBuffer = await file.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        addLog('开始水印检测分析...', 'info');
+        
+        // 调用简化水印检测函数（独立检测专用）
+        const result = await detectWatermarkSimpleImproved(uint8Array);
+        
+        addLog(`检测完成！置信度: ${result.watermarkConfidence.toFixed(2)}`, 'success');
+        
+        // 显示结果
+        displayResults(result, file);
+        
+      } catch (error) {
+        addLog(`检测失败: ${error.message}`, 'error');
+        console.error('检测失败:', error);
+        alert('检测失败: ' + error.message);
+      } finally {
+        loading.classList.remove('active');
+        previewSection.classList.add('active');
+      }
+    }
+    
+    function displayResults(result, file) {
+      // 水印检测结果
+      const watermarkResult = document.getElementById('watermarkResult');
+      watermarkResult.textContent = result.hasWatermark ? '✅ 检测到水印' : '❌ 未检测到水印';
+      watermarkResult.className = `result-value ${result.hasWatermark ? 'positive' : 'negative'}`;
+      
+      // 置信度
+      const confidence = result.watermarkConfidence;
+      document.getElementById('confidenceValue').textContent = confidence.toFixed(2);
+      
+      // 置信度进度条
+      const confidenceFill = document.getElementById('confidenceFill');
+      const confidencePercent = document.getElementById('confidencePercent');
+      setTimeout(() => {
+        confidenceFill.style.width = `${confidence}%`;
+        confidencePercent.textContent = `${confidence.toFixed(1)}%`;
+      }, 100);
+      
+      // 处理时间
+      document.getElementById('processingTime').textContent = 
+        `${result.processingTime.toFixed(2)} ms`;
+      
+      // 图片尺寸
+      const img = new Image();
+      img.onload = () => {
+        document.getElementById('imageSize').textContent = 
+          `${img.width} × ${img.height} px`;
+      };
+      img.src = previewImage.src;
+      
+      // 详细分析指标
+      const detailGrid = document.getElementById('detailGrid');
+      detailGrid.innerHTML = '';
+      
+      const details = result.analysisDetails || {};
+      const metrics = [
+        { title: '频域分析', value: details.frequencyScore || '0', key: 'frequency' },
+        { title: '梯度分析', value: details.gradientScore || '0', key: 'gradient' },
+        { title: '纹理分析', value: details.textureScore || '0', key: 'texture' },
+        { title: '颜色通道', value: details.colorChannelScore || '0', key: 'colorChannel' },
+        { title: '区域分析', value: details.regionScore || '0', key: 'region' },
+        { title: '透明度', value: details.alphaScore || '0', key: 'alpha' }
+      ];
+      
+      metrics.forEach(metric => {
+        const card = document.createElement('div');
+        card.className = 'detail-card';
+        card.innerHTML = `
+          <div class="detail-title">${metric.title}</div>
+          <div class="detail-value">${metric.value}</div>
+        `;
+        detailGrid.appendChild(card);
+        
+        addLog(`${metric.title}: ${metric.value}`, 'info');
+      });
+      
+      // 检测方法和区域
+      if (result.detectionMethod) {
+        addLog(`检测方法: ${result.detectionMethod}`, 'info');
+      }
+      
+      if (result.watermarkRegions && result.watermarkRegions.length > 0) {
+        addLog(`检测到水印区域: ${result.watermarkRegions.join(', ')}`, 'warning');
+      }
+      
+      // 主要特征
+      if (details.dominantFeatures && details.dominantFeatures.length > 0) {
+        addLog(`主要特征: ${details.dominantFeatures.join(', ')}`, 'info');
+      }
+    }
+    
+    // ========== 改进的简化水印检测算法 ==========
+    async function detectWatermarkSimpleImproved(fileData) {
+      const startTime = performance.now();
+      
+      // 解码图片
+      const blob = new Blob([fileData]);
+      const bitmap = await createImageBitmap(blob);
+      
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(bitmap, 0, 0);
+      
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const { data, width, height } = imageData;
+      
+      addLog(`图片尺寸: ${width}×${height}`, 'info');
+      
+      // 1. 边缘密度分析 - 关注边缘位置分布
+      const edgeInfo = analyzeEdgeDistribution(data, width, height);
+      addLog(`边缘密度: ${edgeInfo.density.toFixed(2)}, 边缘位置得分: ${edgeInfo.positionScore.toFixed(2)}`, 'info');
+      
+      // 2. 区域一致性分析 - 检测水印通常存在的角落/边缘区域
+      const regionInfo = analyzeRegionConsistency(data, width, height);
+      addLog(`区域一致性得分: ${regionInfo.score.toFixed(2)}, 检测区域: ${regionInfo.regions.join(', ')}`, 'info');
+      
+      // 3. 颜色特征分析 - 水印通常为单一颜色或半透明
+      const colorInfo = analyzeColorFeatures(data, width, height);
+      addLog(`颜色均匀度: ${colorInfo.uniformity.toFixed(2)}, 单色特征: ${colorInfo.isMonochromatic ? '是' : '否'}`, 'info');
+      
+      // 4. 透明度分析 - PNG水印可能有alpha通道
+      const alphaInfo = analyzeAlphaFeatures(data);
+      addLog(`透明度特征得分: ${alphaInfo.score.toFixed(2)}`, 'info');
+      
+      // 综合评分 - 多维度加权
+      let confidence = 0;
+      let features = [];
+      
+      // 边缘分析权重（降低，避免误判）
+      if (edgeInfo.positionScore > 30) {
+        confidence += edgeInfo.positionScore * 0.3; // 降低边缘权重
+        features.push('边缘位置');
+      }
+      
+      // 区域一致性权重（提高）
+      if (regionInfo.score > 20) {
+        confidence += regionInfo.score * 0.4; // 提高区域权重
+        features.push('区域特征');
+      }
+      
+      // 颜色特征权重
+      if (colorInfo.uniformity > 0.6 || colorInfo.isMonochromatic) {
+        confidence += colorInfo.score * 0.2;
+        features.push('颜色特征');
+      }
+      
+      // 透明度特征权重
+      if (alphaInfo.score > 15) {
+        confidence += alphaInfo.score * 0.1;
+        features.push('透明度');
+      }
+      
+      // 限制最大值
+      confidence = Math.min(confidence, 100);
+      
+      // 判定阈值：45%
+      const hasWatermark = confidence >= 45;
+      
+      const processingTime = performance.now() - startTime;
+      
+      return {
+        hasWatermark,
+        watermarkConfidence: confidence,
+        processingTime,
+        detectionMethod: 'Simplified Multi-Dimensional',
+        watermarkRegions: regionInfo.regions,
+        analysisDetails: {
+          edgeDensity: edgeInfo.density.toFixed(2),
+          edgePositionScore: edgeInfo.positionScore.toFixed(2),
+          regionScore: regionInfo.score.toFixed(2),
+          colorUniformity: colorInfo.uniformity.toFixed(2),
+          alphaScore: alphaInfo.score.toFixed(2),
+          dominantFeatures: features
+        }
+      };
+    }
+    
+    // 边缘分布分析 - 关注位置而非仅密度
+    function analyzeEdgeDistribution(data, width, height) {
+      let edgeCount = 0;
+      let cornerEdges = 0; // 角落边缘
+      let borderEdges = 0; // 边界边缘
+      let centerEdges = 0; // 中心边缘
+      
+      const cornerSize = Math.min(width, height) * 0.25; // 角落区域
+      const borderSize = Math.min(width, height) * 0.15; // 边界区域
+      
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const idx = (y * width + x) * 4;
+          
+          // Sobel边缘检测
+          const gx = -data[idx - 4 - width * 4] - 2 * data[idx - width * 4] - data[idx + 4 - width * 4] +
+                      data[idx - 4 + width * 4] + 2 * data[idx + width * 4] + data[idx + 4 + width * 4];
+          const gy = -data[idx - 4 - width * 4] - 2 * data[idx - 4] - data[idx - 4 + width * 4] +
+                      data[idx + 4 - width * 4] + 2 * data[idx + 4] + data[idx + 4 + width * 4];
+          
+          const magnitude = Math.sqrt(gx * gx + gy * gy);
+          
+          if (magnitude > 30) {
+            edgeCount++;
+            
+            // 判断位置
+            const isInCorner = (x < cornerSize || x > width - cornerSize) && 
+                              (y < cornerSize || y > height - cornerSize);
+            const isOnBorder = x < borderSize || x > width - borderSize || 
+                              y < borderSize || y > height - borderSize;
+            
+            if (isInCorner) {
+              cornerEdges++;
+            } else if (isOnBorder) {
+              borderEdges++;
+            } else {
+              centerEdges++;
+            }
+          }
+        }
+      }
+      
+      const totalPixels = width * height;
+      const density = (edgeCount / totalPixels) * 100;
+      
+      // 位置得分：水印通常在角落或边界，而非全图分布
+      const cornerRatio = cornerEdges / (edgeCount || 1);
+      const borderRatio = borderEdges / (edgeCount || 1);
+      const centerRatio = centerEdges / (edgeCount || 1);
+      
+      // 如果中心边缘占比过高（>60%），很可能是正常图片内容
+      let positionScore = 0;
+      if (centerRatio < 0.6) {
+        // 角落和边界边缘占比高，可能是水印
+        positionScore = (cornerRatio * 50 + borderRatio * 30) * (density / 5);
+      } else {
+        // 中心边缘过多，降低得分
+        positionScore = density * 0.3; // 大幅降低
+      }
+      
+      return {
+        density,
+        positionScore: Math.min(positionScore, 100),
+        cornerRatio,
+        borderRatio,
+        centerRatio
+      };
+    }
+    
+    // 区域一致性分析 - 检测特定区域的一致性特征
+    function analyzeRegionConsistency(data, width, height) {
+      const regions = ['左上', '右上', '左下', '右下', '中心'];
+      const regionSize = Math.min(width, height) * 0.2;
+      
+      const regionScores = [];
+      const detectedRegions = [];
+      
+      // 定义区域位置
+      const regionPositions = [
+        { x: 0, y: 0, name: '左上' },
+        { x: width - regionSize, y: 0, name: '右上' },
+        { x: 0, y: height - regionSize, name: '左下' },
+        { x: width - regionSize, y: height - regionSize, name: '右下' },
+        { x: (width - regionSize) / 2, y: (height - regionSize) / 2, name: '中心' }
+      ];
+      
+      regionPositions.forEach(region => {
+        const score = analyzeRegionUniformity(data, width, height, region.x, region.y, regionSize);
+        regionScores.push(score);
+        
+        if (score > 30) {
+          detectedRegions.push(region.name);
+        }
+      });
+      
+      // 平均区域得分
+      const avgScore = regionScores.reduce((a, b) => a + b, 0) / regionScores.length;
+      
+      return {
+        score: avgScore,
+        regions: detectedRegions
+      };
+    }
+    
+    // 分析单个区域的均匀性
+    function analyzeRegionUniformity(data, width, height, startX, startY, size) {
+      const colors = [];
+      let alphaCount = 0;
+      
+      for (let y = startY; y < Math.min(startY + size, height); y++) {
+        for (let x = startX; x < Math.min(startX + size, width); x++) {
+          const idx = (y * width + x) * 4;
+          colors.push({ r: data[idx], g: data[idx + 1], b: data[idx + 2] });
+          
+          if (data[idx + 3] < 255) {
+            alphaCount++;
+          }
+        }
+      }
+      
+      // 计算颜色方差（方差小=均匀）
+      const avgR = colors.reduce((sum, c) => sum + c.r, 0) / colors.length;
+      const avgG = colors.reduce((sum, c) => sum + c.g, 0) / colors.length;
+      const avgB = colors.reduce((sum, c) => sum + c.b, 0) / colors.length;
+      
+      const variance = colors.reduce((sum, c) => {
+        return sum + Math.pow(c.r - avgR, 2) + Math.pow(c.g - avgG, 2) + Math.pow(c.b - avgB, 2);
+      }, 0) / colors.length;
+      
+      // 方差越小，得分越高
+      const uniformityScore = Math.max(0, 100 - variance / 100);
+      
+      // 有透明度特征加分
+      const alphaBonus = (alphaCount / colors.length) * 20;
+      
+      return Math.min(uniformityScore + alphaBonus, 100);
+    }
+    
+    // 颜色特征分析
+    function analyzeColorFeatures(data, width, height) {
+      const colorCounts = new Map();
+      let totalPixels = 0;
+      
+      for (let i = 0; i < data.length; i += 4) {
+        const color = `${data[i]},${data[i + 1]},${data[i + 2]}`;
+        colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
+        totalPixels++;
+      }
+      
+      // 颜色种类数
+      const uniqueColors = colorCounts.size;
+      
+      // 最常见颜色占比
+      const maxColorCount = Math.max(...colorCounts.values());
+      const dominantColorRatio = maxColorCount / totalPixels;
+      
+      // 判断是否单色或近似单色
+      const isMonochromatic = uniqueColors < totalPixels * 0.05 || dominantColorRatio > 0.7;
+      
+      // 均匀度：颜色种类少 = 均匀度高
+      const uniformity = Math.max(0, 1 - uniqueColors / (totalPixels * 0.1));
+      
+      // 得分
+      let score = 0;
+      if (isMonochromatic) {
+        score += 40;
+      }
+      score += uniformity * 60;
+      
+      return {
+        uniformity,
+        isMonochromatic,
+        uniqueColors,
+        dominantColorRatio,
+        score: Math.min(score, 100)
+      };
+    }
+    
+    // 透明度特征分析
+    function analyzeAlphaFeatures(data) {
+      let semiTransparentCount = 0;
+      let fullyTransparentCount = 0;
+      let opaqueCount = 0;
+      
+      for (let i = 3; i < data.length; i += 4) {
+        const alpha = data[i];
+        
+        if (alpha === 0) {
+          fullyTransparentCount++;
+        } else if (alpha < 255) {
+          semiTransparentCount++;
+        } else {
+          opaqueCount++;
+        }
+      }
+      
+      const totalPixels = data.length / 4;
+      const semiTransparentRatio = semiTransparentCount / totalPixels;
+      
+      // 水印通常有半透明特征
+      let score = 0;
+      if (semiTransparentRatio > 0.1 && semiTransparentRatio < 0.9) {
+        score = semiTransparentRatio * 100;
+      }
+      
+      return {
+        semiTransparentRatio,
+        fullyTransparentRatio: fullyTransparentCount / totalPixels,
+        opaqueRatio: opaqueCount / totalPixels,
+        score: Math.min(score, 100)
+      };
+    }
+    
+    // 初始化日志
+    addLog('水印检测系统已就绪', 'success');
+    addLog('当前使用: 改进的简化多维度检测算法', 'info');
+    addLog('当前检测阈值: 45% (置信度 ≥ 45 判定为有水印)', 'info');
+  </script>
+</body>
+</html>

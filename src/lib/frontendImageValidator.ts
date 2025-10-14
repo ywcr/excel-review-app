@@ -50,7 +50,7 @@ export class FrontendImageValidator {
    * 验证图片质量
    * @deprecated 请使用 ImageProcessor.validateImages
    */
-  async validateImages(images: ImageInfo[]): Promise<ImageValidationSummary> {
-    return this.processor.validateImages(images);
+  async validateImages(images: ImageInfo[], enableWatermarkDetection: boolean = false): Promise<ImageValidationSummary> {
+    return this.processor.validateImages(images, enableWatermarkDetection);
   }
 }

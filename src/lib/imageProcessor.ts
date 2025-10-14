@@ -26,6 +26,14 @@ export const IMAGE_CONFIG = {
   BORDER_COLOR_TOLERANCE: 15, // 颜色容差（0-255）- 适中的容差
   BORDER_CONSISTENCY_RATIO: 0.90, // 边框一致性比例（90%的像素需要符合条件）- 平衡的阈值
   BORDER_BRIGHTNESS_DIFF: 30, // 边框与内容的最小亮度差异 - 提高到30更严格的边界判断
+  // 水印检测配置
+  WATERMARK_EDGE_REGION_RATIO: 0.15, // 边缘区域占比（15%）
+  WATERMARK_CENTER_BOTTOM_HEIGHT: 0.25, // 底部中间区域高度（25%，扩大覆盖范围）
+  WATERMARK_EDGE_THRESHOLD: 25, // 边缘强度阈值（降低以提高灵敏度）
+  WATERMARK_CONTRAST_THRESHOLD: 35, // 对比度阈值（降低以提高灵敏度）
+  WATERMARK_MIN_TEXT_COMPLEXITY: 12, // 最小文字复杂度（降低以提高灵敏度）
+  WATERMARK_MIN_BRIGHTNESS: 20, // 最小亮度（非纯黑背景）
+  WATERMARK_MAX_SIZE: 800, // 水印检测最大处理尺寸（性能优化）
   // 动态并发控制
   MIN_CONCURRENCY: 2,
   MAX_CONCURRENCY: 8,
@@ -78,6 +86,10 @@ export interface ImageValidationResult {
   hasBorder?: boolean;
   borderSides?: string[]; // ['top', 'bottom', 'left', 'right']
   borderWidth?: { top?: number; bottom?: number; left?: number; right?: number };
+  // 水印检测结果
+  hasWatermark?: boolean;
+  watermarkRegions?: string[]; // ['topLeft', 'topRight', 'bottomLeft', 'bottomRight', 'centerBottom']
+  watermarkConfidence?: number; // 0-1
 }
 
 // 图片验证汇总接口
@@ -212,9 +224,10 @@ export class ImageProcessor {
   /**
    * 验证图片质量（清晰度、重复性和高级质量指标）
    * @param images 图片数组
+   * @param enableWatermarkDetection 是否启用水印检测（默认false）
    * @returns 验证结果汇总
    */
-  async validateImages(images: ImageInfo[]): Promise<ImageValidationSummary> {
+  async validateImages(images: ImageInfo[], enableWatermarkDetection: boolean = false): Promise<ImageValidationSummary> {
     const results: ImageValidationResult[] = [];
     let concurrency = this.getDynamicConcurrency();
 
@@ -240,6 +253,11 @@ export class ImageProcessor {
             this.calculateQualityMetrics(image.data),
             this.detectSolidBorder(image.data),
           ]);
+          
+          // 只有当启用水印检测时才进行水印检测（单独执行以避免类型错误）
+          const watermarkInfo = enableWatermarkDetection
+            ? await this.detectWatermark(image.data)
+            : { hasWatermark: false, watermarkRegions: [], watermarkConfidence: 0 };
 
           return {
             id: image.id,
@@ -254,6 +272,8 @@ export class ImageProcessor {
             ...qualityMetrics,
             // 边框检测结果
             ...borderInfo,
+            // 水印检测结果
+            ...watermarkInfo,
           };
         } catch (error) {
           console.warn(`Failed to validate image ${image.id}:`, error);
@@ -788,6 +808,289 @@ export class ImageProcessor {
     // 检查一致性比例是否达到阈值
     const ratio = consistentPixels / colors.length;
     return ratio >= consistencyRatio;
+  }
+
+  /**
+   * 检测图片水印（边缘文字检测）
+   * @param imageData 图片数据
+   * @returns 水印检测结果
+   */
+  async detectWatermark(
+    imageData: Uint8Array
+  ): Promise<{
+    hasWatermark: boolean;
+    watermarkRegions: string[];
+    watermarkConfidence: number;
+  }> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const blob = new Blob([new Uint8Array(imageData)]);
+      const url = URL.createObjectURL(blob);
+
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("无法创建Canvas上下文"));
+            return;
+          }
+
+          // 性能优化：降采样到合理尺寸
+          const maxSize = IMAGE_CONFIG.WATERMARK_MAX_SIZE;
+          const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+          const width = Math.floor(img.width * scale);
+          const height = Math.floor(img.height * scale);
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const imageData = ctx.getImageData(0, 0, width, height);
+          const data = imageData.data;
+
+          // 定义检测区域：9宫格策略（外围一圈+底部中心）
+          const regionRatio = IMAGE_CONFIG.WATERMARK_EDGE_REGION_RATIO;
+          const regions = {
+            // 顶部两角
+            topLeft: {
+              x: 0,
+              y: 0,
+              width: Math.floor(width * regionRatio),
+              height: Math.floor(height * regionRatio),
+              name: 'topLeft',
+            },
+            topRight: {
+              x: Math.floor(width * (1 - regionRatio)),
+              y: 0,
+              width: Math.floor(width * regionRatio),
+              height: Math.floor(height * regionRatio),
+              name: 'topRight',
+            },
+            // 左右中间（新增）
+            leftMiddle: {
+              x: 0,
+              y: Math.floor(height * 0.4),
+              width: Math.floor(width * regionRatio),
+              height: Math.floor(height * 0.2),
+              name: 'leftMiddle',
+            },
+            rightMiddle: {
+              x: Math.floor(width * (1 - regionRatio)),
+              y: Math.floor(height * 0.4),
+              width: Math.floor(width * regionRatio),
+              height: Math.floor(height * 0.2),
+              name: 'rightMiddle',
+            },
+            // 底部三个区域
+            bottomLeft: {
+              x: 0,
+              y: Math.floor(height * (1 - regionRatio)),
+              width: Math.floor(width * regionRatio),
+              height: Math.floor(height * regionRatio),
+              name: 'bottomLeft',
+            },
+            bottomRight: {
+              x: Math.floor(width * (1 - regionRatio)),
+              y: Math.floor(height * (1 - regionRatio)),
+              width: Math.floor(width * regionRatio),
+              height: Math.floor(height * regionRatio),
+              name: 'bottomRight',
+            },
+            centerBottom: {
+              x: Math.floor(width * 0.35),
+              y: Math.floor(height * (1 - IMAGE_CONFIG.WATERMARK_CENTER_BOTTOM_HEIGHT)),
+              width: Math.floor(width * 0.3),
+              height: Math.floor(height * IMAGE_CONFIG.WATERMARK_CENTER_BOTTOM_HEIGHT),
+              name: 'centerBottom',
+            },
+          };
+
+          // 检测每个区域
+          const watermarkRegions: string[] = [];
+          let totalConfidence = 0;
+
+          for (const [key, region] of Object.entries(regions)) {
+            const regionData = this.extractRegion(data, width, height, region);
+            const features = this.analyzeRegionFeatures(regionData, region.width, region.height);
+
+            // 判断是否为水印
+            if (this.isWatermarkRegion(features)) {
+              watermarkRegions.push(region.name);
+              totalConfidence += features.confidence;
+            }
+          }
+
+          // 计算总体置信度
+          const avgConfidence =
+            watermarkRegions.length > 0 ? totalConfidence / watermarkRegions.length : 0;
+
+          URL.revokeObjectURL(url);
+          resolve({
+            hasWatermark: watermarkRegions.length > 0,
+            watermarkRegions,
+            watermarkConfidence: Math.min(1, avgConfidence),
+          });
+        } catch (error) {
+          URL.revokeObjectURL(url);
+          reject(error);
+        }
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("图片加载失败"));
+      };
+
+      img.src = url;
+    });
+  }
+
+  /**
+   * 提取区域像素数据
+   */
+  private extractRegion(
+    data: Uint8ClampedArray,
+    imageWidth: number,
+    imageHeight: number,
+    region: { x: number; y: number; width: number; height: number }
+  ): Uint8ClampedArray {
+    const regionData = new Uint8ClampedArray(region.width * region.height * 4);
+    let destIdx = 0;
+
+    for (let y = 0; y < region.height; y++) {
+      for (let x = 0; x < region.width; x++) {
+        const srcX = region.x + x;
+        const srcY = region.y + y;
+        const srcIdx = (srcY * imageWidth + srcX) * 4;
+
+        regionData[destIdx++] = data[srcIdx];
+        regionData[destIdx++] = data[srcIdx + 1];
+        regionData[destIdx++] = data[srcIdx + 2];
+        regionData[destIdx++] = data[srcIdx + 3];
+      }
+    }
+
+    return regionData;
+  }
+
+  /**
+   * 分析区域特征
+   */
+  private analyzeRegionFeatures(
+    data: Uint8ClampedArray,
+    width: number,
+    height: number
+  ): {
+    edgeStrength: number;
+    contrast: number;
+    textureComplexity: number;
+    averageBrightness: number;
+    confidence: number;
+  } {
+    // 转换为灰度图
+    const gray = new Array(width * height);
+    let brightnessSum = 0;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const grayValue = 0.299 * r + 0.587 * g + 0.114 * b;
+      gray[i / 4] = grayValue;
+      brightnessSum += grayValue;
+    }
+
+    const averageBrightness = brightnessSum / gray.length;
+
+    // 1. 计算边缘强度（Sobel算子）
+    let edgeStrength = 0;
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        const idx = y * width + x;
+        // Sobel X
+        const gx =
+          -gray[idx - width - 1] +
+          gray[idx - width + 1] -
+          2 * gray[idx - 1] +
+          2 * gray[idx + 1] -
+          gray[idx + width - 1] +
+          gray[idx + width + 1];
+        // Sobel Y
+        const gy =
+          -gray[idx - width - 1] -
+          2 * gray[idx - width] -
+          gray[idx - width + 1] +
+          gray[idx + width - 1] +
+          2 * gray[idx + width] +
+          gray[idx + width + 1];
+        edgeStrength += Math.sqrt(gx * gx + gy * gy);
+      }
+    }
+    edgeStrength /= (width - 2) * (height - 2);
+
+    // 2. 计算对比度（标准差）
+    let varianceSum = 0;
+    for (let i = 0; i < gray.length; i++) {
+      varianceSum += Math.pow(gray[i] - averageBrightness, 2);
+    }
+    const contrast = Math.sqrt(varianceSum / gray.length);
+
+    // 3. 计算纹理复杂度（局部方差）
+    let textureSum = 0;
+    let textureCount = 0;
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        const idx = y * width + x;
+        const center = gray[idx];
+        const neighbors = [
+          gray[idx - width - 1],
+          gray[idx - width],
+          gray[idx - width + 1],
+          gray[idx - 1],
+          gray[idx + 1],
+          gray[idx + width - 1],
+          gray[idx + width],
+          gray[idx + width + 1],
+        ];
+        const neighborAvg = neighbors.reduce((a, b) => a + b, 0) / 8;
+        textureSum += Math.abs(center - neighborAvg);
+        textureCount++;
+      }
+    }
+    const textureComplexity = textureCount > 0 ? textureSum / textureCount : 0;
+
+    // 计算总体置信度（0-1）
+    const edgeScore = Math.min(1, edgeStrength / 50); // 归一化到50
+    const contrastScore = Math.min(1, contrast / 60);
+    const textureScore = Math.min(1, textureComplexity / 25);
+    const confidence = (edgeScore + contrastScore + textureScore) / 3;
+
+    return {
+      edgeStrength,
+      contrast,
+      textureComplexity,
+      averageBrightness,
+      confidence,
+    };
+  }
+
+  /**
+   * 判断区域是否为水印
+   */
+  private isWatermarkRegion(features: {
+    edgeStrength: number;
+    contrast: number;
+    textureComplexity: number;
+    averageBrightness: number;
+    confidence: number;
+  }): boolean {
+    return (
+      features.edgeStrength > IMAGE_CONFIG.WATERMARK_EDGE_THRESHOLD &&
+      features.contrast > IMAGE_CONFIG.WATERMARK_CONTRAST_THRESHOLD &&
+      features.textureComplexity > IMAGE_CONFIG.WATERMARK_MIN_TEXT_COMPLEXITY &&
+      features.averageBrightness > IMAGE_CONFIG.WATERMARK_MIN_BRIGHTNESS
+    );
   }
 
   /**

@@ -53,6 +53,10 @@ interface ValidationResult {
       hasBorder?: boolean;
       borderSides?: string[];
       borderWidth?: { top?: number; bottom?: number; left?: number; right?: number };
+      // 水印检测结果
+      hasWatermark?: boolean;
+      watermarkRegions?: string[];
+      watermarkConfidence?: number;
     }>;
     warning?: string; // 图片解析警告（例如 .xls 不支持）
   };
@@ -93,7 +97,8 @@ export default function ValidationResults({
     web: boolean;
     lowPixel: boolean;
     border: boolean;
-  }>({ blurry: true, duplicate: true, dimension: true, web: true, lowPixel: true, border: true });
+    watermark: boolean;
+  }>({ blurry: true, duplicate: true, dimension: true, web: true, lowPixel: true, border: true, watermark: true });
 
   // 行高亮定位：为图片问题行建立ref映射
   const imageRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
@@ -643,6 +648,15 @@ export default function ValidationResults({
                   />
                   显示存在边框
                 </label>
+                <label className="inline-flex items-center text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    className="mr-1"
+                    checked={imageFilter.watermark}
+                    onChange={(e) => setImageFilter((prev) => ({ ...prev, watermark: e.target.checked }))}
+                  />
+                  显示水印
+                </label>
               </div>
             </div>
           </div>
@@ -679,56 +693,83 @@ export default function ValidationResults({
                     const isWeb = typeof result.webLikelihood === 'number' && result.webLikelihood >= 0.55;  // 从0.6降到0.55
                     const isLowPixel = !!result.isLowPixel;
                     const hasBorderIssue = !!result.hasBorder;
+                    const hasWatermarkIssue = !!result.hasWatermark;
                     return (
                       (imageFilter.duplicate && isDup) ||
                       (imageFilter.dimension && isDimBad) ||
                       (imageFilter.blurry && isBlur) ||
                       (imageFilter.web && isWeb) ||
                       (imageFilter.lowPixel && isLowPixel) ||
-                      (imageFilter.border && hasBorderIssue)
+                      (imageFilter.border && hasBorderIssue) ||
+                      (imageFilter.watermark && hasWatermarkIssue)
                     );
                   })
                 )
                   .sort((a, b) => {
-// 优先级排序：重复图片 > 边框 > 模糊图片 > 疑似网图 > 疑似非手机拍摄
-const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
+                    // 排序优先级：
+                    // 1. 重复图片
+                    // 2. 有边框
+                    // 3. 有水印
+                    // 4. 模糊
+                    // 5. 新评分系统（按分数从高到低）
+                    // 6. 旧系统其他问题
+                    // 7. 按位置排序
+
+                    // 1. 重复图片最优先
+                    const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                     const bHasDuplicates = (b.duplicates?.length ?? 0) > 0;
+                    if (aHasDuplicates && !bHasDuplicates) return -1;
+                    if (!aHasDuplicates && bHasDuplicates) return 1;
+
+                    // 2. 有边框
                     const aBorder = !!a.hasBorder;
                     const bBorder = !!b.hasBorder;
+                    if (aBorder && !bBorder) return -1;
+                    if (!aBorder && bBorder) return 1;
+                    
+                    // 3. 有水印
+                    const aWatermark = !!a.hasWatermark;
+                    const bWatermark = !!b.hasWatermark;
+                    if (aWatermark && !bWatermark) return -1;
+                    if (!aWatermark && bWatermark) return 1;
+                    
+                    // 4. 模糊
                     const aBlur = !!a.isBlurry;
                     const bBlur = !!b.isBlurry;
+                    if (aBlur && !bBlur) return -1;
+                    if (!aBlur && bBlur) return 1;
+
+                    // 5. 新评分系统：按可疑度分数从高到低排序
+                    const aScore = typeof a.suspicionScore === 'number' ? a.suspicionScore : -1;
+                    const bScore = typeof b.suspicionScore === 'number' ? b.suspicionScore : -1;
+                    
+                    // 如果两者都有新评分，按分数排序（分数越高越严重）
+                    if (aScore >= 0 && bScore >= 0) {
+                      if (aScore !== bScore) return bScore - aScore; // 高分在前
+                    }
+                    
+                    // 如果只有一个有新评分，有评分的优先
+                    if (aScore >= 0 && bScore < 0) return -1;
+                    if (aScore < 0 && bScore >= 0) return 1;
+                    
+                    // 6. 旧系统其他问题：网图 > 尺寸异常 > 低像素
                     const aWeb = typeof a.webLikelihood === 'number' && a.webLikelihood >= 0.55;
                     const bWeb = typeof b.webLikelihood === 'number' && b.webLikelihood >= 0.55;
                     const aDimBad = a.dimensionOK === false;
                     const bDimBad = b.dimensionOK === false;
                     const aLowPixel = !!a.isLowPixel;
                     const bLowPixel = !!b.isLowPixel;
-
-                    // 1. 重复图片优先显示
-                    if (aHasDuplicates && !bHasDuplicates) return -1;
-                    if (!aHasDuplicates && bHasDuplicates) return 1;
-
-                    // 2. 然后显示存在边框
-                    if (aBorder && !bBorder) return -1;
-                    if (!aBorder && bBorder) return 1;
-
-// 3. 再显示模糊图片
-                    if (aBlur && !bBlur) return -1;
-                    if (!aBlur && bBlur) return 1;
-
-                    // 4. 再显示疑似网图
+                    
                     if (aWeb && !bWeb) return -1;
                     if (!aWeb && bWeb) return 1;
-
-                    // 5. 然后显示疑似非手机拍摄
+                    
                     if (aDimBad && !bDimBad) return -1;
                     if (!aDimBad && bDimBad) return 1;
-
-                    // 6. 然后显示低像素
+                    
                     if (aLowPixel && !bLowPixel) return -1;
                     if (!aLowPixel && bLowPixel) return 1;
 
-                    // 7. 同类型内按位置排序（行号优先，然后列号）
+                    // 7. 最后按位置排序（行号优先，然后列号）
                     const aRow = a.row ?? 999999;
                     const bRow = b.row ?? 999999;
                     if (aRow !== bRow) return aRow - bRow;
@@ -807,6 +848,11 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                               存在边框
                             </span>
                           )}
+                          {result.hasWatermark && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-500 text-white">
+                              有水印
+                            </span>
+                          )}
                           
                           {/* 模糊 */}
                           {result.isBlurry && (
@@ -853,11 +899,18 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                                   f.includes('GIF') || f.includes('WebP') || f.includes('PNG') || f.includes('压缩')
                                 );
                                 const borderFactors = factors.filter((f: string) => f.includes('边框'));
+                                const watermarkFactors = factors.filter((f: string) => f.includes('水印'));
                                 
                                 const tags = [];
                                 
                                 // 1. 主标签：根据最主要问题生成
-                                if (screenshotFactors.length > 0) {
+                                if (watermarkFactors.length > 0) {
+                                  tags.push(
+                                    <span key="main" className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClass}`}>
+                                      疑似水印 ({score}分)
+                                    </span>
+                                  );
+                                } else if (screenshotFactors.length > 0) {
                                   tags.push(
                                     <span key="main" className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClass}`}>
                                       疑似截图 ({score}分)
@@ -897,6 +950,34 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                                 
                                 // 2. 细节标签：显示具体问题点
                                 const detailColorClass = 'bg-gray-100 text-gray-700';
+                                
+                                // 水印问题
+                                if (watermarkFactors.length > 0) {
+                                  watermarkFactors.forEach((f: string, idx: number) => {
+                                    if (f.includes('多处水印')) {
+                                      const match = f.match(/\(([^)]+)\)/);
+                                      tags.push(
+                                        <span key={`watermark-${idx}`} className={`inline-flex px-2 py-1 text-xs rounded-full bg-purple-50 text-purple-700`}>
+                                          多处水印{match ? `(${match[1]})` : ''}
+                                        </span>
+                                      );
+                                    } else if (f.includes('两处水印')) {
+                                      const match = f.match(/\(([^)]+)\)/);
+                                      tags.push(
+                                        <span key={`watermark-${idx}`} className={`inline-flex px-2 py-1 text-xs rounded-full bg-purple-50 text-purple-700`}>
+                                          两处水印{match ? `(${match[1]})` : ''}
+                                        </span>
+                                      );
+                                    } else if (f.includes('边缘水印')) {
+                                      const match = f.match(/\(([^)]+)\)/);
+                                      tags.push(
+                                        <span key={`watermark-${idx}`} className={`inline-flex px-2 py-1 text-xs rounded-full ${detailColorClass}`}>
+                                          {match ? match[1] : '边缘水印'}
+                                        </span>
+                                      );
+                                    }
+                                  });
+                                }
                                 
                                 // 比例问题
                                 if (dimensionFactors.some((f: string) => f.includes('罕见比例'))) {
@@ -1064,6 +1145,22 @@ const aHasDuplicates = (a.duplicates?.length ?? 0) > 0;
                               return `${sideNames[side]}${width ? `(${width}px)` : ''}`;
                             }).join('、');
                             details.push(`边框: ${borderDesc}`);
+                          }
+                          if (result.hasWatermark && result.watermarkRegions && result.watermarkRegions.length > 0) {
+                            const regionNames: Record<string, string> = {
+                              topLeft: '左上角',
+                              topRight: '右上角',
+                              leftMiddle: '左中',
+                              rightMiddle: '右中',
+                              bottomLeft: '左下角',
+                              bottomRight: '右下角',
+                              centerBottom: '底部中间'
+                            };
+                            const watermarkDesc = result.watermarkRegions
+                              .map((region: string) => regionNames[region] || region)
+                              .join('、');
+                            const confidence = result.watermarkConfidence ? `，置信度${(result.watermarkConfidence * 100).toFixed(0)}%` : '';
+                            details.push(`水印: ${watermarkDesc}${confidence}`);
                           }
                           
                           const text = details.join('；');
