@@ -594,10 +594,52 @@ export class FrontendExcelValidator {
   private isValidDuration(value: any, params: any): boolean {
     if (!params || !params.minMinutes) return true;
 
-    const duration = Number(value);
-    if (isNaN(duration)) return false;
+    const duration = this.parseDuration(value);
+    if (duration === null) return false;
 
     return duration >= params.minMinutes;
+  }
+
+  // 解析持续时间，支持多种格式
+  // 支持: "60", "60分钟", "60 分钟", "1.5小时", "90min", "1h30m" 等
+  private parseDuration(value: any): number | null {
+    if (value === null || value === undefined || value === '') return null;
+
+    const str = String(value).trim();
+    if (!str) return null;
+
+    // 尝试直接转换为数字（纯数字格式）
+    const directNumber = Number(str);
+    if (!isNaN(directNumber) && directNumber >= 0) {
+      return directNumber;
+    }
+
+    // 匹配带中文单位的格式
+    // 匹配: "60分钟", "60 分钟", "1.5小时", "90分" 等
+    const chineseMinuteMatch = str.match(/^([0-9]+\.?[0-9]*)\s*(?:分钟?|min|mins|minutes?)$/i);
+    if (chineseMinuteMatch) {
+      const minutes = parseFloat(chineseMinuteMatch[1]);
+      return !isNaN(minutes) && minutes >= 0 ? minutes : null;
+    }
+
+    const chineseHourMatch = str.match(/^([0-9]+\.?[0-9]*)\s*(?:小时|时|hour|hours?|h)$/i);
+    if (chineseHourMatch) {
+      const hours = parseFloat(chineseHourMatch[1]);
+      return !isNaN(hours) && hours >= 0 ? hours * 60 : null;
+    }
+
+    // 匹配复合格式: "1小时30分钟", "1h30m", "1时30分" 等
+    const compositeMatch = str.match(/^([0-9]+)\s*(?:小时|时|h)\s*([0-9]+)\s*(?:分钟?|m)$/i);
+    if (compositeMatch) {
+      const hours = parseInt(compositeMatch[1], 10);
+      const minutes = parseInt(compositeMatch[2], 10);
+      if (!isNaN(hours) && !isNaN(minutes)) {
+        return hours * 60 + minutes;
+      }
+    }
+
+    // 如果都不匹配，返回null
+    return null;
   }
 
   // 最小值验证
