@@ -1,6 +1,276 @@
 const fs = require('fs');
 const path = require('path');
 
+// ========== 2D-FFT 频域分析模块 ==========
+// 简化的FFT实现（Cooley-Tukey算法）
+function fft1d(real, imag) {
+  const n = real.length;
+  if (n <= 1) return { real, imag };
+  
+  // 确保长度是2的幂
+  if ((n & (n - 1)) !== 0) {
+    throw new Error('FFT length must be power of 2');
+  }
+  
+  // 分治递归
+  const realEven = [], imagEven = [], realOdd = [], imagOdd = [];
+  for (let i = 0; i < n; i += 2) {
+    realEven.push(real[i]);
+    imagEven.push(imag[i]);
+    if (i + 1 < n) {
+      realOdd.push(real[i + 1]);
+      imagOdd.push(imag[i + 1]);
+    }
+  }
+  
+  const even = fft1d(realEven, imagEven);
+  const odd = fft1d(realOdd, imagOdd);
+  
+  const outReal = new Float32Array(n);
+  const outImag = new Float32Array(n);
+  
+  for (let k = 0; k < n / 2; k++) {
+    const angle = -2 * Math.PI * k / n;
+    const twiddleReal = Math.cos(angle);
+    const twiddleImag = Math.sin(angle);
+    
+    const tReal = twiddleReal * odd.real[k] - twiddleImag * odd.imag[k];
+    const tImag = twiddleReal * odd.imag[k] + twiddleImag * odd.real[k];
+    
+    outReal[k] = even.real[k] + tReal;
+    outImag[k] = even.imag[k] + tImag;
+    outReal[k + n / 2] = even.real[k] - tReal;
+    outImag[k + n / 2] = even.imag[k] - tImag;
+  }
+  
+  return { real: outReal, imag: outImag };
+}
+
+// 2D FFT（逐行再逐列）
+function fft2d(imageData, width, height) {
+  // 找到最接近的2的幂次方尺寸
+  const fftWidth = Math.pow(2, Math.ceil(Math.log2(width)));
+  const fftHeight = Math.pow(2, Math.ceil(Math.log2(height)));
+  
+  // 如果图像太大，进行降采样
+  const maxSize = 512;
+  let scale = 1;
+  if (fftWidth > maxSize || fftHeight > maxSize) {
+    scale = Math.min(maxSize / fftWidth, maxSize / fftHeight);
+  }
+  
+  const targetWidth = Math.pow(2, Math.floor(Math.log2(width * scale)));
+  const targetHeight = Math.pow(2, Math.floor(Math.log2(height * scale)));
+  
+  // 初始化频域数据
+  const real = new Float32Array(targetWidth * targetHeight);
+  const imag = new Float32Array(targetWidth * targetHeight);
+  
+  // 复制并填充图像数据
+  for (let y = 0; y < targetHeight; y++) {
+    for (let x = 0; x < targetWidth; x++) {
+      const srcX = Math.floor(x / scale);
+      const srcY = Math.floor(y / scale);
+      if (srcX < width && srcY < height) {
+        real[y * targetWidth + x] = imageData[srcY * width + srcX];
+      }
+    }
+  }
+  
+  // 逐行FFT
+  for (let y = 0; y < targetHeight; y++) {
+    const rowReal = real.slice(y * targetWidth, (y + 1) * targetWidth);
+    const rowImag = imag.slice(y * targetWidth, (y + 1) * targetWidth);
+    const result = fft1d(Array.from(rowReal), Array.from(rowImag));
+    real.set(result.real, y * targetWidth);
+    imag.set(result.imag, y * targetWidth);
+  }
+  
+  // 逐列FFT
+  for (let x = 0; x < targetWidth; x++) {
+    const colReal = [];
+    const colImag = [];
+    for (let y = 0; y < targetHeight; y++) {
+      colReal.push(real[y * targetWidth + x]);
+      colImag.push(imag[y * targetWidth + x]);
+    }
+    const result = fft1d(colReal, colImag);
+    for (let y = 0; y < targetHeight; y++) {
+      real[y * targetWidth + x] = result.real[y];
+      imag[y * targetWidth + x] = result.imag[y];
+    }
+  }
+  
+  return { real, imag, width: targetWidth, height: targetHeight };
+}
+
+// 计算频谱幅度
+function computeMagnitudeSpectrum(fftResult) {
+  const { real, imag, width, height } = fftResult;
+  const magnitude = new Float32Array(width * height);
+  
+  for (let i = 0; i < real.length; i++) {
+    magnitude[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
+  }
+  
+  return { magnitude, width, height };
+}
+
+// 频域特征提取
+function analyzeFrequencyDomain(gray, width, height) {
+  try {
+    // 执行2D-FFT
+    const fftResult = fft2d(gray, width, height);
+    const spectrum = computeMagnitudeSpectrum(fftResult);
+    
+    const fftW = spectrum.width;
+    const fftH = spectrum.height;
+    const mag = spectrum.magnitude;
+    
+    // 跳过DC分量（左上角）
+    const centerX = Math.floor(fftW / 2);
+    const centerY = Math.floor(fftH / 2);
+    
+    // 1. 检测周期性尖峰（平铺水印的特征）
+    let peakCount = 0;
+    let peakStrength = 0;
+    const threshold = computeAdaptiveThreshold(mag);
+    
+    // 在频谱中寻找显著的峰值（排除DC和极低频）
+    for (let y = 0; y < fftH; y++) {
+      for (let x = 0; x < fftW; x++) {
+        // 跳过DC分量和极低频区域
+        const distFromDC = Math.sqrt(Math.pow(x - 0, 2) + Math.pow(y - 0, 2));
+        if (distFromDC < 5) continue;
+        
+        const idx = y * fftW + x;
+        if (mag[idx] > threshold * 2) {
+          peakCount++;
+          peakStrength += mag[idx];
+        }
+      }
+    }
+    
+    // 2. 高频能量分析（嵌入式水印的特征）
+    let highFreqEnergy = 0;
+    let lowFreqEnergy = 0;
+    const highFreqRadius = Math.min(fftW, fftH) * 0.3;
+    const lowFreqRadius = Math.min(fftW, fftH) * 0.1;
+    
+    for (let y = 0; y < fftH; y++) {
+      for (let x = 0; x < fftW; x++) {
+        const distFromCenter = Math.sqrt(
+          Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2)
+        );
+        const idx = y * fftW + x;
+        
+        if (distFromCenter > highFreqRadius) {
+          highFreqEnergy += mag[idx] * mag[idx];
+        } else if (distFromCenter < lowFreqRadius) {
+          lowFreqEnergy += mag[idx] * mag[idx];
+        }
+      }
+    }
+    
+    // 3. 方向性分析（检测规律的角度分布）
+    const directionBins = 36; // 每10度一个bin
+    const directionHist = new Array(directionBins).fill(0);
+    
+    for (let y = 0; y < fftH; y++) {
+      for (let x = 0; x < fftW; x++) {
+        const dx = x - centerX;
+        const dy = y - centerY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        // 只分析中频区域
+        if (dist > 10 && dist < Math.min(fftW, fftH) * 0.4) {
+          const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+          const normalized = ((angle % 180) + 180) % 180;
+          const bin = Math.floor(normalized / 180 * directionBins);
+          const idx = y * fftW + x;
+          directionHist[bin] += mag[idx];
+        }
+      }
+    }
+    
+    // 计算方向集中度
+    const maxDir = Math.max(...directionHist);
+    const avgDir = directionHist.reduce((a, b) => a + b, 0) / directionBins;
+    const directionConcentration = avgDir > 0 ? (maxDir / avgDir) : 0;
+    
+    // 归一化特征分数（0-100）
+    const periodicityScore = Math.min(100, (peakCount / (fftW * fftH) * 10000));
+    const highFreqRatio = lowFreqEnergy > 0 ? highFreqEnergy / lowFreqEnergy : 0;
+    const highFreqScore = Math.min(100, Math.log(highFreqRatio + 1) * 20);
+    const directionScore = Math.min(100, (directionConcentration - 1) * 30);
+    
+    // 综合频域分数
+    const frequencyScore = (periodicityScore * 0.5 + highFreqScore * 0.3 + directionScore * 0.2);
+    
+    return {
+      periodicityScore: periodicityScore.toFixed(2),
+      highFreqScore: highFreqScore.toFixed(2),
+      directionScore: directionScore.toFixed(2),
+      frequencyScore: frequencyScore.toFixed(2),
+      peakCount,
+      hasPeriodicPattern: periodicityScore > 40,
+      hasHighFreqAnomaly: highFreqScore > 35
+    };
+  } catch (error) {
+    console.warn('[频域分析] 失败:', error.message);
+    return {
+      periodicityScore: '0',
+      highFreqScore: '0',
+      directionScore: '0',
+      frequencyScore: '0',
+      peakCount: 0,
+      hasPeriodicPattern: false,
+      hasHighFreqAnomaly: false
+    };
+  }
+}
+
+// 自适应阈值计算
+function computeAdaptiveThreshold(magnitude) {
+  // 计算中位数作为阈值基准
+  const sorted = Array.from(magnitude).sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  return median * 3;
+}
+
+// ========== 置信度分级策略 ==========
+function classifyConfidenceLevel(confidence, frequencyAnalysis) {
+  // 频域加成：如果频域分析强烈支持，可以提升置信度等级
+  let adjustedConfidence = confidence;
+  if (frequencyAnalysis.hasPeriodicPattern || frequencyAnalysis.hasHighFreqAnomaly) {
+    adjustedConfidence += parseFloat(frequencyAnalysis.frequencyScore) * 0.15;
+  }
+  
+  // 三级分类
+  if (adjustedConfidence >= 60) {
+    return {
+      level: 'HIGH',
+      label: '高置信度 - 确定有水印',
+      color: 'red',
+      description: '强烈水印信号，建议人工复核'
+    };
+  } else if (adjustedConfidence >= 25) {
+    return {
+      level: 'MEDIUM',
+      label: '中置信度 - 疑似水印',
+      color: 'orange',
+      description: '可能是压缩/模糊后的水印，或边缘文字，建议人工复核'
+    };
+  } else {
+    return {
+      level: 'LOW',
+      label: '低置信度 - 未检测到水印',
+      color: 'green',
+      description: '未发现明显水印特征'
+    };
+  }
+}
+
 // 复制水印检测核心逻辑
 function toGrayscale(data) {
   const n = data.length / 4;
@@ -859,6 +1129,9 @@ async function detectWatermark(imagePath) {
   // 边缘方向熵（区分多方向笔画 vs 规则网格）
   const edgeEntropy = computeEdgeDirectionEntropy(grad.ori, grad.mag, width, height, CFG.preprocess.edgeThreshold);
   
+  // 【新增】频域分析
+  const frequencyAnalysis = analyzeFrequencyDomain(gray, width, height);
+  
   // Repeated分支
   const periodicity = computePeriodicityScore(edgeMap, width, height, CFG.repeated.angles);
   const whiteness = computeWhitenessNearEdges(data, edgeMap, width, height);
@@ -1425,6 +1698,15 @@ async function detectWatermark(imagePath) {
   
   // 使用最大值作为置信度，但决策由二因子规则决定
   let fused = Math.max(scaledRepeated, scaledSingle, scaledBaseline);
+  
+  // 【新增】频域加成：如果频域分析检测到强周期性或高频异常，提升置信度
+  if (frequencyAnalysis.hasPeriodicPattern && parseFloat(frequencyAnalysis.periodicityScore) > 50) {
+    fused = Math.max(fused, parseFloat(frequencyAnalysis.frequencyScore));
+  }
+  if (frequencyAnalysis.hasHighFreqAnomaly && parseFloat(frequencyAnalysis.highFreqScore) > 45) {
+    fused += parseFloat(frequencyAnalysis.highFreqScore) * 0.15;
+  }
+  
   const confidence = Math.min(100, fused);
   // 自适应决策阈值（精准优先 + 保护强Alpha真水印）
   let effectiveThreshold = CFG.fusion.decision;
@@ -1448,17 +1730,29 @@ async function detectWatermark(imagePath) {
   // 限制阈值范围
   effectiveThreshold = Math.max(22, Math.min(60, effectiveThreshold));
   
-  // 应用硬性否决
+  // 【新增】频域分析可以作为独立的仲裁者，绕过某些硬性否决
+  const frequencyOverride = (
+    frequencyAnalysis.hasPeriodicPattern && 
+    parseFloat(frequencyAnalysis.periodicityScore) > 65
+  );
+  
+  // 应用硬性否决（但频域强信号可以部分豁免）
   let hasWatermark = twoFactorPass && (confidence >= effectiveThreshold);
-  if (hardReject) {
+  if (hardReject && !frequencyOverride) {
     hasWatermark = false;
   }
+  
+  // 【新增】计算置信度分级
+  const confidenceClassification = classifyConfidenceLevel(confidence, frequencyAnalysis);
   
   return {
     filename: path.basename(imagePath),
     size: `${width}×${height}`,
     hasWatermark,
     confidence: confidence.toFixed(2),
+    confidenceLevel: confidenceClassification.level,
+    confidenceLabel: confidenceClassification.label,
+    confidenceDescription: confidenceClassification.description,
     repeated: {
       periodicity: periodicity.toFixed(2),
       angleCoh: angleCoh.toFixed(2),
@@ -1515,6 +1809,16 @@ async function detectWatermark(imagePath) {
       isGrid: roiGridness.isGrid
     },
     edgeEntropy: edgeEntropy.toFixed(2),
+    // 【新增】频域分析信息
+    frequencyAnalysis: {
+      periodicityScore: frequencyAnalysis.periodicityScore,
+      highFreqScore: frequencyAnalysis.highFreqScore,
+      directionScore: frequencyAnalysis.directionScore,
+      frequencyScore: frequencyAnalysis.frequencyScore,
+      peakCount: frequencyAnalysis.peakCount,
+      hasPeriodicPattern: frequencyAnalysis.hasPeriodicPattern,
+      hasHighFreqAnomaly: frequencyAnalysis.hasHighFreqAnomaly
+    },
     // 【Phase 5】网格线检测信息
     phase5: {
       roiLineCoverage: (roiLineCoverage * 100).toFixed(2) + '%',
@@ -1566,7 +1870,7 @@ async function main() {
       // Log detailed info for watermarked images
       if (expectedWatermarked.has(img)) {
         console.log(`\n[WATERMARKED] ${img}:`);
-        console.log(`  Confidence: ${result.confidence}`);
+        console.log(`  Confidence: ${result.confidence} [${result.confidenceLevel}] - ${result.confidenceLabel}`);
         console.log(`  Single: TL=${result.single.textlikeness}, OC=${result.single.overlayConsistency}, AL=${result.single.alphaLike}, WE=${result.single.whiteEdgeRatio}, PW=${result.single.positionWeight}`);
         console.log(`  Single Score: ${result.single.score}, Passed: ${result.single.passed}`);
         console.log(`  Baseline: ${result.baseline}, EdgePos: ${result.edgeInfo.positionScore}`);
@@ -1576,6 +1880,8 @@ async function main() {
         console.log(`  [Phase 3] Concentration: ratio=${result.concentration.ratio}, roiDensity=${result.concentration.roiDensity}, textInROI=${result.concentration.textInROI}/${result.concentration.textTotal}`);
         console.log(`  [Phase 3] ROI Gridness: score=${result.roiGridness.score}, isGrid=${result.roiGridness.isGrid}`);
         console.log(`  [Phase 5] ROI Line Coverage: ${result.phase5.roiLineCoverage}, deltaSingle: ${result.phase5.deltaSingle}, lineSuppression: ${result.phase5.lineSuppression}`);
+        console.log(`  [频域分析] Periodicity: ${result.frequencyAnalysis.periodicityScore}, HighFreq: ${result.frequencyAnalysis.highFreqScore}, Direction: ${result.frequencyAnalysis.directionScore}`);
+        console.log(`  [频域分析] 周期性模式: ${result.frequencyAnalysis.hasPeriodicPattern ? '是' : '否'}, 高频异常: ${result.frequencyAnalysis.hasHighFreqAnomaly ? '是' : '否'}`);
         console.log(`  Decision: ${result.hasWatermark ? 'DETECTED' : 'MISSED'}`);
       }
       
