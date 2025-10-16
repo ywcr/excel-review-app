@@ -56,3 +56,16 @@ test_*.xlsx
 public/data/
 scripts/image_mapping.json
 html/zxyy2
+
+# Archived ML training files (moved to separate repo)
+archived/
+*.pt
+*.pth
+*.onnx
+temp/
+temp-*.txt
+test-output.txt
+watermark-test-*.txt
+*.csv
+PHASE*.md
+TRAINING_GUIDE.md

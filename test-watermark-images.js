@@ -196,6 +196,173 @@ function computeAngleCoherence(ori, mag, w, h, threshold) {
   return (maxBucket / angles.length) * 100;
 }
 
+// 【Phase 4 已回退】边缘方向熵：区分多方向文字水印 vs 单一方向网格
+function computeEdgeDirectionEntropy(ori, mag, w, h, threshold) {
+  if (!ori || !mag) return 0;
+  
+  const angles = [];
+  for (let i = 0; i < w * h; i++) {
+    if (mag[i] > threshold) {
+      angles.push(ori[i]);
+    }
+  }
+  
+  if (angles.length === 0) return 0;
+  
+  // 使用36个方向bin (180° / 36 = 5°每个bin)
+  const bins = 36;
+  const hist = new Array(bins).fill(0);
+  
+  angles.forEach(angle => {
+    let normalized = ((angle % 180) + 180) % 180;
+    let bin = Math.floor((normalized / 180) * bins);
+    if (bin >= bins) bin = bins - 1;
+    hist[bin]++;
+  });
+  
+  // 计算熵：H = -∑ p_i * log(p_i)
+  let entropy = 0;
+  const total = angles.length;
+  
+  for (let i = 0; i < bins; i++) {
+    if (hist[i] > 0) {
+      const p = hist[i] / total;
+      entropy -= p * Math.log(p);
+    }
+  }
+  
+  // 归一化到 0-100
+  // 最大熵：log(bins) ≈ log(36) ≈ 3.58
+  const maxEntropy = Math.log(bins);
+  const normalizedEntropy = (entropy / maxEntropy) * 100;
+  
+  return normalizedEntropy;
+}
+
+// 【Phase 5】网格线检测：显式检测水平/垂直长线
+function detectGridLines(edgeMap, ori, mag, w, h, threshold) {
+  const lineMask = new Uint8Array(w * h);
+  const minLineLength = Math.min(w, h) * 0.15;  // 最小线段长度为图像较小边15%
+  
+  // 水平线检测：逐行扫描
+  for (let y = 0; y < h; y++) {
+    let lineStart = -1;
+    for (let x = 0; x < w; x++) {
+      const idx = y * w + x;
+      const isHorizontalEdge = edgeMap[idx] && mag[idx] > threshold && 
+                              Math.abs(Math.abs(ori[idx]) - 90) < 15;  // 垂直方向梅度 = 水平线
+      
+      if (isHorizontalEdge) {
+        if (lineStart === -1) lineStart = x;
+      } else {
+        if (lineStart !== -1 && (x - lineStart) >= minLineLength) {
+          // 标记这条水平线
+          for (let xx = lineStart; xx < x; xx++) {
+            lineMask[y * w + xx] = 1;
+          }
+        }
+        lineStart = -1;
+      }
+    }
+    // 处理行尾
+    if (lineStart !== -1 && (w - lineStart) >= minLineLength) {
+      for (let xx = lineStart; xx < w; xx++) {
+        lineMask[y * w + xx] = 1;
+      }
+    }
+  }
+  
+  // 垂直线检测：逐列扫描
+  for (let x = 0; x < w; x++) {
+    let lineStart = -1;
+    for (let y = 0; y < h; y++) {
+      const idx = y * w + x;
+      const isVerticalEdge = edgeMap[idx] && mag[idx] > threshold && 
+                            (Math.abs(ori[idx]) < 15 || Math.abs(ori[idx] - 180) < 15);  // 水平方向梅度 = 垂直线
+      
+      if (isVerticalEdge) {
+        if (lineStart === -1) lineStart = y;
+      } else {
+        if (lineStart !== -1 && (y - lineStart) >= minLineLength) {
+          // 标记这条垂直线
+          for (let yy = lineStart; yy < y; yy++) {
+            lineMask[yy * w + x] = 1;
+          }
+        }
+        lineStart = -1;
+      }
+    }
+    // 处理列尾
+    if (lineStart !== -1 && (h - lineStart) >= minLineLength) {
+      for (let yy = lineStart; yy < h; yy++) {
+        lineMask[yy * w + x] = 1;
+      }
+    }
+  }
+  
+  return lineMask;
+}
+
+// 【Phase 5】计算ROI线覆盖率
+function computeROILineCoverage(lineMask, roi, w, h) {
+  if (!roi || !roi.w || roi.w <= 0 || !roi.h || roi.h <= 0) {
+    return { coverage: 0, linePixels: 0, roiPixels: 0 };
+  }
+  
+  let linePixels = 0;
+  let roiPixels = 0;
+  
+  for (let y = roi.y; y < roi.y + roi.h && y < h; y++) {
+    for (let x = roi.x; x < roi.x + roi.w && x < w; x++) {
+      roiPixels++;
+      if (lineMask[y * w + x]) {
+        linePixels++;
+      }
+    }
+  }
+  
+  const coverage = roiPixels > 0 ? (linePixels / roiPixels) * 100 : 0;
+  return { coverage, linePixels, roiPixels };
+}
+
+// 【Phase 5】生成线抑制版灰度图：在线位置填充邻域均值
+function suppressGridLines(gray, lineMask, w, h) {
+  const suppressed = new Uint8Array(gray.length);
+  // 复制原图
+  for (let i = 0; i < gray.length; i++) {
+    suppressed[i] = gray[i];
+  }
+  
+  // 对线位置进行抑制：用邻域非线像素的均值填充
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const idx = y * w + x;
+      if (lineMask[idx]) {
+        // 收集邻域非线像素
+        let sum = 0, count = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const ny = y + dy, nx = x + dx;
+            if (ny >= 0 && ny < h && nx >= 0 && nx < w) {
+              const nidx = ny * w + nx;
+              if (!lineMask[nidx]) {
+                sum += gray[nidx];
+                count++;
+              }
+            }
+          }
+        }
+        // 填充均值，如果没有非线邻域则保持原值
+        if (count > 0) {
+          suppressed[idx] = Math.floor(sum / count);
+        }
+      }
+    }
+  }
+  
+  return suppressed;
+}
+
 function computePeriodicityScore(edgeMap, w, h, angles) {
   // 简化的周期性检测
   return 0; // 对于单个logo水印，周期性通常很低
@@ -225,6 +392,285 @@ function mapStrokeWidthToScore(sw) {
   return Math.max(0, 100 - (sw - 8) * 10);
 }
 
+// 【Phase 2】Gridness 检测：通过 1D 自相关检测周期性网格
+function computeGridness(edgeMap, w, h, angleCoh) {
+  // 快速采样：每4行/列采样一次
+  const sampleStep = 4;
+  const maxLag = 30; // 检测周期范围 6-30px
+  
+  // 行投影（水平线）
+  const rowProj = [];
+  for (let y = 0; y < h; y += sampleStep) {
+    let sum = 0;
+    for (let x = 0; x < w; x++) {
+      if (edgeMap[y * w + x]) sum++;
+    }
+    rowProj.push(sum);
+  }
+  
+  // 列投影（垂直线）
+  const colProj = [];
+  for (let x = 0; x < w; x += sampleStep) {
+    let sum = 0;
+    for (let y = 0; y < h; y++) {
+      if (edgeMap[y * w + x]) sum++;
+    }
+    colProj.push(sum);
+  }
+  
+  // 计算自相关（简化版）
+  const rowPeaks = findPeriodicPeaks(rowProj, maxLag);
+  const colPeaks = findPeriodicPeaks(colProj, maxLag);
+  
+  // 网格度：行列均有强周期峰
+  const gridness = Math.max(rowPeaks.strength, colPeaks.strength);
+  
+  // 如果角度一致性高，说明大量边缘方向一致，可能是网格
+  const hasHighAngleCoh = (angleCoh > 40);
+  const finalGridness = hasHighAngleCoh ? gridness * 1.2 : gridness;
+  
+  // 更宽松的网格判定：只要 gridness 较高即可
+  const isGrid = (finalGridness > 50); // 降低阈值，移除 isAxisAligned 要求
+  
+  return {
+    gridness: Math.min(100, finalGridness),
+    rowPeriod: rowPeaks.period,
+    colPeriod: colPeaks.period,
+    isGrid: isGrid
+  };
+}
+
+function findPeriodicPeaks(projection, maxLag) {
+  if (projection.length < 20) return { strength: 0, period: 0 };
+  
+  const n = projection.length;
+  const mean = projection.reduce((a, b) => a + b, 0) / n;
+  
+  // 计算方差
+  let variance = 0;
+  for (let i = 0; i < n; i++) {
+    variance += Math.pow(projection[i] - mean, 2);
+  }
+  variance /= n;
+  if (variance < 1) return { strength: 0, period: 0 };
+  
+  // 自相关：lag=6..30
+  let maxAC = 0;
+  let bestPeriod = 0;
+  const minLag = 6;
+  
+  for (let lag = minLag; lag < Math.min(maxLag, n / 2); lag++) {
+    let ac = 0;
+    for (let i = 0; i < n - lag; i++) {
+      ac += (projection[i] - mean) * (projection[i + lag] - mean);
+    }
+    ac /= (n - lag);
+    ac /= variance; // 归一化
+    
+    if (ac > maxAC) {
+      maxAC = ac;
+      bestPeriod = lag;
+    }
+  }
+  
+  // 强度：归一化后的相关系数 * 100
+  const strength = Math.max(0, maxAC * 100);
+  
+  return { strength, period: bestPeriod };
+}
+
+// 【Phase 2】连通域笔画一致性分析
+function analyzeStrokeConsistency(edgeMap, w, h) {
+  // 简化的连通域分析：统计边缘组件特征
+  const visited = new Uint8Array(w * h);
+  const components = [];
+  
+  // 8-连通
+  const dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+  
+  function bfs(startY, startX) {
+    const queue = [[startY, startX]];
+    visited[startY * w + startX] = 1;
+    
+    let minX = startX, maxX = startX;
+    let minY = startY, maxY = startY;
+    let count = 1;
+    
+    while (queue.length > 0) {
+      const [y, x] = queue.shift();
+      
+      for (const [dy, dx] of dirs) {
+        const ny = y + dy, nx = x + dx;
+        if (ny < 0 || ny >= h || nx < 0 || nx >= w) continue;
+        const idx = ny * w + nx;
+        if (visited[idx] || !edgeMap[idx]) continue;
+        
+        visited[idx] = 1;
+        queue.push([ny, nx]);
+        count++;
+        
+        minX = Math.min(minX, nx);
+        maxX = Math.max(maxX, nx);
+        minY = Math.min(minY, ny);
+        maxY = Math.max(maxY, ny);
+      }
+    }
+    
+    const width = maxX - minX + 1;
+    const height = maxY - minY + 1;
+    const area = count;
+    const bbox = width * height;
+    const density = bbox > 0 ? area / bbox : 0;
+    const aspectRatio = height > 0 ? width / height : 0;
+    
+    return { area, width, height, aspectRatio, density, minX, minY, maxX, maxY };
+  }
+  
+  // 扫描边缘图，查找连通域
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = y * w + x;
+      if (edgeMap[idx] && !visited[idx]) {
+        const comp = bfs(y, x);
+        if (comp.area >= 3) { // 过滤过小组件
+          components.push(comp);
+        }
+      }
+    }
+  }
+  
+  if (components.length === 0) {
+    return { textLikeCount: 0, borderLikeCount: 0, avgAspectRatio: 0, score: 0 };
+  }
+  
+  // 分类组件
+  let textLikeCount = 0;
+  let borderLikeCount = 0;
+  let totalAspectRatio = 0;
+  
+  for (const comp of components) {
+    totalAspectRatio += comp.aspectRatio;
+    
+    // 文本笔画：面积适中，长宽比较小，密度高
+    const isTextLike = (comp.area >= 5 && comp.area <= 500) &&
+                       (comp.aspectRatio >= 0.2 && comp.aspectRatio <= 5) &&
+                       (comp.density > 0.3);
+    
+    // 边框：很长或很宽，长宽比极端，密度高
+    const isBorderLike = (comp.area > 50) &&
+                         (comp.aspectRatio < 0.1 || comp.aspectRatio > 10) &&
+                         (comp.density > 0.5);
+    
+    if (isTextLike) textLikeCount++;
+    if (isBorderLike) borderLikeCount++;
+  }
+  
+  const avgAspectRatio = totalAspectRatio / components.length;
+  
+  // 计算笔画一致性分数：文本类越多越好，边框类越多越差
+  const score = Math.max(0, Math.min(100, 
+    (textLikeCount * 5) - (borderLikeCount * 3)
+  ));
+  
+  return {
+    textLikeCount,
+    borderLikeCount,
+    avgAspectRatio,
+    componentCount: components.length,
+    score,
+    components  // 返回组件列表供后续空间分析使用
+  };
+}
+
+// 【Phase 3】空间集中度分析：计算 ROI 内组件密度 vs 全图密度
+function analyzeConcentration(strokeConsistency, roi, fullWidth, fullHeight) {
+  if (!strokeConsistency.components || strokeConsistency.components.length === 0) {
+    return { concentrationRatio: 0, roiDensity: 0, fullDensity: 0 };
+  }
+  
+  const components = strokeConsistency.components;
+  const fullArea = fullWidth * fullHeight;
+  const roiArea = roi.w * roi.h;
+  
+  // 统计 ROI 内的 textLike 组件
+  let textLikeInROI = 0;
+  let totalTextLike = 0;
+  
+  for (const comp of components) {
+    // 判断是否是 textLike
+    const isTextLike = (comp.area >= 5 && comp.area <= 500) &&
+                       (comp.aspectRatio >= 0.2 && comp.aspectRatio <= 5) &&
+                       (comp.density > 0.3);
+    
+    if (isTextLike) {
+      totalTextLike++;
+      
+      // 检查组件中心是否在 ROI 内
+      const centerX = comp.minX + comp.width / 2;
+      const centerY = comp.minY + comp.height / 2;
+      
+      if (centerX >= roi.x && centerX < roi.x + roi.w &&
+          centerY >= roi.y && centerY < roi.y + roi.h) {
+        textLikeInROI++;
+      }
+    }
+  }
+  
+  const roiDensity = roiArea > 0 ? textLikeInROI / roiArea : 0;
+  const fullDensity = fullArea > 0 ? totalTextLike / fullArea : 0;
+  
+  // 集中度比例：水印应该 >> 1，Excel 文本应该 ≈ 1
+  const concentrationRatio = fullDensity > 0 ? roiDensity / fullDensity : 0;
+  
+  return {
+    concentrationRatio,
+    roiDensity: roiDensity * 1000000,  // 转换为每百万像素
+    fullDensity: fullDensity * 1000000,
+    textLikeInROI,
+    totalTextLike
+  };
+}
+
+// 【Phase 3】ROI 局部 gridness 检测
+function computeROIGridness(edgeMap, w, h, roi) {
+  // 提取 ROI 区域的边缘
+  const sampleStep = 2;
+  const maxLag = 20;
+  
+  // 行投影（在 ROI 内）
+  const rowProj = [];
+  for (let y = roi.y; y < roi.y + roi.h; y += sampleStep) {
+    if (y >= h) break;
+    let sum = 0;
+    for (let x = roi.x; x < roi.x + roi.w; x++) {
+      if (x >= w) break;
+      if (edgeMap[y * w + x]) sum++;
+    }
+    rowProj.push(sum);
+  }
+  
+  // 列投影（在 ROI 内）
+  const colProj = [];
+  for (let x = roi.x; x < roi.x + roi.w; x += sampleStep) {
+    if (x >= w) break;
+    let sum = 0;
+    for (let y = roi.y; y < roi.y + roi.h; y++) {
+      if (y >= h) break;
+      if (edgeMap[y * w + x]) sum++;
+    }
+    colProj.push(sum);
+  }
+  
+  const rowPeaks = findPeriodicPeaks(rowProj, maxLag);
+  const colPeaks = findPeriodicPeaks(colProj, maxLag);
+  const gridness = Math.max(rowPeaks.strength, colPeaks.strength);
+  
+  return {
+    gridness: Math.min(100, gridness),
+    isGrid: gridness > 40  // ROI 局部阈值略低
+  };
+}
+
 function analyzeSingleWatermark(gray, rgba, edge, grad, width, height, cfg) {
   // ROI 定义
   const eb = Math.floor(Math.min(width, height) * cfg.roi.edgeBand);
@@ -241,6 +687,7 @@ function analyzeSingleWatermark(gray, rgba, edge, grad, width, height, cfg) {
   ];
 
   let best = { name: '', textlikeness: 0, overlayConsistency: 0, positionWeight: 0, alphaLike: 0, whiteEdgeRatio: 0 };
+  let bestROI = rois[0];  // 保存 best ROI 的完整信息
 
   for (const r of rois) {
     const feat = computeROITextAndOverlay(gray, rgba, edge, grad, width, height, r);
@@ -254,8 +701,10 @@ function analyzeSingleWatermark(gray, rgba, edge, grad, width, height, cfg) {
     const bestScore = 0.4*best.textlikeness + 0.25*best.overlayConsistency + 0.2*best.positionWeight + 0.15*best.alphaLike;
     if (tmpScore > bestScore) {
       best = { name: r.name, textlikeness: tl, overlayConsistency: oc, positionWeight: pw, alphaLike: al, whiteEdgeRatio: we };
+      bestROI = r;
     }
   }
+  best.roi = bestROI;  // 添加 ROI 信息
   return best;
 }
 
@@ -285,17 +734,64 @@ function computeROITextAndOverlay(gray, rgba, edge, grad, width, height, roi) {
   }
   const edgeDensity = total? edges/total : 0;
   const variance = total? (sum2/total - Math.pow(sum/total,2)) : 0;
-  // 文本样性：边缘密度+方向主峰占比
+  
+  // 【改进】文本样性：边缘密度 + 双峰正交检测 + 轴向单峰惩罚
   const histSum = hist.reduce((a,b)=>a+b,0);
-  const maxBin = histSum? Math.max(...hist) : 0;
-  const textlikeness = Math.min(100, (edgeDensity*350) + (histSum? (maxBin/histSum)*100 : 0));
+  if (histSum === 0) {
+    const textlikeness = 0;
+    const overlayConsistency = Math.min(100, (Math.max(0, 50 - variance))*1.2);
+    const alphaLike = Math.max(0, Math.min(100, (sum/Math.max(1,total))/2));
+    const whiteEdgeRatio = 0;
+    return { textlikeness, overlayConsistency, alphaLike, whiteEdgeRatio };
+  }
+  
+  // 找出 top2 峰值
+  const peaks = [];
+  for (let i = 0; i < bins; i++) {
+    peaks.push({ idx: i, val: hist[i], angle: (i * 180 / bins) + (180 / bins / 2) });
+  }
+  peaks.sort((a, b) => b.val - a.val);
+  const peak1 = peaks[0];
+  const peak2 = peaks[1];
+  
+  // 计算双峰夹角（取较小夹角）
+  let angleDiff = Math.abs(peak1.angle - peak2.angle);
+  if (angleDiff > 90) angleDiff = 180 - angleDiff;
+  
+  // 双峰正交检测（70-110度视为正交，且第二峰不能太弱）
+  const isDualPeak = (angleDiff >= 70 && angleDiff <= 110) && (peak2.val >= 0.5 * peak1.val);
+  
+  // 轴向单峰检测（主峰在0/90度附近±15度，且第二峰弱）
+  const isAxisAligned = (peak1.angle <= 15 || peak1.angle >= 165 || 
+                         (peak1.angle >= 75 && peak1.angle <= 105));
+  const isSinglePeak = (peak2.val < 0.4 * peak1.val);
+  const isAxisDominant = isAxisAligned && isSinglePeak;
+  
+  // 非轴向检测（主峰偏离0/90度）
+  const isNonAxis = !isAxisAligned;
+  
+  // 基础文本相似度
+  let textlikeness = (edgeDensity * 350) + ((peak1.val / histSum) * 100);
+  
+  // 双峰加分：文本/Logo通常有正交笔画
+  if (isDualPeak) textlikeness += 15;
+  
+  // 轴向单峰惩罚：网格/边框特征（减少惩罚力度）
+  if (isAxisDominant) textlikeness -= 10;
+  
+  // 非轴向小加分：斜置Logo
+  if (isNonAxis) textlikeness += 5;
+  
+  textlikeness = Math.max(0, Math.min(100, textlikeness));
+  
   // 覆盖一致性：亮度方差越小越像覆盖；再叠加白色边缘比例
   const overlayConsistency = Math.min(100, (Math.max(0, 50 - variance))*1.2 + (edgeDensity>0? (brightEdgeCnt/edges)*40:0));
   // 伪alpha：明亮提升但边缘不过强
   const alphaLike = Math.max(0, Math.min(100, (sum/Math.max(1,total))/2 - (edgeDensity*50)));
   // ROI 白边比例（只看边缘处近白像素占比）
   const whiteEdgeRatio = edges>0 ? Math.min(100, (brightEdgeCnt/edges)*100) : 0;
-  return { textlikeness, overlayConsistency, alphaLike, whiteEdgeRatio };
+  
+  return { textlikeness, overlayConsistency, alphaLike, whiteEdgeRatio, isDualPeak, isAxisDominant };
 }
 
 // 主检测函数（使用Canvas的jimp替代方案）
@@ -314,7 +810,7 @@ async function detectWatermark(imagePath) {
   const height = image.bitmap.height;
   const data = image.bitmap.data;
   
-  // 配置（方案4优化版 - Scheme 4 with lowered thresholds）
+  // 配置（Strict 精准模式）
   const CFG = {
     preprocess: { maxSize: 1200, edgeThreshold: 30, blurRadius: 1.0 },
     gating: {
@@ -324,25 +820,25 @@ async function detectWatermark(imagePath) {
     },
     repeated: {
       angles: [-45,-30,-15,0,15,30,45],
-      thresholds: { periodicity: 58, angleCoherence: 55, whiteness: 25 },
+      thresholds: { periodicity: 60, angleCoherence: 58, whiteness: 28 },
       weights: { periodicity: 0.5, angleCoherence: 0.25, whiteness: 0.15, strokeWidth: 0.10 },
-      pass: 45
+      pass: 48
     },
     single: {
       roi: { edgeBand: 0.15, cornerBox: 0.20 },
       thresholds: { 
-        textlikeness: 50,  // raised to reduce FP
-        overlayConsistency: 28,  // raised to reduce FP
-        alphaLike: 18,  // raised to reduce FP
-        alphaLikeStrong: 32,  // raised to reduce FP
-        whiteEdgeMin: 5,  // raised to reduce FP
-        positionMin: 60,  // raised to reduce FP
-        strokeWidthMax: 12  // raised from 11
+        textlikeness: 68,          // 提高，抑制环境文字
+        overlayConsistency: 38,    // 再提高，降低场景文字误报
+        alphaLike: 25,             // 提高，强调半透明
+        alphaLikeStrong: 40,       // 提高
+        whiteEdgeMin: 9,           // 略放宽以保护真水印
+        positionMin: 60,           // 略提高
+        strokeWidthMax: 12
       },
-      weights: { textlikeness: 0.4, overlayConsistency: 0.25, position: 0.2, alphaLike: 0.15 },
-      pass: 30  // lowered from 36
+      weights: { textlikeness: 0.38, overlayConsistency: 0.30, position: 0.20, alphaLike: 0.12 },
+      pass: 36
     },
-    fusion: { scale: { repeated: 0.7, single: 0.76, baseline: 1.0 }, decision: 35 }  // slight boost to single
+    fusion: { scale: { repeated: 0.7, single: 0.76, baseline: 1.0 }, decision: 40 }
   };
   
   // 基础分析
@@ -355,9 +851,16 @@ async function detectWatermark(imagePath) {
   const colorInfo = analyzeColorFeatures(data, width, height);
   const alphaInfo = analyzeAlphaFeatures(data);
   
+  // 【Phase 2】Gridness 和连通域分析
+  const angleCoh = computeAngleCoherence(grad.ori, grad.mag, width, height, CFG.preprocess.edgeThreshold);
+  const gridnessInfo = computeGridness(edgeMap, width, height, angleCoh);
+  const strokeConsistency = analyzeStrokeConsistency(edgeMap, width, height);
+  
+  // 边缘方向熵（区分多方向笔画 vs 规则网格）
+  const edgeEntropy = computeEdgeDirectionEntropy(grad.ori, grad.mag, width, height, CFG.preprocess.edgeThreshold);
+  
   // Repeated分支
   const periodicity = computePeriodicityScore(edgeMap, width, height, CFG.repeated.angles);
-  const angleCoh = computeAngleCoherence(grad.ori, grad.mag, width, height, CFG.preprocess.edgeThreshold);
   const whiteness = computeWhitenessNearEdges(data, edgeMap, width, height);
   const strokeWidth = estimateStrokeWidth(edgeMap, width, height);
   const strokeScore = mapStrokeWidthToScore(strokeWidth);
@@ -377,23 +880,106 @@ async function detectWatermark(imagePath) {
   
   // Single分支
   const singleFeatures = analyzeSingleWatermark(gray, data, edgeMap, grad, width, height, CFG.single);
+  
+  // 【Phase 3】空间集中度分析
+  const concentrationInfo = analyzeConcentration(strokeConsistency, singleFeatures.roi, width, height);
+  
+  // 【Phase 3】ROI 局部 gridness 检测
+  let roiGridness = computeROIGridness(edgeMap, width, height, singleFeatures.roi);
+  
+  // 【Phase 5】网格线检测和抑制
+  const lineMask = detectGridLines(edgeMap, grad.ori, grad.mag, width, height, CFG.preprocess.edgeThreshold);
+  const roiLineCoverageInfo = computeROILineCoverage(lineMask, singleFeatures.roi, width, height);
+  const roiLineCoverage = roiLineCoverageInfo.coverage / 100;  // 转换为 0-1 区间
+  
+  // 【修正】如果ROI线覆盖率极低且边缘方向熵高，视为伪网格（噪声导致）
+  if (roiLineCoverageInfo.coverage < 5 && edgeEntropy > 60) {
+    roiGridness = { gridness: 0, isGrid: false };
+  }
+  
+  // 先计算原始 singleScore
   let singleScore = 0;
   let singlePassed = false;
   
   // Alternative path: very high TL+AL can pass even with low OC
   const highTLAL = (singleFeatures.textlikeness >= 85 && singleFeatures.alphaLike >= 70);
   
-  if (
+  // 角标水印路径：实心、边角、小面积、高对比度（兼容image197类型）
+  const cornerLogoPath = (
+    singleFeatures.textlikeness >= 55 &&
+    singleFeatures.positionWeight >= 75 &&  // 边角位置
+    (singleFeatures.whiteEdgeRatio || 0) >= 8 &&  // 有白边对比
+    concentrationInfo.concentrationRatio <= 1.2 &&  // 相对集中
+    singleFeatures.alphaLike <= 25 &&               // 近似不透明
+    singleFeatures.overlayConsistency <= 10 &&      // 几乎无覆盖一致性
+    strokeConsistency.textLikeCount <= 250          // 小面积（文字组件不多）
+  );
+  
+  // 【新增】边角文字水印路径：针对药店/医院场景中的摄影师署名水印
+  // 特点：位置在正角落(PW=100)，高文本特征，相对集中
+  // 【平衡版】降低OC阈值保证真水印通过，同时增加集中度要求减少假阳性
+  const cornerTextWatermarkPath = (
+    singleFeatures.positionWeight === 100 &&        // 必须在正角落
+    singleFeatures.textlikeness >= 85 &&            // 高文本特征
+    concentrationInfo.concentrationRatio >= 1.0 &&  // 提高集中度要求（0.8→1.0，区分分散场景文字）
+    (singleFeatures.overlayConsistency >= 1.5 || singleFeatures.alphaLike >= 70) &&  // 降低OC阈值到1.5，或AL>=70
+    singleFeatures.alphaLike >= 40 &&               // 有一定透明度或亮度
+    strokeConsistency.textLikeCount >= 50 &&        // 有足够文字组件（不是单个标签）
+    strokeConsistency.textLikeCount <= 800 &&       // 不是大面积文字
+    !gridnessInfo.isGrid                            // 非强网格背景
+  );
+  
+  // 【平衡版】边缘文字水印路径：扩展到边的中间位置，支持更多水印位置
+  // 特点：在边缘区域（PW>=60），允许强网格背景
+  // 【平衡版】加强集中度要求，放宽OC和Alpha条件
+  const edgeTextWatermarkPath = (
+    singleFeatures.positionWeight >= 60 &&          // 在边缘区域（四角+四边）
+    singleFeatures.textlikeness >= 85 &&            // 高文本特征
+    concentrationInfo.concentrationRatio >= 0.6 &&  // 提高集中度要求（0.5→0.6）
+    concentrationInfo.concentrationRatio <= 3.0 &&  // 但也不能过于集中（避免单个标签）
+    singleFeatures.alphaLike >= 25 &&               // 放宽alpha要求（支持低透明度）
+    strokeConsistency.textLikeCount >= 80 &&        // 有足够文字组件
+    strokeConsistency.textLikeCount <= 1200 &&      // 放宽上限
+    edgeInfo.positionScore >= 55 &&                 // 确保靠近边缘（避免中心区域）
+    // 允许强网格背景（去掉!gridnessInfo.isGrid限制）
+    // 但要求ROI gridness不能过高，避免完全是网格
+    roiGridness.gridness <= 95                      // 允许一定网格但不能极端
+  );
+  
+  // Overlay路径需要额外约束：
+  const overlayPathOk = (
+    singleFeatures.overlayConsistency >= CFG.single.thresholds.overlayConsistency &&
+    // ROI为网格时要求更高的一致性
+    (!roiGridness.isGrid || singleFeatures.overlayConsistency >= 45) &&
+    // 叠加路径也需要一定透明或局部白边
+    (singleFeatures.alphaLike >= 20 || (singleFeatures.whiteEdgeRatio || 0) >= 12)
+  );
+  
+  // General gate（常规路径）
+  const generalSingleGate = (
+    // 必须具备足够的 Alpha 证据（除非是角标路径或边缘文字路径）
+    (cornerLogoPath || cornerTextWatermarkPath || edgeTextWatermarkPath || singleFeatures.alphaLike >= 45) &&
     singleFeatures.textlikeness >= CFG.single.thresholds.textlikeness &&
     singleFeatures.positionWeight >= CFG.single.thresholds.positionMin &&
     strokeWidth <= CFG.single.thresholds.strokeWidthMax &&
     (
-      singleFeatures.overlayConsistency >= CFG.single.thresholds.overlayConsistency ||
-      (singleFeatures.alphaLike >= CFG.single.thresholds.alphaLikeStrong && 
+      overlayPathOk ||
+      // 更强的 Alpha 路径
+      (singleFeatures.alphaLike >= Math.max(CFG.single.thresholds.alphaLikeStrong, 45) && 
        ((singleFeatures.whiteEdgeRatio || 0) >= CFG.single.thresholds.whiteEdgeMin || angleCoh >= 45)) ||
-      highTLAL
+      highTLAL ||
+      cornerTextWatermarkPath ||  // 边角文字水印路径
+      edgeTextWatermarkPath       // 边缘文字水印路径
     )
-  ) {
+  );
+  
+  // Corner gate（角标路径 + 边缘文字路径，放宽 TL 要求）
+  const cornerSingleGate = (
+    (cornerLogoPath || cornerTextWatermarkPath || edgeTextWatermarkPath) &&
+    strokeWidth <= CFG.single.thresholds.strokeWidthMax
+  );
+  
+  if (generalSingleGate || cornerSingleGate) {
     singleScore = CFG.single.weights.textlikeness * singleFeatures.textlikeness + 
                   CFG.single.weights.overlayConsistency * singleFeatures.overlayConsistency + 
                   CFG.single.weights.position * singleFeatures.positionWeight + 
@@ -401,13 +987,64 @@ async function detectWatermark(imagePath) {
     singlePassed = singleScore >= CFG.single.pass;
   }
   
+  // 【Phase 5】生成线抑制版灰度图并重新计算Single特征
+  const graySuppressed = suppressGridLines(gray, lineMask, width, height);
+  const gradSuppressed = computeGradients(graySuppressed, width, height);
+  const edgeMapSuppressed = buildEdgeMap(gradSuppressed.mag, width, height, CFG.preprocess.edgeThreshold);
+  const singleFeaturesSuppressed = analyzeSingleWatermark(graySuppressed, data, edgeMapSuppressed, gradSuppressed, width, height, CFG.single);
+  
+  // 计算抑制后的singleScore
+  const highTLALSuppressed = (singleFeaturesSuppressed.textlikeness >= 85 && singleFeaturesSuppressed.alphaLike >= 70);
+  let singleScoreSuppressed = 0;
+  // 同步角标路径（抑制后）
+  const cornerLogoPathSuppressed = (
+    singleFeaturesSuppressed.textlikeness >= 55 &&
+    singleFeaturesSuppressed.positionWeight >= 75 &&
+    (singleFeaturesSuppressed.whiteEdgeRatio || 0) >= 8 &&
+    concentrationInfo.concentrationRatio <= 1.2 &&
+    singleFeaturesSuppressed.alphaLike <= 25 &&
+    singleFeaturesSuppressed.overlayConsistency <= 10 &&
+    strokeConsistency.textLikeCount <= 250
+  );
+  
+  // 同步 Overlay 路径约束（使用抑制后的特征，但沿用同一ROI gridness判断）
+  const overlayPathOkSuppressed = (
+    singleFeaturesSuppressed.overlayConsistency >= CFG.single.thresholds.overlayConsistency &&
+    (!roiGridness.isGrid || singleFeaturesSuppressed.overlayConsistency >= 45) &&
+    (singleFeaturesSuppressed.alphaLike >= 20 || (singleFeaturesSuppressed.whiteEdgeRatio || 0) >= 12)
+  );
+  const generalSingleGateSuppressed = (
+    singleFeaturesSuppressed.textlikeness >= CFG.single.thresholds.textlikeness &&
+    singleFeaturesSuppressed.positionWeight >= CFG.single.thresholds.positionMin &&
+    strokeWidth <= CFG.single.thresholds.strokeWidthMax &&
+    (
+      overlayPathOkSuppressed ||
+      (singleFeaturesSuppressed.alphaLike >= CFG.single.thresholds.alphaLikeStrong && 
+       ((singleFeaturesSuppressed.whiteEdgeRatio || 0) >= CFG.single.thresholds.whiteEdgeMin || angleCoh >= 45)) ||
+      highTLALSuppressed
+    )
+  );
+  const cornerSingleGateSuppressed = (
+    cornerLogoPathSuppressed &&
+    strokeWidth <= CFG.single.thresholds.strokeWidthMax
+  );
+  if (generalSingleGateSuppressed || cornerSingleGateSuppressed) {
+    singleScoreSuppressed = CFG.single.weights.textlikeness * singleFeaturesSuppressed.textlikeness + 
+                            CFG.single.weights.overlayConsistency * singleFeaturesSuppressed.overlayConsistency + 
+                            CFG.single.weights.position * singleFeaturesSuppressed.positionWeight + 
+                            CFG.single.weights.alphaLike * singleFeaturesSuppressed.alphaLike;
+  }
+  
+  // 计算deltaSingle（原始single score - 抑制后single score）
+  const deltaSingle = singleScore - singleScoreSuppressed;
+  
   // Baseline（方案4增强版 - moderate restriction）
   let baseline = 0;
-  // Balance between recall and precision
-  if (edgeInfo.positionScore > 65) baseline += edgeInfo.positionScore * 0.28;
-  if (regionInfo.score > 35) baseline += regionInfo.score * 0.16;
-  if (colorInfo.uniformity > 0.72 || colorInfo.isMonochromatic) baseline += colorInfo.score * 0.19;
-  if (alphaInfo.score > 22) baseline += alphaInfo.score * 0.11;
+  // Balance between recall and precision (strict: 降低baseline贡献)
+  if (edgeInfo.positionScore > 68) baseline += edgeInfo.positionScore * 0.22;
+  if (regionInfo.score > 40) baseline += regionInfo.score * 0.12;
+  if (colorInfo.uniformity > 0.75 || colorInfo.isMonochromatic) baseline += colorInfo.score * 0.12;
+  if (alphaInfo.score > 28) baseline += alphaInfo.score * 0.08;
   baseline = Math.min(baseline, 100);
   
   // 惩罚项（更严格）
@@ -415,15 +1052,407 @@ async function detectWatermark(imagePath) {
   if (regionInfo.score >= CFG.gating.uniformRegionPenalty.regionScore && whiteness < CFG.gating.uniformRegionPenalty.whiteness) baseline *= CFG.gating.uniformRegionPenalty.factor;
   if (angleCoh < CFG.gating.lowAnglePenalty.angleCoherence) baseline *= CFG.gating.lowAnglePenalty.factor;
   
-  // 融合
-  let fused = Math.max(
-    CFG.fusion.scale.repeated * (repeatedPassed ? repeatedScore : 0),
-    CFG.fusion.scale.single * (singlePassed ? singleScore : 0),
-    CFG.fusion.scale.baseline * baseline
-  );
+  // 【精准打击版】回退baseline gate（避免伤真水印）
+  const okSingleWeak = (singleFeatures.textlikeness >= 65 && singleFeatures.overlayConsistency >= 25);
+  const allowBaseline = (whiteness >= 10) ||          // 回退到10
+                         (angleCoh >= 55) ||          // 回退到55
+                         (singleFeatures.whiteEdgeRatio >= 10) ||
+                         okSingleWeak;
   
+  // 【Phase 2+3】Gridness 抑制：当检测到强网格特征时，降低 Single 和 Baseline 权重
+  let gridSuppression = 1.0;
+  if (gridnessInfo.isGrid) {
+    // 强网格：根据 gridness 强度调整抑制因子
+    gridSuppression = Math.max(0.4, 1.0 - (gridnessInfo.gridness / 200));
+    
+    // 【保护】命中边缘/角落文字水印路径时，提高抑制下限
+    if (cornerLogoPath || cornerTextWatermarkPath || edgeTextWatermarkPath) {
+      gridSuppression = Math.max(gridSuppression, 0.85);
+    }
+    
+    // 【Phase 3】保护机制 1：空间集中度高（ROI 内密度远高于全图）
+    if (concentrationInfo.concentrationRatio > 3.0) {
+      // 组件高度集中在 ROI，很可能是水印
+      gridSuppression = Math.max(gridSuppression, 0.85);
+    }
+    
+    // 【Phase 3】保护机制 2：ROI 局部 gridness 低
+    if (!roiGridness.isGrid) {
+      // ROI 内本身没有网格，全图 gridness 可能是其他区域
+      gridSuppression = Math.max(gridSuppression, 0.80);
+    }
+    
+    // 保护机制 3：textLike 远多于 borderLike
+    const textBorderRatio = strokeConsistency.textLikeCount / Math.max(1, strokeConsistency.borderLikeCount);
+    if (textBorderRatio > 50) {
+      gridSuppression = Math.max(gridSuppression, 0.75);
+    }
+  }
+  
+  // 【Phase 3.1】增强抑制逻辑：根据分析报告优化
+  let suppressionFactor = gridSuppression;
+  
+  // 建议1: 全局Grid=true 但 ROI Grid=false 且 ROI gridness低 - 强力抑制
+  // 这是典型的Excel表格：全局有网格但水印ROI区域无网格特征
+  if (gridnessInfo.isGrid && !roiGridness.isGrid && roiGridness.gridness < 40) {
+    suppressionFactor = Math.min(suppressionFactor, 0.65);  // 强力抑制
+  }
+  
+  // 建议2a: Concentration很低 - 文本分散抑制
+  // 80%的假阳性 concentration < 0.5，说明文本组件非常分散，不像典型水印
+  if (concentrationInfo.concentrationRatio < 0.5 && concentrationInfo.concentrationRatio > 0) {
+    suppressionFactor *= 0.90;
+  }
+  
+  // 建议2b: ROI内完全没有文本组件 - 强力抑制
+  // 20%的假阳性 concentration=0 且 ROI gridness=0，说明Single的最佳ROI并不包含文本
+  if (concentrationInfo.concentrationRatio === 0 && roiGridness.gridness === 0) {
+    // 保护强Alpha+高TL的真水印，不应用此强抑制
+    if (!(singleFeatures.alphaLike >= 75 && singleFeatures.textlikeness >= 90)) {
+      suppressionFactor *= 0.70;  // 质疑Single Score的可靠性
+    }
+  }
+  
+  // 保护真水印：高集中度提升抑制因子（增强保护效果）
+  if (concentrationInfo.concentrationRatio > 1.5) {
+    suppressionFactor = Math.min(suppressionFactor * 1.20, 1.0);
+  }
+  
+  // 保护真水印：ROI gridness低且concentration不是0（可能是真水印）
+  if (!roiGridness.isGrid && roiGridness.gridness < 40 && concentrationInfo.concentrationRatio > 0.3) {
+    suppressionFactor = Math.min(suppressionFactor * 1.15, 1.0);
+  }
+  
+  // 【Phase 3.2 已回退】高Concentration抑制会误伤真水印，Phase 4放弃该策略
+  // if (concentrationInfo.concentrationRatio > 1.5 && roiGridness.isGrid && roiGridness.gridness > 60) {
+  //   suppressionFactor *= 0.85;
+  // }
+  
+  // 【Phase 4 已回退】边缘方向熵调整导致假阳性增加
+  // if (edgeEntropy < 50 && gridnessInfo.isGrid) {
+  //   suppressionFactor *= 0.90;
+  // } else if (edgeEntropy > 70) {
+  //   suppressionFactor = Math.min(suppressionFactor * 1.10, 1.0);
+  // }
+  
+  // 连通域笔画分析：边框类组件多时额外抑制
+  let strokeSuppression = 1.0;
+  if (strokeConsistency.borderLikeCount > strokeConsistency.textLikeCount * 2) {
+    strokeSuppression = 0.7;
+  }
+  
+  // 综合抑制因子（Phase 3.1已在上面计算）
+  suppressionFactor = Math.min(suppressionFactor, strokeSuppression);
+  
+  // 【Phase 5】网格线显式检测增强抑制
+  // 当ROI被网格线覆盖且single score在抑制后大幅下降时，强力抑制
+  let lineSuppression = 1.0;
+  
+  // 策略1: ROI被网格线高度覆盖（> 40%）- 这是典型的Excel表格单元格
+  if (roiLineCoverage > 0.40) {
+    lineSuppression = 0.60;  // 强力抑制
+    
+    // 策略1a: 如果deltaSingle很大（> 15），说明single特征主要来自网格线，进一步抑制
+    if (deltaSingle > 15) {
+      lineSuppression = 0.50;  // 更强抑制
+    }
+  }
+  // 策略2: ROI被网格线中度覆盖（20%-40%）且deltaSingle明显（> 10）
+  else if (roiLineCoverage > 0.20 && deltaSingle > 10) {
+    lineSuppression = 0.75;  // 中度抑制
+  }
+  // 策略3: ROI被网格线轻度覆盖（10%-20%）且deltaSingle较大（> 12）
+  else if (roiLineCoverage > 0.10 && deltaSingle > 12) {
+    lineSuppression = 0.85;  // 轻度抑制
+  }
+  
+  // 保护机制：高集中度 + 低ROI覆盖率 = 真水印（不是网格）
+  if (concentrationInfo.concentrationRatio > 2.0 && roiLineCoverage < 0.15) {
+    lineSuppression = Math.max(lineSuppression, 0.95);  // 几乎不抑制
+  }
+  
+  // 保护机制：deltaSingle很小或负数（抑制后score没降反升），说明不是网格主导
+  if (deltaSingle <= 2) {
+    lineSuppression = Math.max(lineSuppression, 0.90);
+  }
+  
+  // 综合所有抑制因子
+  suppressionFactor = Math.min(suppressionFactor, lineSuppression);
+  
+  // 【边缘路径保护】在最终应用前为边缘/角落水印设定抑制下限
+  if (cornerLogoPath || cornerTextWatermarkPath || edgeTextWatermarkPath) {
+    suppressionFactor = Math.max(suppressionFactor, 0.85);
+  }
+  
+  // 额外：ROI 网格且集中度低时，若 alpha 证据不足，直接置零 Single（强规则，降误报）
+  if (roiGridness.isGrid && roiGridness.gridness >= 60 && concentrationInfo.concentrationRatio <= 1.0 && singleFeatures.alphaLike < 45 && !(cornerLogoPath || cornerTextWatermarkPath || edgeTextWatermarkPath)) {
+    singlePassed = false;
+    singleScore = 0;
+  }
+  // 方向熵抑制：网格+低熵视为规则结构
+  if ((gridnessInfo.isGrid || roiGridness.isGrid) && edgeEntropy < 50 && !(cornerLogoPath || cornerTextWatermarkPath || edgeTextWatermarkPath) && singleFeatures.alphaLike < 70) {
+    suppressionFactor *= 0.65;
+  }
+  // OC 极低的网格场景，若非边缘/角落路径则强制需要很强 Alpha，否则否决
+  if ((gridnessInfo.isGrid || roiGridness.isGrid) && singleFeatures.overlayConsistency < 15 && !(cornerLogoPath || cornerTextWatermarkPath || edgeTextWatermarkPath) && singleFeatures.alphaLike < 55) {
+    singlePassed = false;
+    singleScore = 0;
+  }
+  
+  // 【温和版增强】附加场景抑制：更细致地识别货架/墙面/网格结构
+  let sceneSuppression = 1.0;
+  
+  // 规则1: ROI明显网格 + 低集中度 + 低Alpha → 货架/墙面文字
+  if (roiGridness.isGrid && roiGridness.gridness >= 55 && concentrationInfo.concentrationRatio <= 1.0 && singleFeatures.alphaLike < 35) {
+    sceneSuppression *= 0.70;  // 温和版：从0.75→0.70
+  }
+  
+  // 规则2: 全局强网格 + 仅Single分支 + OC偏低 + Alpha弱 → 场景文字
+  if (gridnessInfo.isGrid && singlePassed && !repeatedPassed && 
+      singleFeatures.overlayConsistency >= CFG.single.thresholds.overlayConsistency && 
+      singleFeatures.overlayConsistency < 45 && singleFeatures.alphaLike < 30) {
+    sceneSuppression *= 0.75;  // 温和版：从0.80→0.75
+  }
+  
+  // 规则3: 全局+ROI双网格 + 低OC + 低Alpha + 低集中度 → 强力抑制货架类
+  if (gridnessInfo.isGrid && roiGridness.isGrid && 
+      singleFeatures.overlayConsistency < 28 && singleFeatures.alphaLike < 45 && 
+      concentrationInfo.concentrationRatio < 1.2 && !cornerLogoPath) {
+    sceneSuppression *= 0.50; // 温和版：从0.55→0.50，更严格
+  }
+  
+  // 规则4【新增】：高gridness + 极低OC + 低alpha → 典型货架/墙砖
+  if ((gridnessInfo.isGrid || roiGridness.isGrid) && 
+      singleFeatures.overlayConsistency < 20 && singleFeatures.alphaLike < 40 && 
+      !cornerLogoPath) {
+    sceneSuppression *= 0.60;  // 新增强抑制
+  }
+  // 规则5【新增】：高gridness + 低 concentration + textlike多但alpha弱 → 分散文字
+  if ((gridnessInfo.gridness > 60 || roiGridness.gridness > 60) && 
+      concentrationInfo.concentrationRatio < 0.8 && 
+      strokeConsistency.textLikeCount > 100 && singleFeatures.alphaLike < 35 && 
+      !cornerLogoPath) {
+    sceneSuppression *= 0.65;  // 新增：分散文字抑制
+  }
+  
+  // 规则6【针对edgeTextWatermarkPath的假阳性过滤】：命中edge路径但特征不够强的场景文字
+  // 即使edgeTextWatermarkPath=true但：
+  // - whiteEdgeRatio极低（<5）且positionWeight不是最高(< 85)
+  // - 同时OC极低（<10）
+  // - 且concentration较低（<1.0）
+  // - 且alpha不强（<50）
+  // → 可能是边缘区域的分散场景文字，非水印
+  if (edgeTextWatermarkPath && 
+      (singleFeatures.whiteEdgeRatio || 0) < 5 && 
+      singleFeatures.positionWeight < 85 && 
+      singleFeatures.overlayConsistency < 10 && 
+      concentrationInfo.concentrationRatio < 1.0 && 
+      singleFeatures.alphaLike < 50) {
+    sceneSuppression *= 0.55;  // 强力抑制边缘弱特征假阳性
+  }
+  
+  // 角标水印保护：命中 cornerLogoPath 时，弱化场景抑制
+  if (cornerLogoPath) {
+    sceneSuppression = Math.max(sceneSuppression, 0.95);
+  }
+  
+  // 强Alpha保护：即使网格明显，如果alpha很高也要保护
+  if (singleFeatures.alphaLike >= 65 && singleFeatures.textlikeness >= 75) {
+    sceneSuppression = Math.max(sceneSuppression, 0.90);
+  }
+  
+  suppressionFactor = Math.min(suppressionFactor, sceneSuppression);
+  
+  // 【精准打击】硬性否决规则：针对假阳性特征模式直接拒绝
+  let hardReject = false;
+  let hardRejectReason = '';
+  
+  // 规则1: 高TL + 极低OC + 网格 + 低集中度 + 非边缘水印 → 典型货架/场景文字
+  // 87.8%假阳性有OC<25，但真水印image196/197也有低OC，需要更严格条件
+  if (!cornerLogoPath && !cornerTextWatermarkPath && !edgeTextWatermarkPath && 
+      singleFeatures.textlikeness >= 75 && 
+      singleFeatures.overlayConsistency < 12 && 
+      (gridnessInfo.isGrid || roiGridness.isGrid) && 
+      concentrationInfo.concentrationRatio < 0.9 &&
+      singleFeatures.alphaLike >= 55) {  // 高亮场景
+    hardReject = true;
+    hardRejectReason = '规则1: 高TL+极低OC+网格+低集中度+高亮';
+  }
+  
+  // 规则2: 零集中度 + 低OC + 高TL + 中高Alpha → ROI可能是空白区域
+  // 但排除极高alpha(>=85)的真水印和边缘文字水印
+  if (!cornerLogoPath && !cornerTextWatermarkPath && !edgeTextWatermarkPath && 
+      concentrationInfo.concentrationRatio === 0 && 
+      singleFeatures.overlayConsistency < 15 && 
+      singleFeatures.textlikeness >= 85 && 
+      singleFeatures.alphaLike >= 70 && 
+      singleFeatures.alphaLike < 85) {  // 保护极高alpha真水印
+    hardReject = true;
+    hardRejectReason = '规则2: 零集中度+低OC+高TL+中高Alpha(<85)';
+  }
+  
+  // 规则3: 双网格 + 极低OC + 低集中度 + 高Alpha → 货架/墙砖
+  if (!cornerLogoPath && !cornerTextWatermarkPath && !edgeTextWatermarkPath && 
+      gridnessInfo.isGrid && roiGridness.isGrid && 
+      roiGridness.gridness >= 60 && 
+      singleFeatures.overlayConsistency < 10 && 
+      concentrationInfo.concentrationRatio < 1.0 && 
+      singleFeatures.alphaLike >= 60) {
+    hardReject = true;
+    hardRejectReason = '规则3: 双网格+极低OC+低集中度+高Alpha';
+  }
+  
+  // 规则4: ROI网格 + 极低OC + 极低集中度 + 高TL + 高Alpha → 场景文字
+  if (!cornerLogoPath && !cornerTextWatermarkPath && !edgeTextWatermarkPath && 
+      roiGridness.isGrid && roiGridness.gridness >= 55 && 
+      singleFeatures.overlayConsistency < 15 && 
+      concentrationInfo.concentrationRatio < 0.6 && 
+      singleFeatures.textlikeness >= 80 && 
+      singleFeatures.alphaLike >= 65) {
+    hardReject = true;
+    hardRejectReason = '规则4: ROI网格+极低OC+极低集中度+高TL+高Alpha';
+  }
+  
+  // 规则5: 高亮+满分TL+极低OC+低集中度 → 明亮文字场景（98%假阳性TL>=70）
+  if (!cornerLogoPath && !cornerTextWatermarkPath && !edgeTextWatermarkPath && 
+      singleFeatures.textlikeness >= 99 && 
+      singleFeatures.overlayConsistency < 8 && 
+      concentrationInfo.concentrationRatio < 1.5 && 
+      singleFeatures.alphaLike >= 70) {
+    hardReject = true;
+    hardRejectReason = '规则5: 满分TL+极低OC+低集中度+高亮';
+  }
+  
+  // 规则6【新增-强力版】: 满分TL + 极低OC(<3) + 网格 + 低集中度 → 货架场景文字
+  // 93%假阳性有OC<20, 62%有Grid>60, 针对性打击
+  if (!cornerLogoPath && !cornerTextWatermarkPath && !edgeTextWatermarkPath && 
+      singleFeatures.textlikeness >= 99 && 
+      singleFeatures.overlayConsistency < 3 && 
+      (gridnessInfo.isGrid || roiGridness.isGrid || gridnessInfo.gridness > 60) && 
+      concentrationInfo.concentrationRatio < 1.5) {
+    hardReject = true;
+    hardRejectReason = '规则6: 满分TL+极低OC(<3)+网格+低集中度';
+  }
+  
+  // 规则7【新增-强力版】: 满分TL + 极低OC(<5) + 低集中度(<1.0) → 分散场景文字
+  // 41%假阳性有Conc<1.0
+  if (!cornerLogoPath && !cornerTextWatermarkPath && !edgeTextWatermarkPath && 
+      singleFeatures.textlikeness >= 99 && 
+      singleFeatures.overlayConsistency < 5 && 
+      concentrationInfo.concentrationRatio < 1.0 && 
+      singleFeatures.alphaLike < 90) {  // 保护极高alpha真水印
+    hardReject = true;
+    hardRejectReason = '规则7: 满分TL+极低OC(<5)+低集中度(<1.0)';
+  }
+  
+  // 规则8【新增-针对edgeTextWatermarkPath假阳性】: 命中边缘路径但特征极弱
+  // edgeTextWatermarkPath的假阳性: OC极低 + Conc极低 + Alpha不强
+  if (edgeTextWatermarkPath && 
+      singleFeatures.overlayConsistency < 5 && 
+      concentrationInfo.concentrationRatio < 0.8 && 
+      singleFeatures.alphaLike < 45 && 
+      (singleFeatures.whiteEdgeRatio || 0) < 5 && 
+      singleFeatures.positionWeight < 100) {  // 保护正角落(PW=100)
+    hardReject = true;
+    hardRejectReason = '规则8: edgeTextWatermarkPath但特征极弱';
+  }
+  
+  // 规则9【策略4】: 满分TL(=100) + 极低OC(<1.5) → 场景文字假阳性
+  // 数据分析：85.5%假阳性有TL=100，只有33.3%真水印有TL=100
+  // 真水印image196的OC=1.9>1.5，可以安全拒绝OC<1.5的TL=100检测
+  // 这个规则可以过滤22个假阳性，不误伤任何真水印（100%召回率）
+  if (!cornerLogoPath && !cornerTextWatermarkPath && !edgeTextWatermarkPath && 
+      singleFeatures.textlikeness >= 99.5 && 
+      singleFeatures.overlayConsistency < 1.5) {
+    hardReject = true;
+    hardRejectReason = '规则9(策略4): 满分TL+极低OC(<1.5)';
+  }
+  
+  // 保护真水印：仅在明确有水印特征时解除硬拒绝
+  // 提高保护门槛，减少假阳性绕过
+  if (hardReject && (cornerLogoPath || cornerTextWatermarkPath || 
+      (edgeTextWatermarkPath && singleFeatures.overlayConsistency >= 10 && concentrationInfo.concentrationRatio >= 1.0) ||  // edgePath也需要基本特征
+      (singleFeatures.alphaLike >= 85 && concentrationInfo.concentrationRatio >= 2.0) ||  // 提高Conc要求到2.0
+      (singleFeatures.overlayConsistency >= 40))) {  // 提高OC要求剀40
+    hardReject = false;
+    hardRejectReason = '';
+  }
+  
+  // 融合：计算各分支的缩放分数（应用抑制）
+  const scaledRepeated = CFG.fusion.scale.repeated * (repeatedPassed ? repeatedScore : 0);
+  let scaledSingle = CFG.fusion.scale.single * (singlePassed ? singleScore : 0);
+  let scaledBaseline = allowBaseline ? (CFG.fusion.scale.baseline * baseline) : 0;
+  
+  // 应用抑制（仅当 gridness 或 borderLike 明显时）
+  if (suppressionFactor < 1.0) {
+    // 对边缘/角落水印，不对Single分支降权，仅降Baseline，避免被场景抑制误杀
+    if (!(cornerLogoPath || cornerTextWatermarkPath || edgeTextWatermarkPath)) {
+      scaledSingle *= suppressionFactor;
+    }
+    scaledBaseline *= suppressionFactor;
+  }
+  
+  // 【精准打击版】回退门槛，用硬性规则过滤FP
+  const weakThreshold = 32;   // 回退到32，避免误伤真水印
+  const strongThreshold = 38; // 保持不变
+  
+  const votes = [
+    scaledRepeated >= weakThreshold,
+    scaledSingle >= weakThreshold,
+    scaledBaseline >= (weakThreshold + 2)  // 回退到+2
+  ].filter(Boolean).length;
+  
+  const strongSingleAlphaOk = (singleFeatures.alphaLike >= 45) || (singleFeatures.alphaLike >= 35 && (singleFeatures.whiteEdgeRatio || 0) >= 12);
+  const isStrongSingleGeneral = (scaledSingle >= strongThreshold);
+  // 低Alpha时，需要至少两票（避免单分支强但无透明证据的假阳性）
+  const isStrongSingle = isStrongSingleGeneral && (strongSingleAlphaOk || votes >= 2);
+  const isStrongRepeated = scaledRepeated >= strongThreshold;
+  
+  // 至少一个内容分支（Single/Repeated）要达到弱门槛，避免Baseline单独触发
+  const contentBranch = (scaledSingle >= weakThreshold) || (scaledRepeated >= weakThreshold);
+  
+  // 边缘水印专用通过：Single 一票 + Baseline >= 20（B+策略）
+  const cornerLogoPass = (cornerLogoPath || cornerTextWatermarkPath || edgeTextWatermarkPath) && (scaledSingle >= weakThreshold) && (scaledBaseline >= 20);
+  
+  // EdgeText 专用通过：Single 达到强阈值即可（低透明度边缘文字水印）
+  const edgeTextPass = edgeTextWatermarkPath && (scaledSingle >= strongThreshold) && (singleFeatures.alphaLike >= 25);
+  
+  // 决策逻辑：
+  // - 单/重复任一特别强 直接通过
+  // - 或者 同时至少两票且包含内容分支
+  // - 或 corner/edge 专用通过
+  const twoFactorPass = isStrongSingle || isStrongRepeated || (contentBranch && votes >= 2) || cornerLogoPass || edgeTextPass;
+  
+  // 使用最大值作为置信度，但决策由二因子规则决定
+  let fused = Math.max(scaledRepeated, scaledSingle, scaledBaseline);
   const confidence = Math.min(100, fused);
-  const hasWatermark = confidence >= CFG.fusion.decision;
+  // 自适应决策阈值（精准优先 + 保护强Alpha真水印）
+  let effectiveThreshold = CFG.fusion.decision;
+  if (isStrongSingle && singleFeatures.alphaLike >= 50) {
+    effectiveThreshold -= 8; // 强Alpha+强Single，降低阈值
+  } else if (isStrongSingle && singleFeatures.alphaLike >= 45 && (singleFeatures.whiteEdgeRatio || 0) >= 9) {
+    effectiveThreshold -= 4;
+  }
+  // 边缘水印路径命中时降低阈值
+  if (cornerLogoPath || cornerTextWatermarkPath || edgeTextWatermarkPath) {
+    effectiveThreshold -= 8;
+  }
+  if (!cornerLogoPath && !cornerTextWatermarkPath && !edgeTextWatermarkPath) {
+    if (roiGridness.isGrid && concentrationInfo.concentrationRatio < 1.0) {
+      effectiveThreshold += 4; // 典型货架/墙面场景，提高阈值
+    }
+    if (gridnessInfo.isGrid && roiGridness.isGrid) {
+      effectiveThreshold += 2;
+    }
+  }
+  // 限制阈值范围
+  effectiveThreshold = Math.max(22, Math.min(60, effectiveThreshold));
+  
+  // 应用硬性否决
+  let hasWatermark = twoFactorPass && (confidence >= effectiveThreshold);
+  if (hardReject) {
+    hasWatermark = false;
+  }
   
   return {
     filename: path.basename(imagePath),
@@ -449,7 +1478,56 @@ async function detectWatermark(imagePath) {
       centerRatio: (edgeInfo.centerRatio * 100).toFixed(2),
       positionScore: edgeInfo.positionScore.toFixed(2)
     },
-    decision: `置信度 ${confidence.toFixed(2)} ${hasWatermark ? '>=' : '<'} 阈值 ${CFG.fusion.decision}`
+    // 新增调试信息
+    fusion: {
+      scaledRepeated: scaledRepeated.toFixed(2),
+      scaledSingle: scaledSingle.toFixed(2),
+      scaledBaseline: scaledBaseline.toFixed(2),
+      votes: votes,
+      twoFactorPass: twoFactorPass,
+      allowBaseline: allowBaseline,
+      okSingleWeak: okSingleWeak
+    },
+    // 【Phase 2】Gridness 和连通域信息
+    gridness: {
+      score: gridnessInfo.gridness.toFixed(2),
+      isGrid: gridnessInfo.isGrid,
+      rowPeriod: gridnessInfo.rowPeriod,
+      colPeriod: gridnessInfo.colPeriod,
+      suppression: suppressionFactor.toFixed(2)
+    },
+    strokeConsistency: {
+      textLikeCount: strokeConsistency.textLikeCount,
+      borderLikeCount: strokeConsistency.borderLikeCount,
+      componentCount: strokeConsistency.componentCount,
+      score: strokeConsistency.score.toFixed(2)
+    },
+    // 【Phase 3】空间集中度和 ROI 局部 gridness
+    concentration: {
+      ratio: concentrationInfo.concentrationRatio.toFixed(2),
+      roiDensity: concentrationInfo.roiDensity.toFixed(2),
+      fullDensity: concentrationInfo.fullDensity.toFixed(2),
+      textInROI: concentrationInfo.textLikeInROI,
+      textTotal: concentrationInfo.totalTextLike
+    },
+    roiGridness: {
+      score: roiGridness.gridness.toFixed(2),
+      isGrid: roiGridness.isGrid
+    },
+    edgeEntropy: edgeEntropy.toFixed(2),
+    // 【Phase 5】网格线检测信息
+    phase5: {
+      roiLineCoverage: (roiLineCoverage * 100).toFixed(2) + '%',
+      roiLinePixels: roiLineCoverageInfo.linePixels,
+      roiTotalPixels: roiLineCoverageInfo.roiPixels,
+      deltaSingle: deltaSingle.toFixed(2),
+      singleScore: singleScore.toFixed(2),
+      singleScoreSuppressed: singleScoreSuppressed.toFixed(2),
+      lineSuppression: lineSuppression.toFixed(2)
+    },
+    decision: `置信度 ${confidence.toFixed(2)} ${hasWatermark ? '>=' : '<'} 阈值 ${CFG.fusion.decision}`,
+    hardReject: hardReject,
+    hardRejectReason: hardRejectReason
   };
 }
 
@@ -466,7 +1544,7 @@ async function main() {
   
   console.log(`\n=== 🔍 批量检测 ${imageFiles.length} 张图片 ===\n`);
   
-  const expectedWatermarked = new Set(['image196.jpeg', 'image197.jpeg', 'image198.png']);
+  const expectedWatermarked = new Set(['image196.jpeg', 'image197.jpeg', 'image198.png', 'image199.jpg']);
   const results = [];
   let detectedCount = 0;
   let watermarkedDetected = 0;
@@ -492,6 +1570,12 @@ async function main() {
         console.log(`  Single: TL=${result.single.textlikeness}, OC=${result.single.overlayConsistency}, AL=${result.single.alphaLike}, WE=${result.single.whiteEdgeRatio}, PW=${result.single.positionWeight}`);
         console.log(`  Single Score: ${result.single.score}, Passed: ${result.single.passed}`);
         console.log(`  Baseline: ${result.baseline}, EdgePos: ${result.edgeInfo.positionScore}`);
+        console.log(`  Fusion: scaledS=${result.fusion.scaledSingle}, scaledB=${result.fusion.scaledBaseline}, votes=${result.fusion.votes}, twoFactorPass=${result.fusion.twoFactorPass}`);
+        console.log(`  Gridness: score=${result.gridness.score}, isGrid=${result.gridness.isGrid}, suppression=${result.gridness.suppression}`);
+        console.log(`  StrokeConsistency: text=${result.strokeConsistency.textLikeCount}, border=${result.strokeConsistency.borderLikeCount}`);
+        console.log(`  [Phase 3] Concentration: ratio=${result.concentration.ratio}, roiDensity=${result.concentration.roiDensity}, textInROI=${result.concentration.textInROI}/${result.concentration.textTotal}`);
+        console.log(`  [Phase 3] ROI Gridness: score=${result.roiGridness.score}, isGrid=${result.roiGridness.isGrid}`);
+        console.log(`  [Phase 5] ROI Line Coverage: ${result.phase5.roiLineCoverage}, deltaSingle: ${result.phase5.deltaSingle}, lineSuppression: ${result.phase5.lineSuppression}`);
         console.log(`  Decision: ${result.hasWatermark ? 'DETECTED' : 'MISSED'}`);
       }
       
@@ -504,7 +1588,22 @@ async function main() {
             name: img,
             confidence: result.confidence,
             singleScore: result.single.score,
-            baseline: result.baseline
+            baseline: result.baseline,
+            gridness: result.gridness.score,
+            isGrid: result.gridness.isGrid,
+            suppression: result.gridness.suppression,
+            concentrationRatio: result.concentration.ratio,
+            roiGridness: result.roiGridness.score,
+            roiIsGrid: result.roiGridness.isGrid,
+            // Phase 4: 详细Single子特征
+            textlikeness: result.single.textlikeness,
+            overlayConsistency: result.single.overlayConsistency,
+            alphaLike: result.single.alphaLike,
+            whiteEdgeRatio: result.single.whiteEdgeRatio,
+            // Phase 5: 网格线检测特征
+            roiLineCoverage: result.phase5.roiLineCoverage,
+            deltaSingle: result.phase5.deltaSingle,
+            lineSuppression: result.phase5.lineSuppression
           });
         }
       } else {
@@ -531,23 +1630,35 @@ async function main() {
   console.log(`检测为无水印: ${imageFiles.length - detectedCount} 张\n`);
   
   console.log('期望结果:');
-  console.log(`  应有水印: 3 张 (image196, image197, image198)`);
-  console.log(`  应无水印: ${imageFiles.length - 3} 张\n`);
+  console.log(`  应有水印: 4 张 (image196, image197, image198, image199)`);
+  console.log(`  应无水印: ${imageFiles.length - 4} 张\n`);
   
   const truePositives = watermarkedDetected;
-  const trueNegatives = imageFiles.length - 3 - falsePositives.length;
+  const trueNegatives = imageFiles.length - 4 - falsePositives.length;
   const accuracy = ((truePositives + trueNegatives) / imageFiles.length * 100).toFixed(2);
   const precision = detectedCount > 0 ? (truePositives / detectedCount * 100).toFixed(2) : 0;
-  const recall = (truePositives / 3 * 100).toFixed(2);
+  const recall = (truePositives / 4 * 100).toFixed(2);
   
   console.log('性能指标:');
-  console.log(`  ✅ 真阳性 (正确检测有水印): ${truePositives}/3`);
-  console.log(`  ✅ 真阴性 (正确检测无水印): ${trueNegatives}/${imageFiles.length - 3}`);
+  console.log(`  ✅ 真阳性 (正确检测有水印): ${truePositives}/4`);
+  console.log(`  ✅ 真阴性 (正确检测无水印): ${trueNegatives}/${imageFiles.length - 4}`);
   console.log(`  ❌ 假阳性 (误报): ${falsePositives.length}`);
   console.log(`  ❌ 假阴性 (漏检): ${falseNegatives.length}`);
   console.log(`  📈 准确率: ${accuracy}%`);
   console.log(`  📈 精确率: ${precision}%`);
   console.log(`  📈 召回率: ${recall}%\n`);
+  
+  // 将全部详细结果写入 JSON 以便离线分析
+  const outPath = 'D:/yaowei/excel-review-app/temp/extracted-images/results-bplus.json';
+  try {
+    require('fs').writeFileSync(outPath, JSON.stringify({
+      summary: { total: imageFiles.length, tp: truePositives, tn: trueNegatives, fp: falsePositives.length, fn: falseNegatives.length, accuracy, precision, recall },
+      results
+    }, null, 2));
+    console.log(`已写入详细结果: ${outPath}`);
+  } catch (e) {
+    console.warn('写入结果失败:', e.message);
+  }
   
   if (falsePositives.length > 0) {
     console.log('='.repeat(70));
@@ -556,6 +1667,8 @@ async function main() {
     falsePositives.slice(0, 20).forEach((fp, idx) => {
       console.log(`${idx + 1}. ${fp.name}`);
       console.log(`   置信度: ${fp.confidence}, Single: ${fp.singleScore}, Baseline: ${fp.baseline}`);
+      console.log(`   Gridness: ${fp.gridness}, isGrid: ${fp.isGrid}, suppression: ${fp.suppression}`);
+      console.log(`   [Phase3] Concentration: ${fp.concentrationRatio}, ROI Gridness: ${fp.roiGridness}, ROI isGrid: ${fp.roiIsGrid}`);
     });
     if (falsePositives.length > 20) {
       console.log(`... 还有 ${falsePositives.length - 20} 张 (省略显示)`);
