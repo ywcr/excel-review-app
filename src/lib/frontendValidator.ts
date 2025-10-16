@@ -86,28 +86,47 @@ export class FrontendExcelValidator {
     });
   }
 
-  // 智能选择工作表
+  // 智能选择工作表 - 返回所有匹配的sheets
   selectBestSheet(): string | null {
-    if (!this.workbook) return null;
+    const matchedSheets = this.getMatchedSheets();
+    // 如果只有一个匹配，直接返回
+    if (matchedSheets.length === 1) {
+      return matchedSheets[0];
+    }
+    // 如果有多个匹配，返回null表示需要用户选择
+    // 如果没有匹配，也返回null
+    return null;
+  }
+
+  // 获取所有匹配的工作表名称
+  getMatchedSheets(): string[] {
+    if (!this.workbook) return [];
 
     const sheets = this.getSheetInfo();
+    const matched: string[] = [];
 
-    // 1. 优先匹配模板定义的工作表名称
+    // 1. 收集所有匹配模板定义的工作表名称
     for (const preferredName of this.template.sheetNames) {
-      const found = sheets.find(
+      const found = sheets.filter(
         (s) =>
-          s.name === preferredName ||
-          s.name.includes(preferredName) ||
-          preferredName.includes(s.name)
+          s.hasData &&
+          (s.name === preferredName ||
+            s.name.includes(preferredName) ||
+            preferredName.includes(s.name))
       );
-      if (found && found.hasData) {
-        return found.name;
-      }
+      found.forEach((sheet) => {
+        if (!matched.includes(sheet.name)) {
+          matched.push(sheet.name);
+        }
+      });
     }
 
-    // 2. 选择有数据的第一个工作表
-    const dataSheet = sheets.find((s) => s.hasData);
-    return dataSheet?.name || null;
+    // 2. 如果没有匹配到任何模板名称，返回所有有数据的工作表
+    if (matched.length === 0) {
+      return sheets.filter((s) => s.hasData).map((s) => s.name);
+    }
+
+    return matched;
   }
 
   // 验证表头
