@@ -69,3 +69,11 @@ watermark-test-*.txt
 *.csv
 PHASE*.md
 TRAINING_GUIDE.md
+
+# Analysis and debug scripts (temporary)
+analyze-*.js
+check-*.js
+debug-*.js
+export-*.js
+quick-*.js
+*-fp-*.*
