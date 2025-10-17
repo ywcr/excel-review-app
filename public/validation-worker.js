@@ -412,18 +412,30 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
       // 尝试根据模板匹配工作表
       const template = templateFromMainThread;
       if (template && template.sheetNames && template.sheetNames.length > 0) {
-        const matchedSheet = findMatchingSheet(availableSheets, template.sheetNames);
-        if (matchedSheet) {
-          targetSheet = matchedSheet;
+        const matchedSheets = findAllMatchingSheets(availableSheets, template.sheetNames);
+        if (matchedSheets.length === 1) {
+          // 只有一个匹配，直接使用
+          targetSheet = matchedSheets[0];
           isConfidentMatch = true;
           ImageDebugLogger.info(
             ImageDebugLogger.STAGES.SHEET_IDENTIFY,
             `自动匹配到工作表: ${targetSheet}`,
             {
               templateSheetNames: template.sheetNames,
-              matchedSheet,
+              matchedSheet: targetSheet,
             }
           );
+        } else if (matchedSheets.length > 1) {
+          // 多个匹配，需要用户选择
+          ImageDebugLogger.debug(
+            ImageDebugLogger.STAGES.SHEET_IDENTIFY,
+            "匹配到多个sheet，需要用户选择",
+            {
+              matchedSheets,
+              templateSheetNames: template.sheetNames,
+            }
+          );
+          // 不设置 isConfidentMatch，让后面的逺辑触发选择器
         } else {
           ImageDebugLogger.debug(
             ImageDebugLogger.STAGES.SHEET_IDENTIFY,
@@ -3496,28 +3508,41 @@ function selectBestSheet(sheetNames, preferredNames) {
   return sheetNames[0] || null;
 }
 
-// 智能工作表匹配函数 - 结合 main 分支和我们的增强
+// 智能工作表匹配函数 - 返回第一个匹配项（兼容旧逻辑）
 function findMatchingSheet(availableSheets, templateSheetNames) {
+  const matches = findAllMatchingSheets(availableSheets, templateSheetNames);
+  return matches.length > 0 ? matches[0] : null;
+}
+
+// 获取所有匹配的工作表
+function findAllMatchingSheets(availableSheets, templateSheetNames) {
   if (!templateSheetNames || templateSheetNames.length === 0) {
-    return null;
+    return [];
   }
+
+  const matched = [];
 
   // 1. 精确匹配
   for (const templateName of templateSheetNames) {
-    if (availableSheets.includes(templateName)) {
-      return templateName;
-    }
+    const found = availableSheets.filter(sheet => sheet === templateName);
+    found.forEach(sheet => {
+      if (!matched.includes(sheet)) {
+        matched.push(sheet);
+      }
+    });
   }
 
   // 2. 包含匹配
   for (const templateName of templateSheetNames) {
-    const found = availableSheets.find(
+    const found = availableSheets.filter(
       (sheetName) =>
         sheetName.includes(templateName) || templateName.includes(sheetName)
     );
-    if (found) {
-      return found;
-    }
+    found.forEach(sheet => {
+      if (!matched.includes(sheet)) {
+        matched.push(sheet);
+      }
+    });
   }
 
   // 3. 模糊匹配（去除空格、特殊字符后比较）
@@ -3525,19 +3550,27 @@ function findMatchingSheet(availableSheets, templateSheetNames) {
     const normalizedTemplate = templateName
       .replace(/[\s\-_]/g, "")
       .toLowerCase();
-    const found = availableSheets.find((sheetName) => {
+    const found = availableSheets.filter((sheetName) => {
       const normalizedSheet = sheetName.replace(/[\s\-_]/g, "").toLowerCase();
       return (
         normalizedSheet.includes(normalizedTemplate) ||
         normalizedTemplate.includes(normalizedSheet)
       );
     });
-    if (found) {
-      return found;
-    }
+    found.forEach(sheet => {
+      if (!matched.includes(sheet)) {
+        matched.push(sheet);
+      }
+    });
   }
 
-  return null;
+  // 如果没有匹配到，返回所有有数据的sheet
+  if (matched.length === 0) {
+    // 这里只返回空数组，让调用者处理
+    return [];
+  }
+
+  return matched;
 }
 
 function validateHeaders(sheet, template) {

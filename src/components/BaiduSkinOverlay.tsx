@@ -52,6 +52,9 @@ export default function BaiduSkinOverlay({
   const downloadCbRef = useRef<(() => void) | null>(null);
   const hintTimer = useRef<number | null>(null);
   const [downloadHint, setDownloadHint] = useState<string | null>(null);
+  const taskSelectorCbRef = useRef<(() => void) | null>(null);
+  const openFileGuardRef = useRef(false);
+  const triggerGuardRef = useRef<{ submit: number; leftTool: number }>({ submit: 0, leftTool: 0 });
 
 
   const handleDownloadClick = (e: React.MouseEvent) => {
@@ -175,7 +178,11 @@ export default function BaiduSkinOverlay({
       } catch {}
       e.preventDefault();
       e.stopPropagation();
-      fileInputRef.current?.click();
+      if (openFileGuardRef.current) return;
+      openFileGuardRef.current = true;
+      try { fileInputRef.current?.click(); } finally {
+        setTimeout(() => { openFileGuardRef.current = false; }, 400);
+      }
     };
 
     const onKwPointerDown = (e: Event) => handleAnyTrigger(e);
@@ -252,8 +259,6 @@ export default function BaiduSkinOverlay({
           } catch {}
           // 捕获阶段阻止默认，让 textarea 不获取焦点
           kwEl.addEventListener("pointerdown", onKwPointerDown, capture);
-          kwEl.addEventListener("mousedown", onKwMouseDown, capture);
-          kwEl.addEventListener("click", onKwClick, capture);
           // 如果尚未有容器，使用输入框定位
           if (!attached.containerEl) updateRect();
         }
@@ -270,15 +275,19 @@ export default function BaiduSkinOverlay({
         }
       }
 
-      // 左侧工具：任务选择触发
+      // 左侧工具：任务选择触发（兜底多种选择器，适配不同构造）
       if (!attached.leftToolEl) {
-        const lt = document.querySelector<HTMLElement>(".left-tool_12WeH");
+        const lt =
+          document.querySelector<HTMLElement>(".left-tool_12WeH") ||
+          document.querySelector<HTMLElement>("#left-tool") ||
+          document.querySelector<HTMLElement>(".left-tools-wrapper");
         if (lt) {
           attached.leftToolEl = lt;
           const onLtClick = (e: Event) => {
             e.preventDefault();
             e.stopPropagation();
-            onOpenTaskSelector?.();
+            const cb = taskSelectorCbRef.current;
+            if (cb) cb();
           };
           lt.addEventListener("click", onLtClick, capture);
           // 把清理函数绑到 el 上，便于卸载
@@ -308,13 +317,44 @@ export default function BaiduSkinOverlay({
         if (hidAny) attached.hidHeader = true;
       }
 
-      if ((attached.kwEl && attached.btnEl) || attempts >= maxAttempts) {
+      if ((attached.kwEl && attached.btnEl && attached.leftToolEl) || attempts >= maxAttempts) {
         clearInterval(timer);
       }
     }, interval);
 
+    // 文档级事件代理：确保无论按钮如何重渲染都能响应
+    const onDocClick = (e: Event) => {
+      const t = e.target as Element | null;
+      if (!t) return;
+      const closest = (sel: string) => (t instanceof Element) && t.closest(sel);
+      // 提交按钮
+      if (closest('#chat-submit-button, #su, input[type=submit][value*="百度一下"], button[type=submit]')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const now = Date.now();
+        if (now - (triggerGuardRef.current.submit || 0) < 400) return;
+        triggerGuardRef.current.submit = now;
+        const task = (selectedTask || '').trim();
+        if (!task) { taskSelectorCbRef.current?.(); return; }
+        onStartValidate();
+        return;
+      }
+      // 左侧任务工具
+      if (closest('#left-tool, .left-tool_12WeH, .left-tools-wrapper')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const now = Date.now();
+        if (now - (triggerGuardRef.current.leftTool || 0) < 400) return;
+        triggerGuardRef.current.leftTool = now;
+        taskSelectorCbRef.current?.();
+        return;
+      }
+    };
+    document.addEventListener('click', onDocClick, capture);
+
     return () => {
       clearInterval(timer);
+      document.removeEventListener('click', onDocClick, capture);
       if (attached.kwEl) {
         attached.kwEl.removeEventListener(
           "pointerdown",
@@ -341,7 +381,7 @@ export default function BaiduSkinOverlay({
       downloadBtnRef.current = null;
       // downloadBtnRef.current = null;
     };
-  }, [inputSelectors, buttonSelectors, onStartValidate]);
+  }, [inputSelectors, buttonSelectors, onStartValidate, onOpenTaskSelector, selectedTask]);
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -356,6 +396,11 @@ export default function BaiduSkinOverlay({
   useEffect(() => {
     downloadCbRef.current = onDownloadReport || null;
   }, [onDownloadReport]);
+
+  // 保持最新任务选择器回调
+  useEffect(() => {
+    taskSelectorCbRef.current = onOpenTaskSelector || null;
+  }, [onOpenTaskSelector]);
 
 
   // 根据 isDownloadAvailable 注入/移除下载icon；当容器未准备好时自动重试一段时间
