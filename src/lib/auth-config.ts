@@ -10,7 +10,7 @@ export const AUTH_CONFIG = {
     process.env.JWT_EXPIRES_IN || "365d", // 所有环境统一使用1年过期时间
   
   // 单设备登录控制
-  SINGLE_DEVICE_LOGIN: process.env.SINGLE_DEVICE_LOGIN !== "false", // 默认启用
+  SINGLE_DEVICE_LOGIN: process.env.SINGLE_DEVICE_LOGIN === "true", // 默认禁用，避免频繁失效
 
   // 自动刷新设置
   AUTO_REFRESH_ENABLED: process.env.AUTO_REFRESH_ENABLED !== "false", // 默认启用
@@ -26,7 +26,7 @@ export const AUTH_CONFIG = {
 
   // Cookie设置 - 使用长期过期时间，避免频繁登录
   COOKIE_NAME: "auth-token",
-  COOKIE_MAX_AGE: 365 * 24 * 60 * 60 * 1000, // 所有环境统一使用1年
+  COOKIE_MAX_AGE: 365 * 24 * 60 * 60, // 所有环境统一使用1年（单位：秒）
 
   // 安全设置
   SECURE_COOKIES: process.env.NODE_ENV === "production",

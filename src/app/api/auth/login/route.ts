@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production", // 开发环境允许HTTP
       sameSite: "lax", // 放宽同站策略以支持更好的兼容性
-      maxAge: 365 * 24 * 60 * 60 * 1000, // 1年过期时间，支持持久化会话
+      maxAge: 365 * 24 * 60 * 60, // 1年过期时间（单位：秒），支持持久化会话
       path: "/",
     });
 
