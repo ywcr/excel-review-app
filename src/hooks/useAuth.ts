@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 interface User {
@@ -34,6 +34,10 @@ export function useAuth() {
   });
 
   const router = useRouter();
+  
+  // 🚀 认证检查缓存：避免短时间内重复检查
+  const lastAuthCheckRef = useRef<number>(0);
+  const AUTH_CACHE_DURATION = 30 * 1000; // 30秒内复用认证状态
 
   // 刷新令牌
   const refreshToken = async (): Promise<boolean> => {
@@ -239,25 +243,46 @@ export function useAuth() {
     };
   }, [authState.isAuthenticated, authState.lastActivity]);
 
-  // 验证前检查登录状态（简化版 - 持久化会话管理）
+  // 🚀 优化后的认证检查：使用本地缓存和节流机制
   const ensureAuthenticated = async (): Promise<boolean> => {
+    // 1. 首先检查本地认证状态
     if (!authState.isAuthenticated) {
-      console.log("用户未认证");
+      console.log("[AUTH] 用户未认证");
       return false;
     }
 
-    // 简单检查当前认证状态，不进行令牌刷新
-    // 持久化会话下，只需要验证用户仍然登录即可
+    // 2. 检查最近活动时间，如果最近有活动则信任当前状态
+    const timeSinceLastActivity = Date.now() - authState.lastActivity;
+    if (timeSinceLastActivity < 5 * 60 * 1000) { // 5分钟内有活动
+      // 更新活动时间
+      updateActivity();
+      console.log("[AUTH] 最近有活动，信任当前认证状态");
+      return true;
+    }
+
+    // 3. 节流：避免短时间内重复检查
+    const now = Date.now();
+    if (now - lastAuthCheckRef.current < AUTH_CACHE_DURATION) {
+      console.log("[AUTH] 使用缓存的认证状态（30秒内已检查）");
+      updateActivity();
+      return true;
+    }
+
+    // 4. 如果距离上次活动较久，发起快速验证
+    console.log("[AUTH] 发起后台认证验证");
     try {
       const response = await fetch("/api/auth/me", {
         credentials: "include",
       });
 
+      lastAuthCheckRef.current = now;
+
       if (response.ok) {
-        console.log("用户认证状态有效");
+        console.log("[AUTH] 认证状态有效");
+        updateActivity();
         return true;
       } else {
-        console.log("用户认证状态无效");
+        console.warn("[AUTH] 认证状态失效");
         setAuthState({
           user: null,
           isLoading: false,
@@ -269,8 +294,11 @@ export function useAuth() {
         return false;
       }
     } catch (error) {
-      console.error("会话验证失败:", error);
-      return false;
+      console.error("[AUTH] 会话验证失败:", error);
+      // 网络错误时，如果本地状态仍然有效，允许继续
+      // 避免因临时网络问题阻止用户操作
+      console.warn("[AUTH] 网络错误，信任本地状态");
+      return authState.isAuthenticated;
     }
   };
 

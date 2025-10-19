@@ -172,6 +172,9 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
 
       try {
         setIsValidating(true);
+        // 🚀 立即显示初始进度，避免用户感觉延迟
+        setProgress({ progress: 0, message: "正在初始化..." });
+        
         cleanupWorker(); // Clean up any previous worker
 
         const cacheBuster = `v=${Date.now()}`;
@@ -262,7 +265,12 @@ export function useFrontendValidation(): UseFrontendValidationReturn {
           });
         } else {
           // For small files, read ArrayBuffer on main thread and transfer to worker
+          // 🚀 显示文件读取进度
+          setProgress({ progress: 3, message: "正在读取文件..." });
           const fileBuffer = await file.arrayBuffer();
+          
+          // 🚀 文件读取完成，准备发送到Worker
+          setProgress({ progress: 5, message: "正在准备验证..." });
 
           // 重要：直接依赖 Worker 的智能工作表选择与提示，不在主线程进行 XLSX 预解析，避免UI卡顿
           // 通过 Transferable 传输，避免大内存拷贝

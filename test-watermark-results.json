@@ -1,0 +1,359 @@
+{
+  "timestamp": "2025-10-17T13:55:22.508Z",
+  "summary": {
+    "tested": 38,
+    "detected": 0,
+    "truePositive": 0,
+    "falsePositive": 0,
+    "trueNegative": 30,
+    "falseNegative": 8,
+    "accuracy": 78.9,
+    "precision": 0,
+    "recall": 0,
+    "falsePositiveRate": 0
+  },
+  "details": [
+    {
+      "filename": "image1990.png",
+      "isKnownWatermark": true,
+      "classification": "FN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image1991.png",
+      "isKnownWatermark": true,
+      "classification": "FN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image1992.png",
+      "isKnownWatermark": true,
+      "classification": "FN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image1993.png",
+      "isKnownWatermark": true,
+      "classification": "FN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image1994.png",
+      "isKnownWatermark": true,
+      "classification": "FN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image1995.png",
+      "isKnownWatermark": true,
+      "classification": "FN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image1996.png",
+      "isKnownWatermark": true,
+      "classification": "FN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image1997.png",
+      "isKnownWatermark": true,
+      "classification": "FN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image1.png",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image8.png",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image15.png",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image22.png",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image29.png",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image36.png",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image43.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image50.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image57.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image64.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image71.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image78.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image85.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image92.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image99.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image106.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image113.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image120.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image127.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image134.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image141.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image148.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image155.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image162.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image169.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image176.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image183.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image190.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image197.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    },
+    {
+      "filename": "image202.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "detected": false,
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": []
+    }
+  ]
+}

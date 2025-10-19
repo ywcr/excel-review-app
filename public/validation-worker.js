@@ -266,10 +266,10 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
   }
 
   try {
-    // 解析Excel文件
+    // 🚀 立即发送进度，让用户知道开始解析
     postMessage({
       type: MESSAGE_TYPES.PROGRESS,
-      data: { progress: 10, message: "解析Excel文件..." },
+      data: { progress: 10, message: "正在解析Excel文件..." },
     });
 
     let workbook;
@@ -1764,6 +1764,12 @@ async function validateExcel(data) {
     enableWatermarkDetection,
     isLargeFile,
   } = data;
+
+  // 🚀 立即发送进度反馈，避免用户感觉延迟
+  postMessage({
+    type: MESSAGE_TYPES.PROGRESS,
+    data: { progress: 8, message: "Worker已就绪，开始处理..." },
+  });
 
   // 接收从主线程传递的完整模板
   if (template) {
