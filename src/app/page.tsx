@@ -6,6 +6,7 @@ import TaskSelector from "@/components/TaskSelector";
 import ValidationRequirements from "@/components/ValidationRequirements";
 import ValidationResults from "@/components/ValidationResults";
 import FrontendSheetSelector from "@/components/FrontendSheetSelector";
+import { findMatchingSheet } from "@/lib/sheetMatcher";
 import UserMenu from "@/components/UserMenu";
 import DebugLogViewer from "@/components/DebugLogViewer";
 import { useFrontendValidation } from "@/hooks/useFrontendValidation";
@@ -147,6 +148,60 @@ function HomeContent() {
       }
     }
   }, [result, isValidating, runId, successShownRunId]);
+
+  // 处理需要选择工作表的情况 - 使用智能匹配
+  useEffect(() => {
+    if (result?.needSheetSelection && !showSheetSelector && result.availableSheets) {
+      // 尝试智能匹配
+      const matchResult = findMatchingSheet(selectedTask, result.availableSheets);
+      
+      console.log(`🎯 智能工作表匹配: ${matchResult.message}`);
+      
+      // 如果找到唯一匹配（精确或模糊），自动选择
+      if ((matchResult.type === "exact" || matchResult.type === "single") && matchResult.matchedSheets.length === 1) {
+        console.log(`✅ 自动选择工作表: "${matchResult.matchedSheets[0]}"`);
+        // 自动触发验证，不显示选择器
+        const autoSelectSheet = async () => {
+          setShowSheetSelector(false);
+          setRunId((id) => id + 1);
+          setCompletedRunId(null);
+          if (reportUrl) {
+            try {
+              URL.revokeObjectURL(reportUrl);
+            } catch {}
+          }
+          setReportUrl(null);
+          setReportName(null);
+
+          if (!uploadedFile || !selectedTask) return;
+
+          const isAuthValid = await ensureAuthenticated();
+          if (!isAuthValid) {
+            setLocalError("登录状态已过期，请重新登录");
+            return;
+          }
+
+          try {
+            const useImageValidation = skin === "baidu" ? true : includeImageValidation;
+            await validateExcel(
+              uploadedFile,
+              selectedTask,
+              matchResult.matchedSheets[0],
+              useImageValidation,
+              enableWatermarkDetection
+            );
+          } catch (err) {
+            console.error("Validation with selected sheet failed:", err);
+          }
+        };
+        autoSelectSheet();
+      } else {
+        // 多个匹配或无匹配，显示选择器让用户手动选择
+        console.log(`⚠️ 需要用户手动选择工作表`);
+        setShowSheetSelector(true);
+      }
+    }
+  }, [result?.needSheetSelection, showSheetSelector, selectedTask, result?.availableSheets]);
 
   const isBaiduSkin = skin === "baidu";
 
@@ -309,11 +364,6 @@ function HomeContent() {
       cancelValidation();
     }
   };
-
-  // 处理需要选择工作表的情况
-  if (result?.needSheetSelection && !showSheetSelector) {
-    setShowSheetSelector(true);
-  }
 
   // 转换验证结果格式以兼容ValidationResults组件
   const convertedValidationResult = result
@@ -630,6 +680,7 @@ function HomeContent() {
             availableSheets={result.availableSheets}
             onSheetSelect={handleSheetSelect}
             onCancel={handleSheetSelectorCancel}
+            taskName={selectedTask}
           />
         )}
 
@@ -667,6 +718,7 @@ function HomeContent() {
               availableSheets={result.availableSheets}
               onSheetSelect={handleSheetSelect}
               onCancel={handleSheetSelectorCancel}
+              taskName={selectedTask}
             />
           </div>
         )}

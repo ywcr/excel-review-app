@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getMatchHint } from "@/lib/sheetMatcher";
 
 interface SheetInfo {
   name: string;
@@ -10,6 +11,7 @@ interface FrontendSheetSelectorProps {
   onSheetSelect: (sheetName: string) => void;
   onCancel: () => void;
   isLoading?: boolean;
+  taskName?: string; // 任务类型名称，用于显示匹配提示
 }
 
 export default function FrontendSheetSelector({
@@ -17,8 +19,10 @@ export default function FrontendSheetSelector({
   onSheetSelect,
   onCancel,
   isLoading = false,
+  taskName,
 }: FrontendSheetSelectorProps) {
   const [selectedSheet, setSelectedSheet] = useState<string>("");
+  const matchHint = taskName ? getMatchHint(taskName) : "";
 
   const handleConfirm = () => {
     if (selectedSheet) {
@@ -50,9 +54,14 @@ export default function FrontendSheetSelector({
             选择工作表
           </h3>
 
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-gray-600 mb-2">
             系统无法自动识别对应的工作表，请手动选择正确的工作表进行验证：
           </p>
+          {matchHint && (
+            <div className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-md px-3 py-2 mb-4">
+              {matchHint}
+            </div>
+          )}
 
           <div className="space-y-2 mb-6 max-h-72 overflow-y-auto pr-1 pl-1">
             {availableSheets.map((sheet) => (

@@ -23,6 +23,7 @@ export interface TaskTemplate {
   description: string;
   requiredFields: string[];
   sheetNames: string[]; // 可能的工作表名称
+  matchKeywords?: string[]; // 模糊匹配关键字（工作表名必须包含其中之一）
   fieldMappings: Record<string, string>; // Excel列名 -> 标准字段名映射
   validationRules: ValidationRule[];
 }
@@ -33,7 +34,8 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
     name: "药店拜访",
     description: "药店拜访任务验证",
     requiredFields: ["实施人", "零售渠道", "拜访开始时间", "拜访时长"],
-    sheetNames: ["药店拜访", "Sheet1", "工作表1"],
+    sheetNames: ["药店拜访"],
+    matchKeywords: ["药店"],
     fieldMappings: {
       序号: "serialNumber",
       任务标题: "taskTitle",
@@ -303,7 +305,8 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
       "拜访开始时间",
       "拜访时长",
     ],
-    sheetNames: ["医院拜访", "等级医院拜访", "Sheet1", "工作表1"],
+    sheetNames: ["等级医院拜访"],
+    matchKeywords: ["等级"],
     fieldMappings: {
       序号: "serialNumber",
       任务标题: "taskTitle",
@@ -566,7 +569,8 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
       "拜访开始时间",
       "拜访时长",
     ],
-    sheetNames: ["科室拜访", "医院拜访", "Sheet1", "工作表1"],
+    sheetNames: ["科室拜访"],
+    matchKeywords: ["科室"],
     fieldMappings: {
       序号: "serialNumber",
       任务标题: "taskTitle",
@@ -845,7 +849,8 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
       "拜访开始时间",
       "拜访时长",
     ],
-    sheetNames: ["基层医疗机构拜访", "医院拜访", "Sheet1", "工作表1"],
+    sheetNames: ["基层医疗机构拜访"],
+    matchKeywords: ["基层"],
     fieldMappings: {
       序号: "serialNumber",
       任务标题: "taskTitle",
@@ -1119,7 +1124,8 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
       "拜访开始时间",
       "拜访时长",
     ],
-    sheetNames: ["民营医院拜访", "医院拜访", "Sheet1", "工作表1"],
+    sheetNames: ["民营医院拜访"],
+    matchKeywords: ["民营"],
     fieldMappings: {
       序号: "serialNumber",
       任务标题: "taskTitle",
