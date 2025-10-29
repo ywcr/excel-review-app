@@ -312,7 +312,7 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
           dense: false, // 使用稀疏数组格式，节省内存
           sheetStubs: false, // 不包含空单元格
           bookVBA: false,
-          bookSheets: false, // main 分支的设置
+          // bookSheets 必须移除或设为 false，否则不会解析 Sheets 对象
           bookProps: false,
           bookFiles: false,
           bookDeps: false,
@@ -481,15 +481,70 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
     // 获取目标工作表 - 直接从已解析的工作簿中获取
     let worksheet;
     try {
-      worksheet = workbook.Sheets[sheetName];
+      // 调试：检查 workbook.Sheets 对象状态
+      console.log("[DEBUG] 尝试获取工作表:", {
+        targetSheetName: sheetName,
+        availableSheetNames: workbook.SheetNames,
+        hasSheets: !!workbook.Sheets,
+        sheetsKeys: workbook.Sheets ? Object.keys(workbook.Sheets) : [],
+        sheetNameMatch: workbook.SheetNames.includes(sheetName),
+      });
 
-      if (!worksheet) {
-        // 尝试使用第一个工作表
-        const firstSheetName = workbook.SheetNames[0];
-        if (firstSheetName) {
-          worksheet = workbook.Sheets[firstSheetName];
+      const sheetsObj = workbook.Sheets || undefined;
+      const sheetKeys = sheetsObj ? Object.keys(sheetsObj) : [];
+      const normalizedTarget = (sheetName || "").trim();
+
+      // 先尝试精确/去空格匹配 key
+      if (sheetsObj) {
+        const directKey = sheetKeys.find(
+          (k) => k === sheetName || k.trim() === normalizedTarget
+        );
+        if (directKey) {
+          worksheet = sheetsObj[directKey];
+        } else {
+          worksheet = sheetsObj[sheetName];
+        }
+      }
+
+      // 如果 Sheets 中没有对应的键，但 SheetNames 包含该名称，尝试单表重读
+      if (!worksheet && workbook.SheetNames.includes(sheetName)) {
+        ImageDebugLogger.warn(
+          ImageDebugLogger.STAGES.SHEET_IDENTIFY,
+          "目标工作表未在Sheets对象中，尝试单表重读",
+          { sheetName, sheetKeys }
+        );
+        try {
+          const wb2 = XLSX.read(fileBuffer, {
+            type: "array",
+            cellDates: true,
+            cellNF: false,
+            cellText: false,
+            dense: false,
+            sheetStubs: false,
+            raw: false,
+            sheets: [sheetName],
+          });
+          if (wb2 && wb2.Sheets) {
+            worksheet = wb2.Sheets[sheetName] || null;
+          }
+          if (worksheet) {
+            console.log(
+              "[DEBUG] 单表重读成功:",
+              worksheet["!ref"] || "无范围信息"
+            );
+          }
+        } catch (reReadErr) {
+          console.warn("[WARN] 单表重读失败:", reReadErr);
+        }
+      }
+
+      // 仍然失败：退回到第一个存在于 Sheets 的工作表
+      if (!worksheet && sheetsObj) {
+        const firstExistingSheetName = sheetKeys.find((n) => !!sheetsObj[n]);
+        if (firstExistingSheetName) {
+          worksheet = sheetsObj[firstExistingSheetName];
           console.log(
-            `工作表 "${sheetName}" 不存在，使用第一个工作表: "${firstSheetName}"`
+            `工作表 "${sheetName}" 不存在，使用存在的工作表: "${firstExistingSheetName}"`
           );
         }
       }
