@@ -396,3 +396,5 @@ if (textureScore > 60 && avgEntropy > 7.5) {  // 可调整
 
 
 
+
+
