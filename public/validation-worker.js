@@ -313,7 +313,7 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
           type: "array",
           cellDates: true,
           cellNF: false, // main 分支的内存优化
-          cellText: false, // main 分支的内存优化
+          // cellText: false 会导致某些工作表无法被解析（如"药店拜访"），已移除
           dense: false, // 使用稀疏数组格式，节省内存
           sheetStubs: false, // 不包含空单元格
           bookVBA: false,
@@ -523,7 +523,7 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
             type: "array",
             cellDates: true,
             cellNF: false,
-            cellText: false,
+            // cellText: false 会导致某些工作表无法被解析，已移除
             dense: false,
             sheetStubs: false,
             raw: false,
