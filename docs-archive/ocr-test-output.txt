@@ -1,0 +1,203 @@
+正在初始化 OCR 引擎（支持中文）...
+OCR 引擎初始化完成
+
+
+=== 🔍 批量检测 200 张图片 ===
+
+处理进度: 0/200...
+处理进度: 10/200...
+处理进度: 20/200...
+处理进度: 30/200...
+处理进度: 40/200...
+处理进度: 50/200...
+处理进度: 60/200...
+处理进度: 70/200...
+处理进度: 80/200...
+处理进度: 90/200...
+处理进度: 100/200...
+
+[WATERMARKED] image196.jpeg:
+  Confidence: 98.35 [HIGH] - 高置信度 - 确定有水印
+  Single: TL=100, OC=1.876430205949657, AL=58.08549382716049, WE=4.691075514874142, PW=100
+  Single Score: 65.53, Passed: true
+  Baseline: 22.25, EdgePos: 73.67
+  Fusion: scaledS=49.81, scaledB=0.00, votes=1, twoFactorPass=true
+  Gridness: score=43.05, isGrid=false, suppression=1.00
+  StrokeConsistency: text=614, border=4
+  [Phase 3] Concentration: ratio=1.25, roiDensity=709.88, textInROI=23/614
+  [Phase 3] ROI Gridness: score=0.00, isGrid=false
+  [Phase 5] ROI Line Coverage: 0.00%, deltaSingle: 65.53, lineSuppression: 1.00
+  [频域分析] Periodicity: 100.00, HighFreq: 100.00, Direction: 16.75
+  [频域分析] 周期性模式: 是, 高频异常: 是
+  Decision: DETECTED
+
+[WATERMARKED] image197.jpeg:
+  Confidence: 96.72 [HIGH] - 高置信度 - 确定有水印
+  Single: TL=60.54092107088361, OC=4.219910846953938, AL=5.7367283950617285, WE=10.549777117384844, PW=100
+  Single Score: 44.96, Passed: true
+  Baseline: 21.92, EdgePos: 75.61
+  Fusion: scaledS=34.17, scaledB=21.92, votes=1, twoFactorPass=true
+  Gridness: score=35.96, isGrid=false, suppression=1.00
+  StrokeConsistency: text=200, border=2
+  [Phase 3] Concentration: ratio=0.50, roiDensity=92.59, textInROI=3/200
+  [Phase 3] ROI Gridness: score=0.00, isGrid=false
+  [Phase 5] ROI Line Coverage: 0.00%, deltaSingle: 0.00, lineSuppression: 1.00
+  [频域分析] Periodicity: 100.00, HighFreq: 100.00, Direction: 8.58
+  [频域分析] 周期性模式: 是, 高频异常: 是
+  Decision: DETECTED
+
+[WATERMARKED] image198.png:
+  Confidence: 98.67 [HIGH] - 高置信度 - 确定有水印
+  Single: TL=96.74074074074075, OC=0, AL=87.23185185185186, WE=0, PW=100
+  Single Score: 67.23, Passed: true
+  Baseline: 24.15, EdgePos: 75.34
+  Fusion: scaledS=51.09, scaledB=24.15, votes=1, twoFactorPass=true
+  Gridness: score=37.14, isGrid=false, suppression=1.00
+  StrokeConsistency: text=138, border=3
+  [Phase 3] Concentration: ratio=0.00, roiDensity=0.00, textInROI=0/138
+  [Phase 3] ROI Gridness: score=0.00, isGrid=false
+  [Phase 5] ROI Line Coverage: 0.00%, deltaSingle: 0.00, lineSuppression: 1.00
+  [频域分析] Periodicity: 100.00, HighFreq: 100.00, Direction: 18.34
+  [频域分析] 周期性模式: 是, 高频异常: 是
+  Decision: DETECTED
+处理进度: 110/200...
+
+[WATERMARKED] image199.jpg:
+  Confidence: 97.06 [HIGH] - 高置信度 - 确定有水印
+  Single: TL=100, OC=0, AL=34.800185185185185, WE=0, PW=100
+  Single Score: 62.18, Passed: true
+  Baseline: 24.86, EdgePos: 76.82
+  Fusion: scaledS=47.25, scaledB=9.69, votes=1, twoFactorPass=true
+  Gridness: score=86.23, isGrid=true, suppression=0.39
+  StrokeConsistency: text=846, border=4
+  [Phase 3] Concentration: ratio=0.63, roiDensity=493.83, textInROI=16/846
+  [Phase 3] ROI Gridness: score=0.00, isGrid=false
+  [Phase 5] ROI Line Coverage: 0.00%, deltaSingle: 62.18, lineSuppression: 1.00
+  [频域分析] Periodicity: 100.00, HighFreq: 100.00, Direction: 10.28
+  [频域分析] 周期性模式: 是, 高频异常: 是
+  Decision: DETECTED
+处理进度: 120/200...
+处理进度: 130/200...
+处理进度: 140/200...
+处理进度: 150/200...
+处理进度: 160/200...
+处理进度: 170/200...
+处理进度: 180/200...
+处理进度: 190/200...
+
+处理进度: 200/200...完成！
+
+======================================================================
+📊 检测结果汇总
+======================================================================
+
+总图片数: 200
+检测为有水印: 79 张
+检测为无水印: 121 张
+
+期望结果:
+  应有水印: 4 张 (image196, image197, image198, image199)
+  应无水印: 196 张
+
+性能指标:
+  ✅ 真阳性 (正确检测有水印): 4/4
+  ✅ 真阴性 (正确检测无水印): 121/196
+  ❌ 假阳性 (误报): 75
+  ❌ 假阴性 (漏检): 0
+  📈 准确率: 62.50%
+  📈 精确率: 5.06%
+  📈 召回率: 100.00%
+
+已写入详细结果: D:/yaowei/excel-review-app/temp/extracted-images/results-bplus.json
+======================================================================
+⚠️  假阳性列表 (75张误检为有水印):
+======================================================================
+1. image100.jpeg
+   置信度: 100.00, Single: 64.79, Baseline: 23.67
+   Gridness: 73.10, isGrid: true, suppression: 0.85
+   [Phase3] Concentration: 1.10, ROI Gridness: 0.00, ROI isGrid: false
+2. image102.jpeg
+   置信度: 100.00, Single: 65.57, Baseline: 17.68
+   Gridness: 96.23, isGrid: true, suppression: 0.90
+   [Phase3] Concentration: 1.68, ROI Gridness: 0.00, ROI isGrid: false
+3. image103.jpeg
+   置信度: 97.66, Single: 68.60, Baseline: 26.19
+   Gridness: 69.46, isGrid: true, suppression: 0.75
+   [Phase3] Concentration: 0.85, ROI Gridness: 0.00, ROI isGrid: false
+4. image104.jpeg
+   置信度: 97.35, Single: 64.33, Baseline: 10.82
+   Gridness: 87.08, isGrid: true, suppression: 0.85
+   [Phase3] Concentration: 1.29, ROI Gridness: 0.00, ROI isGrid: false
+5. image106.jpeg
+   置信度: 97.80, Single: 69.56, Baseline: 25.13
+   Gridness: 26.14, isGrid: false, suppression: 0.90
+   [Phase3] Concentration: 0.14, ROI Gridness: 0.00, ROI isGrid: false
+6. image108.jpeg
+   置信度: 96.86, Single: 62.47, Baseline: 25.47
+   Gridness: 75.97, isGrid: true, suppression: 0.60
+   [Phase3] Concentration: 1.61, ROI Gridness: 0.00, ROI isGrid: false
+7. image109.jpeg
+   置信度: 96.77, Single: 64.31, Baseline: 23.75
+   Gridness: 54.17, isGrid: true, suppression: 0.85
+   [Phase3] Concentration: 0.67, ROI Gridness: 0.00, ROI isGrid: false
+8. image112.jpeg
+   置信度: 96.17, Single: 64.71, Baseline: 25.13
+   Gridness: 72.83, isGrid: true, suppression: 0.85
+   [Phase3] Concentration: 0.81, ROI Gridness: 0.00, ROI isGrid: false
+9. image118.jpeg
+   置信度: 97.37, Single: 63.73, Baseline: 15.59
+   Gridness: 66.77, isGrid: true, suppression: 0.90
+   [Phase3] Concentration: 1.68, ROI Gridness: 0.00, ROI isGrid: false
+10. image12.jpeg
+   置信度: 96.67, Single: 64.82, Baseline: 23.78
+   Gridness: 74.91, isGrid: true, suppression: 0.90
+   [Phase3] Concentration: 2.02, ROI Gridness: 0.00, ROI isGrid: false
+11. image120.jpeg
+   置信度: 96.73, Single: 70.00, Baseline: 22.50
+   Gridness: 56.82, isGrid: true, suppression: 0.90
+   [Phase3] Concentration: 4.62, ROI Gridness: 0.00, ROI isGrid: false
+12. image121.jpeg
+   置信度: 98.25, Single: 83.03, Baseline: 16.97
+   Gridness: 64.24, isGrid: true, suppression: 0.65
+   [Phase3] Concentration: 0.00, ROI Gridness: 0.00, ROI isGrid: false
+13. image122.jpeg
+   置信度: 97.50, Single: 63.09, Baseline: 13.23
+   Gridness: 65.20, isGrid: true, suppression: 0.90
+   [Phase3] Concentration: 2.97, ROI Gridness: 0.00, ROI isGrid: false
+14. image129.jpeg
+   置信度: 96.72, Single: 63.95, Baseline: 15.63
+   Gridness: 76.54, isGrid: true, suppression: 0.90
+   [Phase3] Concentration: 1.54, ROI Gridness: 0.00, ROI isGrid: false
+15. image13.png
+   置信度: 99.39, Single: 65.19, Baseline: 23.11
+   Gridness: 66.13, isGrid: true, suppression: 0.85
+   [Phase3] Concentration: 1.03, ROI Gridness: 0.00, ROI isGrid: false
+16. image136.jpeg
+   置信度: 100.00, Single: 64.19, Baseline: 25.17
+   Gridness: 73.52, isGrid: true, suppression: 0.90
+   [Phase3] Concentration: 2.56, ROI Gridness: 0.00, ROI isGrid: false
+17. image138.jpeg
+   置信度: 98.77, Single: 68.27, Baseline: 23.72
+   Gridness: 41.43, isGrid: false, suppression: 1.00
+   [Phase3] Concentration: 0.45, ROI Gridness: 0.00, ROI isGrid: false
+18. image148.png
+   置信度: 96.54, Single: 67.21, Baseline: 10.79
+   Gridness: 76.42, isGrid: true, suppression: 0.85
+   [Phase3] Concentration: 0.97, ROI Gridness: 0.00, ROI isGrid: false
+19. image15.jpeg
+   置信度: 97.53, Single: 67.85, Baseline: 23.75
+   Gridness: 79.92, isGrid: true, suppression: 0.85
+   [Phase3] Concentration: 0.61, ROI Gridness: 0.00, ROI isGrid: false
+20. image152.png
+   置信度: 96.71, Single: 65.40, Baseline: 17.86
+   Gridness: 73.80, isGrid: true, suppression: 0.85
+   [Phase3] Concentration: 0.64, ROI Gridness: 0.00, ROI isGrid: false
+... 还有 55 张 (省略显示)
+
+======================================================================
+💡 建议:
+假阳性率较高 (38.1%)
+建议: 提高决策阈值 (22 → 25 → 28)
+======================================================================
+
+OCR 引擎已关闭

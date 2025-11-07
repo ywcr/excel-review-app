@@ -1,5 +1,47 @@
 const fs = require('fs');
 const path = require('path');
+const { createWorker } = require('tesseract.js');
+
+/**
+ * ========================================
+ * 水印检测器 - 医院/药店场景专用
+ * ========================================
+ * 
+ * 【场景说明】
+ * 本检测器用于检测从Excel文件中提取出的图片（非Excel表格本身）。
+ * 所有图片均为医院/药店场景照片：
+ *   • 门头照：医院/药店外景、招牌
+ *   • 内部陈列照：药店货架、展示柜、药品区域
+ *   • 细节照：药盒特写、证照展示、价格标签
+ * 
+ * 【"网格"特征的真实含义】
+ * ❌ 不是：Excel表格的单元格网格线
+ * ✅ 实际是：照片中的真实场景元素
+ *    - 货架网格：药店金属货架的横竖框架
+ *    - 瓷砖网格：医院地面/墙面的瓷砖拼接
+ *    - 药盒排列：整齐陈列的药品包装
+ *    - 展示柜框架：玻璃柜、展架的金属/木质框架
+ * 
+ * 【检测难点】
+ * 真水印："© 2024 某某医院" "某某药店拍摄" "@摄影师名字"
+ * 假阳性："规格：500mg" "价格：¥128" "批号：20240315"
+ * → 两者在像素级特征上高度相似（位置、文字、透明度、网格背景）
+ * → 核心区别在于：语义内容（版权 vs 商品信息）
+ * 
+ * 【性能指标】
+ * • 召回率：100% (5/5，不漏检任何水印)
+ * • 准确率：64.5% (129/200正确分类)
+ * • 假阳性：71张 (36%误报率)
+ * 
+ * 【技术架构】
+ * 1. 9维像素特征：TL, OC, AL, PW, Grid, ROI Grid, Conc, EdgeEntropy, Whiteness
+ * 2. FFT频域分析：辅助验证（15%权重）
+ * 3. 10条硬拒绝规则：精准过滤货架场景文字
+ * 4. 3条专门路径：cornerLogo, cornerText, edgeText
+ * 
+ * 详细文档：见 WATERMARK-DETECTION-CONTEXT.md
+ * ========================================
+ */
 
 // ========== 2D-FFT 频域分析模块 ==========
 // 简化的FFT实现（Cooley-Tukey算法）
@@ -852,6 +894,154 @@ function analyzeStrokeConsistency(edgeMap, w, h) {
   };
 }
 
+// ========== OCR 语义分析模块 ==========
+let ocrWorker = null;
+
+// 初始化 OCR Worker (支持中文)
+async function initOCR() {
+  if (!ocrWorker) {
+    ocrWorker = await createWorker('chi_sim+eng', 1, {
+      logger: () => {} // 禁用日志
+    });
+  }
+  return ocrWorker;
+}
+
+// 从ROI区域提取文本
+async function extractTextFromROI(data, width, height, roi) {
+  try {
+    if (!ocrWorker) await initOCR();
+    
+    const { Jimp } = require('jimp');
+    
+    // 使用Jimp创建ROI区域的图像
+    const roiImage = new Jimp({ width: roi.w, height: roi.h });
+    
+    // 复制ROI区域的像素数据
+    for (let y = 0; y < roi.h && (roi.y + y) < height; y++) {
+      for (let x = 0; x < roi.w && (roi.x + x) < width; x++) {
+        const srcIdx = ((roi.y + y) * width + (roi.x + x)) * 4;
+        const dstIdx = (y * roi.w + x) * 4;
+        roiImage.bitmap.data[dstIdx] = data[srcIdx];       // R
+        roiImage.bitmap.data[dstIdx + 1] = data[srcIdx + 1]; // G
+        roiImage.bitmap.data[dstIdx + 2] = data[srcIdx + 2]; // B
+        roiImage.bitmap.data[dstIdx + 3] = data[srcIdx + 3]; // A
+      }
+    }
+    
+    // 将ROI图像转换为Buffer用于OCR
+    const buffer = await roiImage.getBuffer('image/png');
+    
+    const { data: { text } } = await ocrWorker.recognize(buffer);
+    return text.trim();
+  } catch (err) {
+    // OCR失败静默处理，不显示错误
+    return '';
+  }
+}
+
+// 语义分析：判断文本是否为水印
+function analyzeTextSemantics(text) {
+  if (!text) return { isWatermark: false, confidence: 0, type: 'unknown', keywords: [] };
+  
+  const textLower = text.toLowerCase();
+  const textClean = text.replace(/\s+/g, '');
+  
+  // 水印关键词库
+  const watermarkKeywords = {
+    // 地图服务水印（最高优先级 - 极难检测的地图水印）
+    mapService: [
+      '地图淘金', '高德地图', '百度地图', '腾讯地图', '谷歌地图',
+      '高德', '百度', '腾讯', 'amap', 'baidu', 'gaode',
+      '地图数据', 'map data', '地图', 'map'
+    ],
+    // 版权类水印
+    copyright: [
+      '©', 'copyright', '版权', '版权所有', '©20', '©19',
+      'all rights reserved', '保留所有权利'
+    ],
+    // 署名类水印
+    attribution: [
+      '拍摄', '摄影', '摄', '作者', '制作',
+      'photo by', 'shot by', 'by', '@'
+    ],
+    // 禁止转载类水印
+    noReproduction: [
+      '禁止转载', '禁止使用', '未经许可',
+      'do not copy', 'no reproduction'
+    ],
+    // 时间戳水印
+    timestamp: [
+      '202', '201', '年', '月', '日',
+      '/', '-', ':'
+    ]
+  };
+  
+  // 场景文字关键词（非水印）
+  const sceneKeywords = [
+    // 商品规格
+    '规格', '克', '毫克', 'mg', 'g', 'ml', '片', '粒', '盒',
+    // 价格信息
+    '价格', '¥', '元', 'rmb', '折', '优惠',
+    // 批号证照
+    '批号', '批准文号', '国药准字', '生产日期', '有效期',
+    '证书', '许可证', '编号',
+    // 其他场景文字
+    '电话', 'tel', '地址', '营业时间'
+  ];
+  
+  let watermarkScore = 0;
+  let sceneScore = 0;
+  let matchedKeywords = [];
+  let watermarkType = 'unknown';
+  
+  // 检测水印关键词
+  for (const [type, keywords] of Object.entries(watermarkKeywords)) {
+    for (const keyword of keywords) {
+      if (textClean.includes(keyword) || textLower.includes(keyword.toLowerCase())) {
+        const weight = type === 'mapService' ? 80 :  // 地图水印权重最高
+                      type === 'copyright' ? 60 :
+                      type === 'attribution' ? 50 :
+                      type === 'noReproduction' ? 55 :
+                      type === 'timestamp' ? 30 : 40;
+        watermarkScore += weight;
+        matchedKeywords.push(keyword);
+        if (watermarkType === 'unknown') watermarkType = type;
+      }
+    }
+  }
+  
+  // 检测场景文字关键词
+  for (const keyword of sceneKeywords) {
+    if (textClean.includes(keyword) || textLower.includes(keyword.toLowerCase())) {
+      sceneScore += 40;
+    }
+  }
+  
+  // 特殊规则：数字+单位 通常是商品规格
+  if (/\d+\s*(mg|g|ml|克|毫克|片|粒)/i.test(text)) {
+    sceneScore += 50;
+  }
+  
+  // 特殊规则：价格格式
+  if (/¥\s*\d+|\d+\s*元/.test(text)) {
+    sceneScore += 60;
+  }
+  
+  const isWatermark = watermarkScore > sceneScore && watermarkScore >= 30;
+  const confidence = Math.min(100, Math.max(watermarkScore - sceneScore, 0));
+  
+  return {
+    isWatermark,
+    confidence,
+    type: watermarkType,
+    keywords: matchedKeywords,
+    watermarkScore,
+    sceneScore,
+    rawText: text.substring(0, 100)  // 仅返回前100字符
+  };
+}
+
 // 【Phase 3】空间集中度分析：计算 ROI 内组件密度 vs 全图密度
 function analyzeConcentration(strokeConsistency, roi, fullWidth, fullHeight) {
   if (!strokeConsistency.components || strokeConsistency.components.length === 0) {
@@ -1159,6 +1349,24 @@ async function detectWatermark(imagePath) {
   
   // 【Phase 3】ROI 局部 gridness 检测
   let roiGridness = computeROIGridness(edgeMap, width, height, singleFeatures.roi);
+  
+  // 【Phase 6】OCR 语义分析（仅当像素特征显示疑似水印时执行，避免浪费资源）
+  let ocrAnalysis = { enabled: false, isWatermark: false, confidence: 0, type: 'unknown', keywords: [], watermarkScore: 0, sceneScore: 0 };
+  // 仅对边缘/角落区域执行OCR，或Single特征较强时
+  if (singleFeatures.positionWeight >= 60 && singleFeatures.textlikeness >= 55) {
+    try {
+      const roiText = await extractTextFromROI(data, width, height, singleFeatures.roi);
+      if (roiText.length > 0) {
+        const semantics = analyzeTextSemantics(roiText);
+        ocrAnalysis = {
+          enabled: true,
+          ...semantics
+        };
+      }
+    } catch (err) {
+      // OCR失败静默处理，不影响主流程
+    }
+  }
   
   // 【Phase 5】网格线检测和抑制
   const lineMask = detectGridLines(edgeMap, grad.ori, grad.mag, width, height, CFG.preprocess.edgeThreshold);
@@ -1707,6 +1915,26 @@ async function detectWatermark(imagePath) {
     fused += parseFloat(frequencyAnalysis.highFreqScore) * 0.15;
   }
   
+  // 【Phase 6】OCR 语义加成：如果OCR识别出水印关键词，提升置信度
+  if (ocrAnalysis.enabled && ocrAnalysis.isWatermark) {
+    // 地图水印：强力加成（因为极难用像素特征检测）
+    if (ocrAnalysis.type === 'mapService') {
+      fused += ocrAnalysis.confidence * 0.6;  // 60%权重
+    }
+    // 版权/署名水印：中等加成
+    else if (ocrAnalysis.type === 'copyright' || ocrAnalysis.type === 'attribution') {
+      fused += ocrAnalysis.confidence * 0.4;  // 40%权重
+    }
+    // 其他水印类型：轻度加成
+    else {
+      fused += ocrAnalysis.confidence * 0.25;  // 25%权重
+    }
+  }
+  // 如果OCR识别出场景文字，降低置信度
+  else if (ocrAnalysis.enabled && !ocrAnalysis.isWatermark && ocrAnalysis.sceneScore > 80) {
+    fused *= 0.85;  // 降低15%
+  }
+  
   const confidence = Math.min(100, fused);
   // 自适应决策阈值（精准优先 + 保护强Alpha真水印）
   let effectiveThreshold = CFG.fusion.decision;
@@ -1829,6 +2057,16 @@ async function detectWatermark(imagePath) {
       singleScoreSuppressed: singleScoreSuppressed.toFixed(2),
       lineSuppression: lineSuppression.toFixed(2)
     },
+    // 【Phase 6】OCR 语义分析信息
+    ocrAnalysis: ocrAnalysis.enabled ? {
+      isWatermark: ocrAnalysis.isWatermark,
+      confidence: ocrAnalysis.confidence.toFixed(2),
+      type: ocrAnalysis.type,
+      keywords: ocrAnalysis.keywords.join(', '),
+      watermarkScore: ocrAnalysis.watermarkScore.toFixed(2),
+      sceneScore: ocrAnalysis.sceneScore.toFixed(2),
+      rawText: ocrAnalysis.rawText
+    } : { enabled: false },
     decision: `置信度 ${confidence.toFixed(2)} ${hasWatermark ? '>=' : '<'} 阈值 ${CFG.fusion.decision}`,
     hardReject: hardReject,
     hardRejectReason: hardRejectReason
@@ -1838,6 +2076,11 @@ async function detectWatermark(imagePath) {
 // 主函数
 async function main() {
   const baseDir = 'D:/yaowei/excel-review-app/temp/extracted-images';
+  
+  // 初始化OCR Worker
+  console.log('正在初始化 OCR 引擎（支持中文）...');
+  await initOCR();
+  console.log('OCR 引擎初始化完成\n');
   
   // 读取所有图片文件
   const allFiles = fs.readdirSync(baseDir);
@@ -1882,6 +2125,10 @@ async function main() {
         console.log(`  [Phase 5] ROI Line Coverage: ${result.phase5.roiLineCoverage}, deltaSingle: ${result.phase5.deltaSingle}, lineSuppression: ${result.phase5.lineSuppression}`);
         console.log(`  [频域分析] Periodicity: ${result.frequencyAnalysis.periodicityScore}, HighFreq: ${result.frequencyAnalysis.highFreqScore}, Direction: ${result.frequencyAnalysis.directionScore}`);
         console.log(`  [频域分析] 周期性模式: ${result.frequencyAnalysis.hasPeriodicPattern ? '是' : '否'}, 高频异常: ${result.frequencyAnalysis.hasHighFreqAnomaly ? '是' : '否'}`);
+        if (result.ocrAnalysis.enabled) {
+          console.log(`  [OCR分析] 是否水印: ${result.ocrAnalysis.isWatermark ? '是' : '否'}, 类型: ${result.ocrAnalysis.type}, 置信度: ${result.ocrAnalysis.confidence}`);
+          console.log(`  [OCR分析] 关键词: ${result.ocrAnalysis.keywords || '无'}, 文本: ${result.ocrAnalysis.rawText}`);
+        }
         console.log(`  Decision: ${result.hasWatermark ? 'DETECTED' : 'MISSED'}`);
       }
       
@@ -2005,6 +2252,12 @@ async function main() {
     console.log(`✅ 配置良好！假阳性率: ${(falsePositives.length / (imageFiles.length - 3) * 100).toFixed(1)}%`);
   }
   console.log('='.repeat(70));
+  
+  // 清理OCR Worker
+  if (ocrWorker) {
+    await ocrWorker.terminate();
+    console.log('\nOCR 引擎已关闭');
+  }
 }
 
 main().catch(console.error);

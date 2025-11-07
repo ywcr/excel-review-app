@@ -555,6 +555,15 @@ export class FrontendExcelValidator {
       return isNaN(date.getTime()) ? null : date;
     }
 
+    // Handle Chinese date format: 2025年11月5日 or 2025年11月5
+    const chineseDateMatch = str.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日?$/);
+    if (chineseDateMatch) {
+      const year = parseInt(chineseDateMatch[1], 10);
+      const month = parseInt(chineseDateMatch[2], 10);
+      const day = parseInt(chineseDateMatch[3], 10);
+      return new Date(year, month - 1, day); // month is 0-indexed
+    }
+
     // Handle various date formats
     let date: Date;
 
@@ -622,7 +631,7 @@ export class FrontendExcelValidator {
   // 解析持续时间，支持多种格式
   // 支持: "60", "60分钟", "60 分钟", "1.5小时", "90min", "1h30m" 等
   private parseDuration(value: any): number | null {
-    if (value === null || value === undefined || value === '') return null;
+    if (value === null || value === undefined || value === "") return null;
 
     const str = String(value).trim();
     if (!str) return null;
@@ -635,20 +644,26 @@ export class FrontendExcelValidator {
 
     // 匹配带中文单位的格式
     // 匹配: "60分钟", "60 分钟", "1.5小时", "90分" 等
-    const chineseMinuteMatch = str.match(/^([0-9]+\.?[0-9]*)\s*(?:分钟?|min|mins|minutes?)$/i);
+    const chineseMinuteMatch = str.match(
+      /^([0-9]+\.?[0-9]*)\s*(?:分钟?|min|mins|minutes?)$/i
+    );
     if (chineseMinuteMatch) {
       const minutes = parseFloat(chineseMinuteMatch[1]);
       return !isNaN(minutes) && minutes >= 0 ? minutes : null;
     }
 
-    const chineseHourMatch = str.match(/^([0-9]+\.?[0-9]*)\s*(?:小时|时|hour|hours?|h)$/i);
+    const chineseHourMatch = str.match(
+      /^([0-9]+\.?[0-9]*)\s*(?:小时|时|hour|hours?|h)$/i
+    );
     if (chineseHourMatch) {
       const hours = parseFloat(chineseHourMatch[1]);
       return !isNaN(hours) && hours >= 0 ? hours * 60 : null;
     }
 
     // 匹配复合格式: "1小时30分钟", "1h30m", "1时30分" 等
-    const compositeMatch = str.match(/^([0-9]+)\s*(?:小时|时|h)\s*([0-9]+)\s*(?:分钟?|m)$/i);
+    const compositeMatch = str.match(
+      /^([0-9]+)\s*(?:小时|时|h)\s*([0-9]+)\s*(?:分钟?|m)$/i
+    );
     if (compositeMatch) {
       const hours = parseInt(compositeMatch[1], 10);
       const minutes = parseInt(compositeMatch[2], 10);
@@ -931,7 +946,19 @@ export class FrontendExcelValidator {
     }
 
     if (typeof value === "string") {
-      const date = new Date(value);
+      const str = value.trim();
+
+      // 匹配中文日期格式：2025年11月5日 或 2025年11月5
+      const chineseDateMatch = str.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日?$/);
+      if (chineseDateMatch) {
+        const year = parseInt(chineseDateMatch[1], 10);
+        const month = parseInt(chineseDateMatch[2], 10);
+        const day = parseInt(chineseDateMatch[3], 10);
+        return new Date(year, month - 1, day); // month is 0-indexed
+      }
+
+      // 尝试标准格式
+      const date = new Date(str);
       return isNaN(date.getTime()) ? null : date;
     }
 
