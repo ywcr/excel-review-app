@@ -6,8 +6,15 @@
       "passwordHash": "$2b$10$/JytYerFSGHWqCZYUV/3sOzamNGd5n9JtpzLNbn07uFW2Wmomf6h6",
       "role": "admin",
       "createdAt": "2025-09-13T04:06:51.641Z",
-      "lastLogin": "2025-10-05T13:27:42.312Z",
-      "activeSession": null
+      "lastLogin": "2025-10-29T14:47:17.862Z",
+      "activeSession": {
+        "sessionId": "f9e6fe4b-cec4-4503-b75b-f7081824137d",
+        "tokenHash": "a4f239bff5f9ad1fb064893e67eb6315773fab7702936ae917c0c7a6f07314bb",
+        "deviceInfo": "Mozilla/5.0 (::1.xxx)",
+        "loginTime": "2025-10-29T14:47:17.867Z",
+        "lastActivity": "2025-10-29T14:47:17.867Z",
+        "loginTimestamp": 1761749237867
+      }
     },
     {
       "id": "chenrong",

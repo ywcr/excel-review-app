@@ -1,0 +1,753 @@
+{
+  "timestamp": "2025-10-18T05:52:26.223Z",
+  "version": "complete_six_dimensional_analysis",
+  "summary": {
+    "tested": 38,
+    "detected": 38,
+    "truePositive": 8,
+    "falsePositive": 30,
+    "trueNegative": 0,
+    "falseNegative": 0,
+    "accuracy": 21.1,
+    "precision": 21.1,
+    "recall": 100,
+    "falsePositiveRate": 100,
+    "levelDistribution": {
+      "certain": 0,
+      "very_likely": 0,
+      "likely": 1,
+      "suspicious": 37,
+      "none": 0
+    },
+    "levelAccuracy": {
+      "certain": "N/A",
+      "very_likely": "N/A",
+      "likely": "100.0%",
+      "suspicious": "18.9%"
+    }
+  },
+  "details": [
+    {
+      "filename": "image1990.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "detected": true,
+      "level": "likely",
+      "confidence": 35.58367889060036,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image1991.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 32.01893446996094,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image1992.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 33.60057070344198,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image1993.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 31.38434709330103,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image1994.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 34.42780733924467,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image1995.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 30.118612711412986,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image1996.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 32.506212063067665,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image1997.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 30.52988939532517,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image1.png",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 32.50762415990366,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image8.png",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 34.63909511172776,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image15.png",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 31.917474897003714,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image22.png",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 31.962622399813124,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image29.png",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 34.515004698291165,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom",
+        "topRight"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image36.png",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 30.437796310086476,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image43.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 30.994286720638186,
+      "regionCount": 5,
+      "regions": [
+        "topRight",
+        "bottomRight",
+        "centerBottom",
+        "topLeft",
+        "bottomLeft"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image50.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 33.894814043751644,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image57.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 33.483877881069354,
+      "regionCount": 5,
+      "regions": [
+        "topRight",
+        "bottomLeft",
+        "centerBottom",
+        "topLeft",
+        "bottomRight"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image64.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 32.00662134220623,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image71.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 30.49301020725623,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image78.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 30.426322146152863,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image85.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 32.978898579810604,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image92.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 33.016621870862714,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom",
+        "topRight"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image99.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 32.916925876863765,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image106.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 31.83431828234498,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image113.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 30.80228169497112,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom",
+        "topRight"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image120.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 33.808553783095036,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image127.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 32.487063037297176,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image134.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 31.84270832595628,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomRight",
+        "centerBottom",
+        "bottomLeft"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image141.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 34.2615085069889,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomRight",
+        "centerBottom",
+        "bottomLeft"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image148.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 33.74104183946204,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "bottomLeft",
+        "centerBottom",
+        "topRight",
+        "bottomRight"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image155.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 30.884976048450945,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image162.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 34.29820034148604,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image169.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 34.108707504331,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom",
+        "topRight"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image176.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 30.32949907477918,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomRight",
+        "centerBottom",
+        "bottomLeft"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image183.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 33.7114311747779,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "centerBottom",
+        "bottomRight"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image190.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 33.335049157489806,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image197.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 34.29510925722186,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomRight",
+        "centerBottom",
+        "bottomLeft"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    },
+    {
+      "filename": "image202.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "detected": true,
+      "level": "suspicious",
+      "confidence": 32.88050329092764,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three",
+      "filterApplied": false,
+      "filterReason": null
+    }
+  ]
+}

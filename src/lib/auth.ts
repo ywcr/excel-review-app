@@ -76,7 +76,7 @@ export function loadUsers(): UserData {
 // 全局内存缓存用于Vercel环境
 let memoryUserCache: UserData | null = null;
 let memoryCacheTimestamp: number = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
+const CACHE_DURATION = 60 * 60 * 1000; // 1小时缓存（延长避免频繁失效）
 
 // 获取默认用户数据（用于 Vercel 环境）
 function getDefaultUsers(): UserData {
@@ -365,18 +365,18 @@ export function validateUserSession(
   loginTime?: number
 ): boolean {
   try {
-    // 如果禁用了单设备登录，直接返回 true
-    if (!AUTH_CONFIG.SINGLE_DEVICE_LOGIN) {
-      return true;
-    }
-    
     const userData = loadUsers();
     const user = userData.users.find((u) => u.id === userId);
     
-    // 检查用户是否存在
+    // 🔒 始终检查用户是否存在（即使禁用单设备登录）
     if (!user) {
-      console.log(`用户 ${userId} 不存在`);
+      console.log(`用户 ${userId} 不存在，会话无效`);
       return false;
+    }
+    
+    // 如果禁用了单设备登录，仅检查用户存在性即可
+    if (!AUTH_CONFIG.SINGLE_DEVICE_LOGIN) {
+      return true;
     }
     
     // 在 Vercel 环境中，基于sessionId和tokenHash的简单验证

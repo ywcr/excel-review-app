@@ -1,0 +1,538 @@
+{
+  "timestamp": "2025-10-18T05:54:08.905Z",
+  "version": "optimized_final",
+  "summary": {
+    "tested": 38,
+    "truePositive": 8,
+    "falsePositive": 9,
+    "trueNegative": 21,
+    "falseNegative": 0,
+    "accuracy": 76.3,
+    "precision": 47.1,
+    "recall": 100,
+    "falsePositiveRate": 30,
+    "levelStats": {
+      "certain": {
+        "total": 0,
+        "tp": 0,
+        "fp": 0
+      },
+      "very_likely": {
+        "total": 9,
+        "tp": 6,
+        "fp": 3
+      },
+      "likely": {
+        "total": 6,
+        "tp": 2,
+        "fp": 4
+      },
+      "suspicious": {
+        "total": 2,
+        "tp": 0,
+        "fp": 2
+      }
+    }
+  },
+  "details": [
+    {
+      "filename": "image1990.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "level": "very_likely",
+      "confidence": 51.30487214342442,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three"
+    },
+    {
+      "filename": "image1991.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "level": "very_likely",
+      "confidence": 50.772264014429446,
+      "regionCount": 3,
+      "regions": [
+        "topRight",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "uncommon"
+    },
+    {
+      "filename": "image1992.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "level": "very_likely",
+      "confidence": 52.48481564307242,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three"
+    },
+    {
+      "filename": "image1993.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "level": "likely",
+      "confidence": 39.022665496833596,
+      "regionCount": 3,
+      "regions": [
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three"
+    },
+    {
+      "filename": "image1994.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "level": "very_likely",
+      "confidence": 50.191801425046506,
+      "regionCount": 4,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight"
+      ],
+      "positionPattern": "four_corners"
+    },
+    {
+      "filename": "image1995.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "level": "likely",
+      "confidence": 37.532730975393235,
+      "regionCount": 3,
+      "regions": [
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three"
+    },
+    {
+      "filename": "image1996.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "level": "very_likely",
+      "confidence": 52.85553534632923,
+      "regionCount": 4,
+      "regions": [
+        "topLeft",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three"
+    },
+    {
+      "filename": "image1997.png",
+      "isKnownWatermark": true,
+      "classification": "TP",
+      "level": "very_likely",
+      "confidence": 56.88825916836495,
+      "regionCount": 4,
+      "regions": [
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three"
+    },
+    {
+      "filename": "image1.png",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "level": "likely",
+      "confidence": 46.711741184519624,
+      "regionCount": 5,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three"
+    },
+    {
+      "filename": "image8.png",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "level": "likely",
+      "confidence": 43.27658956266711,
+      "regionCount": 4,
+      "regions": [
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three"
+    },
+    {
+      "filename": "image15.png",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "level": "very_likely",
+      "confidence": 54.29674189281855,
+      "regionCount": 4,
+      "regions": [
+        "topRight",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three"
+    },
+    {
+      "filename": "image22.png",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": [],
+      "positionPattern": "none"
+    },
+    {
+      "filename": "image29.png",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": [],
+      "positionPattern": "none"
+    },
+    {
+      "filename": "image36.png",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": [],
+      "positionPattern": "none"
+    },
+    {
+      "filename": "image43.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 2,
+      "regions": [
+        "topRight",
+        "bottomRight"
+      ],
+      "positionPattern": "uncommon"
+    },
+    {
+      "filename": "image50.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "level": "very_likely",
+      "confidence": 62.01943652940448,
+      "regionCount": 3,
+      "regions": [
+        "topLeft",
+        "bottomLeft",
+        "centerBottom"
+      ],
+      "positionPattern": "uncommon"
+    },
+    {
+      "filename": "image57.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": [],
+      "positionPattern": "none"
+    },
+    {
+      "filename": "image64.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 3,
+      "regions": [
+        "topLeft",
+        "bottomLeft",
+        "centerBottom"
+      ],
+      "positionPattern": "uncommon"
+    },
+    {
+      "filename": "image71.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 2,
+      "regions": [
+        "topLeft",
+        "bottomLeft"
+      ],
+      "positionPattern": "uncommon"
+    },
+    {
+      "filename": "image78.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "level": "suspicious",
+      "confidence": 32.783101855439895,
+      "regionCount": 4,
+      "regions": [
+        "topLeft",
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three"
+    },
+    {
+      "filename": "image85.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "level": "very_likely",
+      "confidence": 58.654271086073294,
+      "regionCount": 3,
+      "regions": [
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three"
+    },
+    {
+      "filename": "image92.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "level": "likely",
+      "confidence": 43.80588108004324,
+      "regionCount": 3,
+      "regions": [
+        "bottomLeft",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "bottom_three"
+    },
+    {
+      "filename": "image99.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 3,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft"
+      ],
+      "positionPattern": "uncommon"
+    },
+    {
+      "filename": "image106.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 2,
+      "regions": [
+        "topLeft",
+        "topRight"
+      ],
+      "positionPattern": "uncommon"
+    },
+    {
+      "filename": "image113.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 2,
+      "regions": [
+        "bottomLeft",
+        "centerBottom"
+      ],
+      "positionPattern": "uncommon"
+    },
+    {
+      "filename": "image120.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 2,
+      "regions": [
+        "topLeft",
+        "bottomLeft"
+      ],
+      "positionPattern": "uncommon"
+    },
+    {
+      "filename": "image127.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 1,
+      "regions": [
+        "bottomLeft"
+      ],
+      "positionPattern": "single_bottom"
+    },
+    {
+      "filename": "image134.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 2,
+      "regions": [
+        "topLeft",
+        "centerBottom"
+      ],
+      "positionPattern": "uncommon"
+    },
+    {
+      "filename": "image141.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 13.151721040653081,
+      "regionCount": 4,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomRight",
+        "centerBottom"
+      ],
+      "positionPattern": "uncommon"
+    },
+    {
+      "filename": "image148.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 1,
+      "regions": [
+        "topLeft"
+      ],
+      "positionPattern": "uncommon"
+    },
+    {
+      "filename": "image155.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "level": "likely",
+      "confidence": 46.75199934629421,
+      "regionCount": 4,
+      "regions": [
+        "topLeft",
+        "topRight",
+        "bottomLeft",
+        "bottomRight"
+      ],
+      "positionPattern": "four_corners"
+    },
+    {
+      "filename": "image162.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": [],
+      "positionPattern": "none"
+    },
+    {
+      "filename": "image169.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": [],
+      "positionPattern": "none"
+    },
+    {
+      "filename": "image176.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": [],
+      "positionPattern": "none"
+    },
+    {
+      "filename": "image183.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": [],
+      "positionPattern": "none"
+    },
+    {
+      "filename": "image190.jpeg",
+      "isKnownWatermark": false,
+      "classification": "FP",
+      "level": "suspicious",
+      "confidence": 30.227506579490093,
+      "regionCount": 3,
+      "regions": [
+        "topLeft",
+        "bottomLeft",
+        "centerBottom"
+      ],
+      "positionPattern": "uncommon"
+    },
+    {
+      "filename": "image197.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 0,
+      "regions": [],
+      "positionPattern": "none"
+    },
+    {
+      "filename": "image202.jpeg",
+      "isKnownWatermark": false,
+      "classification": "TN",
+      "level": "none",
+      "confidence": 0,
+      "regionCount": 2,
+      "regions": [
+        "topRight",
+        "centerBottom"
+      ],
+      "positionPattern": "uncommon"
+    }
+  ]
+}
