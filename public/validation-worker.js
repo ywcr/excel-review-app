@@ -6,6 +6,11 @@
 // - 图片清晰度和重复性检测
 // - 无需上传文件到服务器，保护数据安全
 
+// Worker Version: 1.0.1 - 修复表头识别范围（1-3行）
+const WORKER_VERSION = "1.0.1";
+console.log("🔧 Validation Worker Version:", WORKER_VERSION);
+console.log("📋 表头搜索范围: 前3行");
+
 importScripts("/vendor/xlsx.full.min.js");
 importScripts("/vendor/jszip.min.js");
 
@@ -765,13 +770,19 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
   }
 }
 
-// 智能查找表头行
+// 智能查找表头行 - 基于必需字段直接匹配
 function findHeaderRow(data, template) {
   const requiredFields = template.requiredFields || [];
-  let bestMatch = { row: null, index: 0, score: 0 };
+  let bestMatch = { row: null, index: 0, matchedCount: 0 };
 
-  // 扫描前5行，寻找最匹配的表头行
-  for (let i = 0; i < Math.min(5, data.length); i++) {
+  console.log("🔍 [findHeaderRow] 开始查找表头", {
+    dataRows: data.length,
+    requiredFields: requiredFields,
+    searchRange: Math.min(3, data.length)
+  });
+
+  // 扫描前3行，寻找包含最多必需字段的行
+  for (let i = 0; i < Math.min(3, data.length); i++) {
     const row = data[i];
     if (!row || row.length === 0) continue;
 
@@ -783,14 +794,18 @@ function findHeaderRow(data, template) {
         .replace(/\s+/g, "")
     );
 
-    // 计算匹配分数
-    let score = 0;
     const nonEmptyCount = cleanHeaders.filter((h) => h.length > 0).length;
 
-    // 基础分：非空字段数量
-    score += nonEmptyCount * 0.1;
+    // 如果非空列太少，跳过
+    if (nonEmptyCount < 3) {
+      console.log(`🔍 [findHeaderRow] 第${i + 1}行: 跳过（非空列太少: ${nonEmptyCount}）`);
+      continue;
+    }
 
-    // 必填字段匹配分
+    // 统计匹配的必需字段数量
+    let matchedCount = 0;
+    const matchedFields = [];
+
     for (const required of requiredFields) {
       const found = cleanHeaders.some((header) => {
         // 精确匹配
@@ -800,30 +815,27 @@ function findHeaderRow(data, template) {
         // 相似度匹配
         return calculateSimilarity(header, required) > 0.8;
       });
-      if (found) score += 10;
+
+      if (found) {
+        matchedCount++;
+        matchedFields.push(required);
+      }
     }
 
-    // 典型表头特征分
-    const hasTypicalHeaders = cleanHeaders.some(
-      (header) =>
-        header.includes("实施") ||
-        header.includes("对接") ||
-        header.includes("时间") ||
-        header.includes("姓名") ||
-        header.includes("机构") ||
-        header.includes("渠道") ||
-        header.includes("科室") ||
-        header.includes("地址") ||
-        header.includes("类型") ||
-        header.includes("时长")
-    );
-    if (hasTypicalHeaders) score += 5;
+    console.log(`🔍 [findHeaderRow] 第${i + 1}行: 匹配字段=${matchedCount}/${requiredFields.length}, 非空列=${nonEmptyCount}, 匹配: [${matchedFields.join(", ")}]`);
 
-    // 更新最佳匹配
-    if (score > bestMatch.score && nonEmptyCount >= 3) {
-      bestMatch = { row, index: i, score };
+    // 更新最佳匹配：优先选择匹配字段最多的行
+    if (matchedCount > bestMatch.matchedCount) {
+      bestMatch = { row, index: i, matchedCount };
     }
   }
+
+  console.log("🔍 [findHeaderRow] 查找完成", {
+    bestMatchIndex: bestMatch.index,
+    matchedFields: bestMatch.matchedCount,
+    totalRequired: requiredFields.length,
+    foundHeader: bestMatch.row ? "是" : "否"
+  });
 
   return {
     headerRow: bestMatch.row,

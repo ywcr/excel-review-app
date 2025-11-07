@@ -159,31 +159,64 @@ export const EMBEDDED_TEMPLATES = {
   "药店拜访": {
     "name": "药店拜访",
     "description": "拜访类 - 药店拜访",
-    "requiredFields": [],
+    "requiredFields": [
+      "实施人",
+      "零售渠道",
+      "拜访开始时间",
+      "拜访时长"
+    ],
     "validationRules": []
   },
   "等级医院拜访": {
     "name": "等级医院拜访",
     "description": " - 等级医院拜访",
-    "requiredFields": [],
+    "requiredFields": [
+      "实施人",
+      "医生姓名",
+      "医疗机构名称",
+      "医疗类型",
+      "拜访开始时间",
+      "拜访时长"
+    ],
     "validationRules": []
   },
   "基层医疗机构拜访": {
     "name": "基层医疗机构拜访",
     "description": " - 基层医疗机构拜访",
-    "requiredFields": [],
+    "requiredFields": [
+      "实施人",
+      "医生姓名",
+      "医疗机构名称",
+      "医疗类型",
+      "拜访开始时间",
+      "拜访时长"
+    ],
     "validationRules": []
   },
   "民营医院拜访": {
     "name": "民营医院拜访",
     "description": " - 民营医院拜访",
-    "requiredFields": [],
+    "requiredFields": [
+      "实施人",
+      "医生姓名",
+      "医疗机构名称",
+      "医疗类型",
+      "拜访开始时间",
+      "拜访时长"
+    ],
     "validationRules": []
   },
   "科室拜访": {
     "name": "科室拜访",
     "description": " - 科室拜访",
-    "requiredFields": [],
+    "requiredFields": [
+      "实施人",
+      "医生姓名",
+      "医疗机构名称",
+      "科室",
+      "拜访开始时间",
+      "拜访时长"
+    ],
     "validationRules": []
   },
   "培训会": {
