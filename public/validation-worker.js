@@ -1,4 +1,4 @@
-﻿// 🚀 Excel Validation Worker - 前端解析主流程
+// 🚀 Excel Validation Worker - 前端解析主流程
 //
 // 此Worker负责纯前端Excel验证，包括：
 // - Excel文件解析和数据验证
@@ -1030,8 +1030,20 @@ async function validateCrossRows(
   headerRow,
   headerRowIndex
 ) {
+  console.log("\n🔄 [CrossRowValidation] 开始跨行验证", {
+    templateName: template.name,
+    totalDataRows: dataRows.length,
+    headerRowIndex,
+    totalRules: template.validationRules?.length || 0
+  });
+
   const errors = [];
   const fieldMapping = createFieldMapping(headerRow, template);
+
+  console.log("📍 [CrossRowValidation] 字段映射:", {
+    fieldMappingSize: fieldMapping.size,
+    mappings: Array.from(fieldMapping.entries())
+  });
 
   // 将数据行转换为对象格式
   const processedRows = dataRows
@@ -1042,23 +1054,51 @@ async function validateCrossRows(
     }))
     .filter((item) => !Object.values(item.data).every((v) => !v));
 
+  console.log("📊 [CrossRowValidation] 处理后的行数:", {
+    originalRows: dataRows.length,
+    processedRows: processedRows.length,
+    filteredOut: dataRows.length - processedRows.length
+  });
+
+  // 筛选跨行验证规则
+  const crossRowRules = (template.validationRules || []).filter(rule => 
+    ["unique", "frequency", "dateInterval"].includes(rule.type)
+  );
+
+  console.log("📋 [CrossRowValidation] 跨行验证规则:", {
+    totalRules: template.validationRules?.length || 0,
+    crossRowRulesCount: crossRowRules.length,
+    rules: crossRowRules.map(r => ({ field: r.field, type: r.type, params: r.params }))
+  });
+
   // 执行各种跨行验证规则
-  for (const rule of template.validationRules || []) {
+  for (const rule of crossRowRules) {
     if (isValidationCancelled) break;
 
+    console.log(`\n📌 [CrossRowValidation] 处理规则:`, {
+      field: rule.field,
+      type: rule.type,
+      params: rule.params
+    });
+
+    let ruleErrors = [];
     switch (rule.type) {
       case "unique":
-        errors.push(...validateUnique(rule, processedRows, fieldMapping));
+        ruleErrors = validateUnique(rule, processedRows, fieldMapping);
         break;
       case "frequency":
-        errors.push(...validateFrequency(rule, processedRows, fieldMapping));
+        ruleErrors = validateFrequency(rule, processedRows, fieldMapping);
         break;
       case "dateInterval":
-        errors.push(...validateDateInterval(rule, processedRows, fieldMapping));
+        ruleErrors = validateDateInterval(rule, processedRows, fieldMapping);
         break;
     }
+
+    console.log(`  ✓ 规则执行完成，发现${ruleErrors.length}个错误`);
+    errors.push(...ruleErrors);
   }
 
+  console.log(`\n✅ [CrossRowValidation] 跨行验证完成，共发现${errors.length}个错误\n`);
   return errors;
 }
 
@@ -1077,6 +1117,13 @@ function formatDateForValidation(value) {
       "0"
     )}`;
     return formatted;
+  }
+
+  // Handle Chinese date format: 2025年11月1日 -> keep as is (parseDate will handle it)
+  const chineseDateMatch = str.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日?$/);
+  if (chineseDateMatch) {
+    // Return as-is, parseDate function will handle Chinese format
+    return value;
   }
 
   return value;
@@ -1360,41 +1407,77 @@ function validateFrequency(rule, rows, fieldMapping) {
   return errors;
 }
 
-// 日期间隔验证（不区分实施人）：同一目标（含地址）在设定天数内不能重复拜访
+// 日期间隔验证：按实施人+目标分组，检查日期间隔
 function validateDateInterval(rule, rows, fieldMapping) {
+  console.log("\n🔍 [DateInterval] 开始验证规则:", {
+    field: rule.field,
+    params: rule.params,
+    message: rule.message,
+    totalRows: rows.length
+  });
+
   const errors = [];
   const { params = {} } = rule;
   const { days, groupBy } = params;
   const columnIndex = fieldMapping.get(rule.field);
 
-  if (columnIndex === undefined) return errors;
+  console.log("📍 [DateInterval] 参数检查:", {
+    days,
+    groupBy,
+    columnIndex,
+    hasColumnIndex: columnIndex !== undefined
+  });
 
-  // 按 目标(groupBy) + 地址 分组（不区分实施人）
+  if (columnIndex === undefined) {
+    console.warn("⚠️ [DateInterval] 找不到列索引，跳过验证");
+    return errors;
+  }
+
+  // 按 实施人 + 目标(groupBy) 分组
   const groups = new Map();
 
   for (const { data, rowNumber } of rows) {
     const groupValue = data[groupBy];
-    if (!groupValue) continue;
+    const implementer = data["implementer"] || data["实施人"];
+    
+    // 从rule.field读取日期值
+    const dateValue = data[rule.field];
 
-    const address = data["channelAddress"] || data["渠道地址"] || "";
+    console.log(`📝 [DateInterval] 处理第${rowNumber}行:`, {
+      rowNumber,
+      groupValue,
+      implementer,
+      dateValue,
+      dateValueType: typeof dateValue,
+      ruleField: rule.field,
+      dataKeys: Object.keys(data)
+    });
 
-    // 尝试多个可能的日期字段
-    const dateValue =
-      data["visitStartTime"] ||
-      data["拜访开始时间"] ||
-      data["拜访开始\n时间"] ||
-      data["visit_date"] ||
-      data["拜访日期"] ||
-      data["visit_time"] ||
-      data["拜访时间"];
+    if (!groupValue || !implementer) {
+      console.log(`  ⊘ 跳过（缺少分组值或实施人）`);
+      continue;
+    }
 
-    if (!dateValue) continue;
+    if (!dateValue) {
+      console.log(`  ⊘ 跳过（缺少日期值）`);
+      continue;
+    }
 
     const date = parseDate(dateValue);
-    if (!date) continue;
+    
+    console.log(`  ✓ 解析结果:`, {
+      date: date ? date.toISOString().split('T')[0] : null,
+      groupValue,
+      implementer
+    });
 
-    // 创建唯一键，使用 目标+地址（不区分实施人）
-    const uniqueKey = `${groupValue}|${address}`;
+    if (!date) {
+      console.warn(`  ⚠️ 日期解析失败`);
+      continue;
+    }
+
+    // 创建唯一键：实施人+目标
+    const uniqueKey = `${implementer}|${groupValue}`;
 
     if (!groups.has(uniqueKey)) {
       groups.set(uniqueKey, []);
@@ -1403,15 +1486,30 @@ function validateDateInterval(rule, rows, fieldMapping) {
     groups.get(uniqueKey).push({
       date,
       rowNumber,
-      address,
+      implementer,
       target: groupValue,
     });
+    
+    console.log(`  ✓ 添加到分组: ${uniqueKey}`);
   }
 
-  // 检查每个分组内的日期间隔（同一目标）
+  console.log("\n📊 [DateInterval] 分组统计:", {
+    totalGroups: groups.size,
+    groups: Array.from(groups.entries()).map(([key, visits]) => ({
+      key,
+      visitCount: visits.length,
+      dates: visits.map(v => v.date.toISOString().split('T')[0])
+    }))
+  });
+
+  // 检查每个分组内的日期间隔
+  console.log(`\n🔎 [DateInterval] 开始检查日期间隔（要求≥${days}天）...`);
+  
   for (const [uniqueKey, visits] of groups) {
     // 按日期排序
     visits.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    console.log(`\n检查分组: ${uniqueKey} (${visits.length}次访问)`);
 
     for (let i = 1; i < visits.length; i++) {
       const current = visits[i];
@@ -1422,26 +1520,38 @@ function validateDateInterval(rule, rows, fieldMapping) {
           (1000 * 60 * 60 * 24)
       );
 
-      if (daysDiff < days) {
-        // 从uniqueKey中提取信息 (format: "target|address")
-        const parts = uniqueKey.split("|");
-        const target = parts[0];
-        const address = current.address;
+      console.log(`  比较: 第${previous.rowNumber}行 → 第${current.rowNumber}行`, {
+        previousDate: previous.date.toISOString().split('T')[0],
+        currentDate: current.date.toISOString().split('T')[0],
+        daysDiff,
+        requiredDays: days,
+        isViolation: daysDiff < days
+      });
 
-        errors.push({
+      if (daysDiff < days) {
+        // 从uniqueKey中提取信息 (format: "implementer|target")
+        const parts = uniqueKey.split("|");
+        const implementer = parts[0];
+        const target = parts[1];
+
+        const error = {
           row: current.rowNumber,
           column: XLSX.utils.encode_col(columnIndex),
           field: rule.field,
           value: target,
-          message: `${rule.message}（与第${
-            previous.rowNumber
-          }行冲突，目标：${target}${address ? ` - ${address}` : ""}）`,
+          message: `${rule.message}（与第${previous.rowNumber}行冲突，实施人：${implementer}，目标：${target}）`,
           errorType: rule.type,
-        });
+        };
+
+        console.log(`  ❌ 发现违规！`, error);
+        errors.push(error);
+      } else {
+        console.log(`  ✓ 符合规则`);
       }
     }
   }
 
+  console.log(`\n✅ [DateInterval] 验证完成，发现${errors.length}个错误\n`);
   return errors;
 }
 
@@ -1481,10 +1591,6 @@ function parseDate(value) {
     // 替换中文冒号为英文冒号
     str = str.replace(/：/g, ":");
 
-    // 调试信息
-    if (originalStr.includes("2025.8.1")) {
-    }
-
     // Handle Excel date numbers (days since 1900-01-01)
     if (/^\d+(\.\d+)?$/.test(str)) {
       const excelDate = parseFloat(str);
@@ -1494,6 +1600,17 @@ function parseDate(value) {
         excelEpoch.getTime() + (excelDate - 1) * 24 * 60 * 60 * 1000
       );
       return isNaN(date.getTime()) ? null : date;
+    }
+
+    // Handle Chinese date format: 2025年11月1日 or 2025年11月1
+    const chineseDateMatch = str.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日?$/);
+    if (chineseDateMatch) {
+      const year = parseInt(chineseDateMatch[1], 10);
+      const month = parseInt(chineseDateMatch[2], 10);
+      const day = parseInt(chineseDateMatch[3], 10);
+      const date = new Date(year, month - 1, day); // month is 0-indexed
+      console.log(`  ✓ 中文日期解析成功: ${str} -> ${date.toISOString().split('T')[0]}`);
+      return date;
     }
 
     // Handle various date formats

@@ -370,7 +370,7 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
         message: "拜访时间必须在07:00-19:00范围内",
       },
       {
-        field: "hospitalName",
+        field: "visitStartTime",
         type: "dateInterval",
         params: { days: 3, groupBy: "hospitalName" },
         message: "同一医院3日内不能重复拜访",
@@ -511,13 +511,13 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
         message: "基层医疗机构拜访时间必须在07:00-19:00范围内",
       },
       {
-        field: "hospitalName",
+        field: "visitStartTime",
         type: "dateInterval",
         params: { days: 2, groupBy: "hospitalName" },
         message: "同一医院2日内不能重复拜访",
       },
       {
-        field: "doctorName",
+        field: "visitStartTime",
         type: "dateInterval",
         params: { days: 7, groupBy: "doctorName" },
         message: "同一医生7日内不能重复拜访",
@@ -642,13 +642,13 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
         message: "民营医院拜访时间必须在07:00-19:00范围内",
       },
       {
-        field: "hospitalName",
+        field: "visitStartTime",
         type: "dateInterval",
         params: { days: 2, groupBy: "hospitalName" },
         message: "同一医院2日内不能重复拜访",
       },
       {
-        field: "doctorName",
+        field: "visitStartTime",
         type: "dateInterval",
         params: { days: 7, groupBy: "doctorName" },
         message: "同一医生7日内不能重复拜访",

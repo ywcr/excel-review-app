@@ -698,9 +698,28 @@ export class FrontendExcelValidator {
       ["unique", "frequency", "dateInterval"].includes(rule.type)
     );
 
+    console.log(`\n🔄 [CrossRowValidation] 开始跨行验证`, {
+      templateName: this.template.name,
+      totalRules: this.template.validationRules.length,
+      crossRowRulesCount: crossRowRules.length,
+      crossRowRules: crossRowRules.map(r => ({ field: r.field, type: r.type })),
+      totalRows: allRows.length
+    });
+
     for (const rule of crossRowRules) {
       const columnIndex = fieldMapping.get(rule.field);
-      if (columnIndex === undefined) continue;
+      
+      console.log(`\n📌 [CrossRowValidation] 处理规则:`, {
+        field: rule.field,
+        type: rule.type,
+        columnIndex,
+        hasColumnIndex: columnIndex !== undefined
+      });
+
+      if (columnIndex === undefined) {
+        console.warn(`⚠️ [CrossRowValidation] 跳过规则（找不到列索引）:`, rule.field);
+        continue;
+      }
 
       switch (rule.type) {
         case "unique":
@@ -729,6 +748,7 @@ export class FrontendExcelValidator {
       }
     }
 
+    console.log(`\n✅ [CrossRowValidation] 跨行验证完成，共发现${errors.length}个错误\n`);
     return errors;
   }
 
@@ -856,13 +876,37 @@ export class FrontendExcelValidator {
     const errors: ValidationError[] = [];
     const { days, groupBy } = rule.params || {};
 
-    if (!days || !groupBy) return errors;
+    console.log(`🔍 [DateInterval] 开始验证规则:`, {
+      field: rule.field,
+      days,
+      groupBy,
+      message: rule.message,
+      columnIndex,
+      totalRows: allRows.length
+    });
+
+    if (!days || !groupBy) {
+      console.warn(`⚠️ [DateInterval] 缺少必需参数:`, { days, groupBy });
+      return errors;
+    }
 
     const groupColumnIndex = fieldMapping.get(groupBy);
     const implementerColumnIndex = fieldMapping.get("implementer");
 
-    if (groupColumnIndex === undefined || implementerColumnIndex === undefined)
+    console.log(`📍 [DateInterval] 列索引映射:`, {
+      dateColumnIndex: columnIndex,
+      groupColumnIndex,
+      implementerColumnIndex,
+      fieldMapping: Array.from(fieldMapping.entries())
+    });
+
+    if (groupColumnIndex === undefined || implementerColumnIndex === undefined) {
+      console.warn(`⚠️ [DateInterval] 无法找到必需的列:`, {
+        groupColumnIndex,
+        implementerColumnIndex
+      });
       return errors;
+    }
 
     // 按实施人+分组字段收集日期
     const groupDates = new Map<
@@ -880,10 +924,24 @@ export class FrontendExcelValidator {
       const implementer = data[implementerColumnIndex];
       const dateValue = data[columnIndex];
 
+      console.log(`📝 [DateInterval] 处理第${rowNumber}行:`, {
+        rowNumber,
+        dateValue,
+        dateValueType: typeof dateValue,
+        groupValue,
+        implementer
+      });
+
       if (groupValue && dateValue && implementer) {
         const date = this.extractDate(dateValue);
         const target = String(groupValue).trim();
         const implementerStr = String(implementer).trim();
+
+        console.log(`  ✓ 解析结果:`, {
+          date: date ? date.toISOString().split('T')[0] : null,
+          target,
+          implementer: implementerStr
+        });
 
         if (date) {
           // 创建唯一键：实施人+目标，确保不同实施人可以拜访同一目标
@@ -894,14 +952,33 @@ export class FrontendExcelValidator {
           groupDates
             .get(uniqueKey)!
             .push({ date, rowNumber, implementer: implementerStr, target });
+          
+          console.log(`  ✓ 添加到分组: ${uniqueKey}`);
+        } else {
+          console.warn(`  ⚠️ 日期解析失败`);
         }
+      } else {
+        console.log(`  ⊘ 跳过（缺少必需值）`);
       }
     });
 
+    console.log(`\n📊 [DateInterval] 分组统计:`, {
+      totalGroups: groupDates.size,
+      groups: Array.from(groupDates.entries()).map(([key, visits]) => ({
+        key,
+        visitCount: visits.length,
+        dates: visits.map(v => v.date.toISOString().split('T')[0])
+      }))
+    });
+
     // 检查日期间隔（同一实施人+同一目标）
+    console.log(`\n🔎 [DateInterval] 开始检查日期间隔（要求≥${days}天）...`);
+    
     groupDates.forEach((dateList, uniqueKey) => {
       // 按日期排序
       dateList.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+      console.log(`\n检查分组: ${uniqueKey} (${dateList.length}次访问)`);
 
       for (let i = 1; i < dateList.length; i++) {
         const current = dateList[i];
@@ -912,23 +989,37 @@ export class FrontendExcelValidator {
             (1000 * 60 * 60 * 24)
         );
 
+        console.log(`  比较: 第${previous.rowNumber}行 → 第${current.rowNumber}行`, {
+          previousDate: previous.date.toISOString().split('T')[0],
+          currentDate: current.date.toISOString().split('T')[0],
+          daysDiff,
+          requiredDays: days,
+          isViolation: daysDiff < days
+        });
+
         if (daysDiff < days) {
           const parts = uniqueKey.split("|");
           const implementer = parts[0];
           const target = parts[1];
 
-          errors.push({
+          const error = {
             row: current.rowNumber,
             column: XLSX.utils.encode_col(columnIndex),
             field: rule.field,
             value: target,
             message: `${rule.message}（与第${previous.rowNumber}行冲突，实施人：${implementer}，目标：${target}）`,
             errorType: rule.type,
-          });
+          };
+
+          console.log(`  ❌ 发现违规！`, error);
+          errors.push(error);
+        } else {
+          console.log(`  ✓ 符合规则`);
         }
       }
     });
 
+    console.log(`\n✅ [DateInterval] 验证完成，发现${errors.length}个错误\n`);
     return errors;
   }
 
