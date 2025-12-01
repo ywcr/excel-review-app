@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 🆕 检查是否已有活跃会话，如果有则清除（实现互踢）
-    // 在所有环境中都进行会话管理
-    if (user.activeSession) {
+    // admin 角色允许多设备登录，不清除之前的会话
+    if (user.activeSession && user.role !== "admin") {
       console.log(`用户 ${username} 在其他设备登录，清除之前的会话`);
       clearUserSession(user.id);
     }

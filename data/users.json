@@ -7,14 +7,7 @@
       "role": "admin",
       "createdAt": "2025-09-13T04:06:51.641Z",
       "lastLogin": "2025-11-07T05:42:13.830Z",
-      "activeSession": {
-        "sessionId": "d1b80858-87cd-49b9-9492-aadbda70c160",
-        "tokenHash": "ca1ce202e1942f4e9d4d7a46c972065aed0e1478bbfe4cd288cedaa8f57fd09b",
-        "deviceInfo": "Mozilla/5.0 (::1.xxx)",
-        "loginTime": "2025-11-07T05:42:13.888Z",
-        "lastActivity": "2025-11-07T05:42:13.888Z",
-        "loginTimestamp": 1762494133888
-      }
+      "activeSession": null
     },
     {
       "id": "chenrong",
@@ -45,6 +38,22 @@
         "loginTime": "2025-10-13T15:12:13.330Z",
         "lastActivity": "2025-10-13T15:12:13.330Z",
         "loginTimestamp": 1760368333330
+      }
+    },
+    {
+      "id": "yangyang",
+      "username": "yangyang",
+      "passwordHash": "$2b$10$PYzoUSpKcrR/nKLz4WGk/OayeWFwZnAP8CJ/FulIgj9/Xco6UamuK",
+      "role": "user",
+      "createdAt": "2025-12-01T06:45:00.000Z",
+      "lastLogin": "2025-12-01T06:49:14.177Z",
+      "activeSession": {
+        "sessionId": "693737d0-0b6a-4c72-ad64-87e4949bc112",
+        "tokenHash": "f000b281f056992d4a6ad5949315df4867f60f65c576f3068a361318667351fe",
+        "deviceInfo": "Mozilla/5.0 (::1.xxx)",
+        "loginTime": "2025-12-01T06:49:14.201Z",
+        "lastActivity": "2025-12-01T06:49:14.201Z",
+        "loginTimestamp": 1764571754201
       }
     }
   ]

@@ -124,7 +124,7 @@ export default function UserMenu({
                 </Link>
               </>
             )}
-            {onSwitchSkin && (
+            {/* {onSwitchSkin && (
               <button
                 onClick={() => {
                   setIsMenuOpen(false);
@@ -149,7 +149,7 @@ export default function UserMenu({
                   {isBaiduSkin ? "切换回原皮肤" : "切换到百度皮肤"}
                 </div>
               </button>
-            )}
+            )} */}
 
             {isBaiduSkin && <div className="my-1 border-t border-[#f0f0f0]" />}
             <button onClick={handleLogout} className={itemClass}>

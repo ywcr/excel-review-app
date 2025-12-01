@@ -84,7 +84,7 @@ function getDefaultUsers(): UserData {
   if (memoryUserCache && Date.now() - memoryCacheTimestamp < CACHE_DURATION) {
     return memoryUserCache;
   }
-  
+
   // 在 Vercel 环境中，尝试读取实际的用户文件
   try {
     if (fs.existsSync(USERS_FILE)) {
@@ -92,11 +92,11 @@ function getDefaultUsers(): UserData {
       const userData = JSON.parse(data);
       // 不再清除活跃会话，保留会话信息用于验证
       console.log(`Vercel 环境：成功读取 ${userData.users.length} 个用户`);
-      
+
       // 更新内存缓存
       memoryUserCache = userData;
       memoryCacheTimestamp = Date.now();
-      
+
       return userData;
     }
   } catch (error) {
@@ -335,7 +335,7 @@ export function setUserSession(userId: string, session: ActiveSession): void {
       // 添加时间戳到会话信息
       session.loginTimestamp = new Date(session.loginTime).getTime();
       user.activeSession = session;
-      
+
       // 在 Vercel 环境中，虽然无法持久化到文件，但更新内存缓存
       if (isVercelEnvironment()) {
         if (!memoryUserCache) {
@@ -367,31 +367,38 @@ export function validateUserSession(
   try {
     const userData = loadUsers();
     const user = userData.users.find((u) => u.id === userId);
-    
+
     // 🔒 始终检查用户是否存在（即使禁用单设备登录）
     if (!user) {
       console.log(`用户 ${userId} 不存在，会话无效`);
       return false;
     }
-    
+
     // 如果禁用了单设备登录，仅检查用户存在性即可
     if (!AUTH_CONFIG.SINGLE_DEVICE_LOGIN) {
       return true;
     }
-    
+
+    // admin 角色允许多设备登录，跳过单设备限制
+    if (user.role === "admin") {
+      return true;
+    }
+
     // 在 Vercel 环境中，基于sessionId和tokenHash的简单验证
     if (isVercelEnvironment()) {
       // 如果没有活跃会话，允许登录
       if (!user.activeSession) {
         return true;
       }
-      
+
       // 检查sessionId和tokenHash是否匹配
-      if (user.activeSession.sessionId === sessionId && 
-          user.activeSession.tokenHash === tokenHash) {
+      if (
+        user.activeSession.sessionId === sessionId &&
+        user.activeSession.tokenHash === tokenHash
+      ) {
         return true;
       }
-      
+
       console.log(`Vercel 环境：用户 ${userId} 会话不匹配，可能在其他设备登录`);
       return false;
     }
@@ -458,14 +465,16 @@ export function verifyTokenWithSession(token: string): JWTPayload | null {
     // 验证会话是否有效（包含账户存在性检查）
     const tokenHash = hashToken(token);
     const isValidSession = validateUserSession(
-      decoded.userId, 
-      tokenHash, 
+      decoded.userId,
+      tokenHash,
       decoded.sessionId,
       decoded.loginTime
     );
 
     if (!isValidSession) {
-      console.log(`用户 ${decoded.userId} 会话验证失败，可能账户已被删除或在其他设备登录`);
+      console.log(
+        `用户 ${decoded.userId} 会话验证失败，可能账户已被删除或在其他设备登录`
+      );
       return null;
     }
 
