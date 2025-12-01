@@ -3,13 +3,17 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface UserMenuProps {
   isBaiduSkin?: boolean;
   onSwitchSkin?: (skin: "classic" | "baidu") => void;
 }
 
-export default function UserMenu({ isBaiduSkin = false, onSwitchSkin }: UserMenuProps) {
+export default function UserMenu({
+  isBaiduSkin = false,
+  onSwitchSkin,
+}: UserMenuProps) {
   const { user, logout, isLoading } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const router = useRouter();
@@ -53,11 +57,25 @@ export default function UserMenu({ isBaiduSkin = false, onSwitchSkin }: UserMenu
       >
         <div className="flex items-center space-x-2">
           <div className={avatarClass}>
-            <span className={isBaiduSkin ? "text-[#315efb] font-medium text-[12px]" : "text-indigo-600 font-medium text-sm"}>
+            <span
+              className={
+                isBaiduSkin
+                  ? "text-[#315efb] font-medium text-[12px]"
+                  : "text-indigo-600 font-medium text-sm"
+              }
+            >
               {user.username.charAt(0).toUpperCase()}
             </span>
           </div>
-          <span className={isBaiduSkin ? "text-[13px] max-w-[120px] truncate" : "text-sm font-medium max-w-[120px] truncate"}>{user.username}</span>
+          <span
+            className={
+              isBaiduSkin
+                ? "text-[13px] max-w-[120px] truncate"
+                : "text-sm font-medium max-w-[120px] truncate"
+            }
+          >
+            {user.username}
+          </span>
           <svg
             className={`w-4 h-4 transition-transform ${
               isMenuOpen ? "rotate-180" : ""
@@ -86,47 +104,55 @@ export default function UserMenu({ isBaiduSkin = false, onSwitchSkin }: UserMenu
 
           {/* 下拉菜单 */}
           <div className={dropdownClass}>
-          {isBaiduSkin ? null : (
-            <div className="px-4 pb-2 text-sm text-gray-600 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">{user.username}</span>
-                <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">{user.role}</span>
+            {isBaiduSkin ? null : (
+              <div className="px-4 pb-2 text-sm text-gray-600 border-b border-gray-100">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{user.username}</span>
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                    {user.role}
+                  </span>
+                </div>
               </div>
-            </div>
-          )}
-
+            )}
+            {user?.role === "admin" && (
+              <>
+                <Link href="/compare" className={itemClass}>
+                  📊 文件对比
+                </Link>
+                <Link href="/multi-review" className={itemClass}>
+                  🚀 多文件审核
+                </Link>
+              </>
+            )}
             {onSwitchSkin && (
               <button
-              onClick={() => {
-                setIsMenuOpen(false);
-                onSwitchSkin(isBaiduSkin ? "classic" : "baidu");
-              }}
-              className={itemClass}
-            >
-              <div className="flex items-center">
-                <svg
-                  className="w-4 h-4 mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582A2 2 0 007 9h10a2 2 0 002-2V4M20 20v-5h-.582A2 2 0 0017 15H7a2 2 0 01-2-2v7"
-                  />
-                </svg>
-                {isBaiduSkin ? "切换回原皮肤" : "切换到百度皮肤"}
-              </div>
-            </button>
-          )}
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onSwitchSkin(isBaiduSkin ? "classic" : "baidu");
+                }}
+                className={itemClass}
+              >
+                <div className="flex items-center">
+                  <svg
+                    className="w-4 h-4 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582A2 2 0 007 9h10a2 2 0 002-2V4M20 20v-5h-.582A2 2 0 0017 15H7a2 2 0 01-2-2v7"
+                    />
+                  </svg>
+                  {isBaiduSkin ? "切换回原皮肤" : "切换到百度皮肤"}
+                </div>
+              </button>
+            )}
 
             {isBaiduSkin && <div className="my-1 border-t border-[#f0f0f0]" />}
-            <button
-              onClick={handleLogout}
-              className={itemClass}
-            >
+            <button onClick={handleLogout} className={itemClass}>
               <div className="flex items-center">
                 <svg
                   className="w-4 h-4 mr-2"
