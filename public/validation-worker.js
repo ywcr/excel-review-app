@@ -6,10 +6,10 @@
 // - 图片清晰度和重复性检测
 // - 无需上传文件到服务器，保护数据安全
 
-// Worker Version: 1.0.3 - 优化表头识别 + 增强表头验证错误提示
-const WORKER_VERSION = "1.0.3";
+// Worker Version: 1.0.6 - 表头选择优化（匹配+列数双重验证）
+const WORKER_VERSION = "1.0.6";
 console.log("🔧 Validation Worker Version:", WORKER_VERSION);
-console.log("📋 表头搜索范围: 前10行");
+console.log("📋 表头搜索范围: 前10行（完全匹配立即返回）");
 
 importScripts("/vendor/xlsx.full.min.js");
 importScripts("/vendor/jszip.min.js");
@@ -778,10 +778,10 @@ function findHeaderRow(data, template) {
   console.log("🔍 [findHeaderRow] 开始查找表头", {
     dataRows: data.length,
     requiredFields: requiredFields,
-    searchRange: Math.min(10, data.length)
+    searchRange: `前${Math.min(10, data.length)}行`,
   });
 
-  // 扫描前10行，寻找包含最多必需字段的行（兼容有标题行的Excel）
+  // 扫描前3行，寻找包含最多必需字段的行（兼容有标题行的Excel）
   for (let i = 0; i < Math.min(10, data.length); i++) {
     const row = data[i];
     if (!row || row.length === 0) continue;
@@ -798,7 +798,9 @@ function findHeaderRow(data, template) {
 
     // 如果非空列太少，跳过
     if (nonEmptyCount < 3) {
-      console.log(`🔍 [findHeaderRow] 第${i + 1}行: 跳过（非空列太少: ${nonEmptyCount}）`);
+      console.log(
+        `🔍 [findHeaderRow] 第${i + 1}行: 跳过（非空列太少: ${nonEmptyCount}）`
+      );
       continue;
     }
 
@@ -817,7 +819,11 @@ function findHeaderRow(data, template) {
         // 精确匹配
         if (header === cleanedRequired) return true;
         // 包含匹配
-        if (header.includes(cleanedRequired) || cleanedRequired.includes(header)) return true;
+        if (
+          header.includes(cleanedRequired) ||
+          cleanedRequired.includes(header)
+        )
+          return true;
         // 相似度匹配
         return calculateSimilarity(header, cleanedRequired) > 0.8;
       });
@@ -828,21 +834,40 @@ function findHeaderRow(data, template) {
       }
     }
 
-    console.log(`🔍 [findHeaderRow] 第${i + 1}行: 匹配字段=${matchedCount}/${requiredFields.length}, 非空列=${nonEmptyCount}, 匹配: [${matchedFields.join(", ")}]`);
+    console.log(
+      `🔍 [findHeaderRow] 第${i + 1}行: 匹配字段=${matchedCount}/${
+        requiredFields.length
+      }, 非空列=${nonEmptyCount}, 匹配: [${matchedFields.join(", ")}]`
+    );
 
-    // 更新最佳匹配：优先选择匹配字段最多的行，相同匹配数时选择非空列更多的行
-    if (matchedCount > bestMatch.matchedCount ||
-        (matchedCount === bestMatch.matchedCount && nonEmptyCount > bestMatch.nonEmptyCount)) {
+    // 表头选择逻辑：
+    // 1. 必须完全匹配所有必需字段
+    // 2. 非空列数量必须足够（>= 必需字段数的2倍，或至少8列）
+    //    这样可以排除只有少量列的标题行/汇总行
+    const minNonEmptyCols = Math.max(requiredFields.length * 2, 8);
+    
+    if (matchedCount === requiredFields.length && nonEmptyCount >= minNonEmptyCols) {
+      console.log(`🔍 [findHeaderRow] ✓ 第${i + 1}行完全匹配且列数充足(${nonEmptyCount}>=${minNonEmptyCols})，选为表头`);
+      return {
+        headerRow: row,
+        headerRowIndex: i,
+      };
+    }
+
+    // 记录最佳匹配（优先匹配字段多，其次非空列多）
+    if (
+      matchedCount > bestMatch.matchedCount ||
+      (matchedCount === bestMatch.matchedCount && nonEmptyCount > bestMatch.nonEmptyCount)
+    ) {
       bestMatch = { row, index: i, matchedCount, nonEmptyCount };
     }
   }
 
   console.log("🔍 [findHeaderRow] 查找完成", {
-    bestMatchIndex: bestMatch.index,
-    matchedFields: bestMatch.matchedCount,
-    nonEmptyCount: bestMatch.nonEmptyCount,
-    totalRequired: requiredFields.length,
-    foundHeader: bestMatch.row ? "是" : "否"
+    选中行: bestMatch.row ? `第${bestMatch.index + 1}行` : "无",
+    匹配字段数: `${bestMatch.matchedCount}/${requiredFields.length}`,
+    非空列数: bestMatch.nonEmptyCount,
+    foundHeader: bestMatch.row ? "是" : "否",
   });
 
   return {
