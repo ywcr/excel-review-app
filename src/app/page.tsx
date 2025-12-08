@@ -498,22 +498,6 @@ function HomeContent() {
             </p>
           </div>
           <div className="flex items-center space-x-3">
-            {user?.role === "admin" && (
-              <>
-                <Link
-                  href="/compare"
-                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all shadow-md hover:shadow-lg text-sm font-medium"
-                >
-                  📊 文件对比
-                </Link>
-                <Link
-                  href="/multi-review"
-                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg text-sm font-medium"
-                >
-                  🚀 多文件审核
-                </Link>
-              </>
-            )}
             <UserMenu
               isBaiduSkin={false}
               onSwitchSkin={(skin) => setSkin(skin as any)}

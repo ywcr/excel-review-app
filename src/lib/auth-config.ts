@@ -6,11 +6,10 @@ export const AUTH_CONFIG = {
     "your-super-secret-jwt-key-change-this-in-production",
 
   // 令牌过期时间设置 - 使用长期过期时间，避免频繁登录
-  JWT_EXPIRES_IN:
-    process.env.JWT_EXPIRES_IN || "365d", // 所有环境统一使用1年过期时间
-  
+  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "365d", // 所有环境统一使用1年过期时间
+
   // 单设备登录控制
-  SINGLE_DEVICE_LOGIN: process.env.SINGLE_DEVICE_LOGIN === "true", // 默认禁用，避免频繁失效
+  SINGLE_DEVICE_LOGIN: process.env.SINGLE_DEVICE_LOGIN !== "false", // 默认启用，实现单设备登录（互踢）
 
   // 自动刷新设置
   AUTO_REFRESH_ENABLED: process.env.AUTO_REFRESH_ENABLED !== "false", // 默认启用
