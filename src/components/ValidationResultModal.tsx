@@ -14,6 +14,16 @@ interface ValidationResultSimple {
   validRows: number;
   errors: any[];
   imageValidation?: any;
+  headerValidation?: {
+    isValid: boolean;
+    missingFields: string[];
+    unmatchedFields?: string[];
+    suggestions?: Array<{
+      expected: string;
+      actual: string;
+      similarity: number;
+    }>;
+  };
   summary: any;
 }
 
@@ -50,6 +60,7 @@ export default function ValidationResultModal({
       })),
       summary: result.summary,
       imageValidation: result.imageValidation,
+      headerValidation: result.headerValidation,
     },
   };
 

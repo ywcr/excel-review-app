@@ -6,10 +6,10 @@
 // - 图片清晰度和重复性检测
 // - 无需上传文件到服务器，保护数据安全
 
-// Worker Version: 1.0.1 - 修复表头识别范围（1-3行）
-const WORKER_VERSION = "1.0.1";
+// Worker Version: 1.0.3 - 优化表头识别 + 增强表头验证错误提示
+const WORKER_VERSION = "1.0.3";
 console.log("🔧 Validation Worker Version:", WORKER_VERSION);
-console.log("📋 表头搜索范围: 前3行");
+console.log("📋 表头搜索范围: 前10行");
 
 importScripts("/vendor/xlsx.full.min.js");
 importScripts("/vendor/jszip.min.js");
@@ -773,16 +773,16 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
 // 智能查找表头行 - 基于必需字段直接匹配
 function findHeaderRow(data, template) {
   const requiredFields = template.requiredFields || [];
-  let bestMatch = { row: null, index: 0, matchedCount: 0 };
+  let bestMatch = { row: null, index: 0, matchedCount: 0, nonEmptyCount: 0 };
 
   console.log("🔍 [findHeaderRow] 开始查找表头", {
     dataRows: data.length,
     requiredFields: requiredFields,
-    searchRange: Math.min(3, data.length)
+    searchRange: Math.min(10, data.length)
   });
 
-  // 扫描前3行，寻找包含最多必需字段的行
-  for (let i = 0; i < Math.min(3, data.length); i++) {
+  // 扫描前10行，寻找包含最多必需字段的行（兼容有标题行的Excel）
+  for (let i = 0; i < Math.min(10, data.length); i++) {
     const row = data[i];
     if (!row || row.length === 0) continue;
 
@@ -807,13 +807,19 @@ function findHeaderRow(data, template) {
     const matchedFields = [];
 
     for (const required of requiredFields) {
+      // 清洗必需字段名（与 validateHeaderRow 保持一致）
+      const cleanedRequired = String(required || "")
+        .trim()
+        .replace(/\n/g, "")
+        .replace(/\s+/g, "");
+
       const found = cleanHeaders.some((header) => {
         // 精确匹配
-        if (header === required) return true;
+        if (header === cleanedRequired) return true;
         // 包含匹配
-        if (header.includes(required) || required.includes(header)) return true;
+        if (header.includes(cleanedRequired) || cleanedRequired.includes(header)) return true;
         // 相似度匹配
-        return calculateSimilarity(header, required) > 0.8;
+        return calculateSimilarity(header, cleanedRequired) > 0.8;
       });
 
       if (found) {
@@ -824,15 +830,17 @@ function findHeaderRow(data, template) {
 
     console.log(`🔍 [findHeaderRow] 第${i + 1}行: 匹配字段=${matchedCount}/${requiredFields.length}, 非空列=${nonEmptyCount}, 匹配: [${matchedFields.join(", ")}]`);
 
-    // 更新最佳匹配：优先选择匹配字段最多的行
-    if (matchedCount > bestMatch.matchedCount) {
-      bestMatch = { row, index: i, matchedCount };
+    // 更新最佳匹配：优先选择匹配字段最多的行，相同匹配数时选择非空列更多的行
+    if (matchedCount > bestMatch.matchedCount ||
+        (matchedCount === bestMatch.matchedCount && nonEmptyCount > bestMatch.nonEmptyCount)) {
+      bestMatch = { row, index: i, matchedCount, nonEmptyCount };
     }
   }
 
   console.log("🔍 [findHeaderRow] 查找完成", {
     bestMatchIndex: bestMatch.index,
     matchedFields: bestMatch.matchedCount,
+    nonEmptyCount: bestMatch.nonEmptyCount,
     totalRequired: requiredFields.length,
     foundHeader: bestMatch.row ? "是" : "否"
   });
@@ -958,11 +966,37 @@ function validateHeaderRow(headerRow, template) {
     }
   }
 
+  // 为缺失字段生成匹配建议
+  const suggestions = [];
+  for (const missing of missingFields) {
+    const cleanedMissing = String(missing || "")
+      .trim()
+      .replace(/\n/g, "")
+      .replace(/\s+/g, "");
+
+    let bestMatch = { actual: "", similarity: 0 };
+
+    for (const header of actualHeaders) {
+      const similarity = calculateSimilarity(header, cleanedMissing);
+      if (similarity > bestMatch.similarity && similarity >= 0.3) {
+        bestMatch = { actual: header, similarity };
+      }
+    }
+
+    if (bestMatch.actual && bestMatch.similarity > 0) {
+      suggestions.push({
+        expected: missing,
+        actual: bestMatch.actual,
+        similarity: bestMatch.similarity,
+      });
+    }
+  }
+
   return {
     isValid: missingFields.length === 0,
     missingFields,
     unmatchedFields: [],
-    suggestions: [],
+    suggestions,
     headerRowIndex: 0, // 已经找到的表头行
   };
 }
@@ -1301,7 +1335,14 @@ function validateFrequency(rule, rows, fieldMapping) {
 
   for (const { data, rowNumber } of rows) {
     processedRows++;
-    const implementer = data[groupBy]; // 实施人
+    // 尽量容错不同列名的实施人字段
+    let implementer = data[groupBy]; // 实施人
+    if (!implementer && groupBy === "implementer") {
+      implementer =
+        data["实施人"] ||
+        data["执行人"] ||
+        data["执行人员"];
+    }
 
     if (processedRows <= 5) {
     }
