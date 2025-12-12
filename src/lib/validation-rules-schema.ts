@@ -21,8 +21,9 @@ export type RuleType =
   | "crossTaskValidation";
 
 // 规则参数类型定义
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface RequiredParams {
-  // 无参数
+  // 无参数 - 保留空接口以保持类型一致性
 }
 
 export interface UniqueParams {
