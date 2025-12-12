@@ -19,6 +19,17 @@ interface ValidationResult {
     validRows: number;
     errorCount: number;
   };
+  // 表头验证结果
+  headerValidation?: {
+    isValid: boolean;
+    missingFields: string[];
+    unmatchedFields?: string[];
+    suggestions?: Array<{
+      expected: string;
+      actual: string;
+      similarity: number;
+    }>;
+  };
   imageValidation?: {
     totalImages: number;
     blurryImages: number;
@@ -326,6 +337,76 @@ export default function ValidationResults({
             </p>
           </div>
         </div>
+
+        {/* 表头验证失败提示 - 优先显示 */}
+        {validation.headerValidation && !validation.headerValidation.isValid && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-300 rounded-lg">
+            <div className="flex items-start">
+              <svg
+                className="w-6 h-6 text-red-600 mr-3 mt-0.5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <div className="flex-1">
+                <h4 className="text-lg font-semibold text-red-800 mb-2">
+                  ⚠️ 表头验证失败 - 未进行Excel数据验证
+                </h4>
+                <p className="text-sm text-red-700 mb-3">
+                  Excel文件的表头与所选任务模板不匹配，无法进行数据验证。请检查以下问题：
+                </p>
+                
+                {validation.headerValidation.missingFields && validation.headerValidation.missingFields.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-sm font-medium text-red-800 mb-1">缺失的必需字段：</p>
+                    <div className="flex flex-wrap gap-2">
+                      {validation.headerValidation.missingFields.map((field, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-200 text-red-800"
+                        >
+                          {field}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {validation.headerValidation.suggestions && validation.headerValidation.suggestions.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-sm font-medium text-orange-800 mb-1">可能的匹配建议：</p>
+                    <ul className="text-sm text-orange-700 list-disc list-inside">
+                      {validation.headerValidation.suggestions.map((suggestion, index) => (
+                        <li key={index}>
+                          期望 "<strong>{suggestion.expected}</strong>" → 找到 "<strong>{suggestion.actual}</strong>" (相似度: {Math.round(suggestion.similarity * 100)}%)
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="text-sm text-yellow-800">
+                    <strong>💡 解决建议：</strong>
+                  </p>
+                  <ul className="text-sm text-yellow-700 list-disc list-inside mt-1">
+                    <li>确认选择的任务类型与Excel文件匹配</li>
+                    <li>检查Excel表头行是否在前10行内</li>
+                    <li>检查表头名称是否正确（注意空格、换行符）</li>
+                    <li>如表头在合并单元格中，请取消合并后重试</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="text-center">

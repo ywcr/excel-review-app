@@ -87,6 +87,7 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
       零售渠道: "retailChannel",
       渠道地址: "channelAddress",
       拜访开始时间: "visitStartTime",
+      "拜访开始\n时间": "visitStartTime",
       拜访时长: "visitDuration",
       "拜访事项（1）": "visitItem1",
       "信息反馈（1）": "feedback1",

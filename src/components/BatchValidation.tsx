@@ -308,6 +308,12 @@ export default function BatchValidation({ availableTasks, onBatchComplete }: Bat
                         <div className={`text-xs ${file.result.isValid ? 'text-green-600' : 'text-red-600'}`}>
                           {file.result.isValid ? '✓ 验证通过' : '✗ 验证失败'}
                         </div>
+                        {/* 表头验证失败提示 */}
+                        {file.result.headerValidation && !file.result.headerValidation.isValid && (
+                          <div className="text-xs text-orange-600 mt-1" title={`缺失字段: ${file.result.headerValidation.missingFields?.join(', ')}`}>
+                            ⚠️ 表头不匹配 (缺失 {file.result.headerValidation.missingFields?.length || 0} 字段)
+                          </div>
+                        )}
                         <div className="text-xs text-gray-500">
                           {file.result.summary?.totalRows || 0} 行, {file.result.summary?.errorCount || 0} 错误
                         </div>

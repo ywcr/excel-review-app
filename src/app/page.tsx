@@ -417,6 +417,7 @@ function HomeContent() {
             errorCount: 0,
           },
           imageValidation: result.imageValidation,
+          headerValidation: result.headerValidation,
         },
       }
     : null;
