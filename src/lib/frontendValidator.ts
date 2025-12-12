@@ -823,12 +823,13 @@ export class FrontendExcelValidator {
   ): ValidationError[] {
     const errors: ValidationError[] = [];
     const { params = {} } = rule;
-    const { targetField, implementerField } = params;
+    const { targetField, implementerField, addressField } = params;
 
     console.log(`🔍 [SameImplementer] 开始验证规则:`, {
       field: rule.field,
       targetField,
       implementerField,
+      addressField,
       message: rule.message,
       totalRows: allRows.length,
     });
@@ -839,18 +840,25 @@ export class FrontendExcelValidator {
       fieldMapping.get("实施人") ??
       fieldMapping.get("implementer");
 
+    // 获取地址列索引 (如果有配置)
+    const addressIndex = addressField
+      ? fieldMapping.get(addressField)
+      : undefined;
+
     if (implementerIndex === undefined) {
       console.warn(`⚠️ [SameImplementer] 找不到实施人列索引，跳过验证`);
       return errors;
     }
 
-    // 按目标（如药店名称）分组，记录每个目标对应的实施人
-    // Map: targetValue -> { firstImplementer, firstRowNumber, rows: [{rowNumber, implementer}] }
+    // 按目标（如药店名称 + 地址）分组
+    // Map: targetKey -> { firstImplementer, firstRowNumber, rows: [{rowNumber, implementer}] }
     const targetGroups = new Map<
       string,
       {
         firstImplementer: string;
         firstRowNumber: number;
+        originalTarget: string; // 用于显示
+        originalAddress?: string; // 用于显示
         rows: Array<{ rowNumber: number; implementer: string }>;
       }
     >();
@@ -858,16 +866,30 @@ export class FrontendExcelValidator {
     allRows.forEach(({ rowNumber, data }) => {
       const targetValue = data[columnIndex];
       const implementerValue = data[implementerIndex];
+      const addressValue =
+        addressIndex !== undefined ? data[addressIndex] : undefined;
 
+      // 如果没有目标值或实施人值，跳过
+      // 注意：如果没有配置地址字段，或者配置了但该行地址为空，我们仍然应当基于名称进行校验吗？
+      // 现在的逻辑是：如果该字段有值才校验。
       if (!targetValue || !implementerValue) return;
 
-      const targetKey = String(targetValue).trim().toLowerCase();
+      const targetStr = String(targetValue).trim();
       const implementer = String(implementerValue).trim();
+      const addressStr = addressValue ? String(addressValue).trim() : "";
+
+      // 构造唯一键：目标名称 + 地址 (如果启用)
+      // 使用特定分隔符，避免与内容冲突
+      const targetKey = addressField
+        ? `${targetStr.toLowerCase()}|${addressStr.toLowerCase()}`
+        : targetStr.toLowerCase();
 
       if (!targetGroups.has(targetKey)) {
         targetGroups.set(targetKey, {
           firstImplementer: implementer,
           firstRowNumber: rowNumber,
+          originalTarget: targetStr,
+          originalAddress: addressStr,
           rows: [],
         });
       }
@@ -876,24 +898,28 @@ export class FrontendExcelValidator {
     });
 
     // 检查每个目标分组，确保只有一个实施人
-    targetGroups.forEach((group, targetKey) => {
-      const { firstImplementer, firstRowNumber, rows } = group;
+    targetGroups.forEach((group, _) => {
+      const {
+        firstImplementer,
+        firstRowNumber,
+        rows,
+        originalTarget,
+        originalAddress,
+      } = group;
 
       rows.forEach(({ rowNumber, implementer }) => {
         // 忽略大小写比较实施人
         if (implementer.toLowerCase() !== firstImplementer.toLowerCase()) {
-          // 找到原始的目标值用于显示
-          const originalRow = allRows.find((r) => r.rowNumber === rowNumber);
-          const originalTarget = originalRow
-            ? originalRow.data[columnIndex]
-            : targetKey;
+          const addressMsg = originalAddress
+            ? `，地址：${originalAddress}`
+            : "";
 
           errors.push({
             row: rowNumber,
             column: XLSX.utils.encode_col(columnIndex),
             field: rule.field,
             value: originalTarget,
-            message: `${rule.message}（第${firstRowNumber}行由"${firstImplementer}"拜访，第${rowNumber}行由"${implementer}"拜访）`,
+            message: `${rule.message}（目标：${originalTarget}${addressMsg}；第${firstRowNumber}行由"${firstImplementer}"拜访，第${rowNumber}行由"${implementer}"拜访）`,
             errorType: rule.type,
           });
         }

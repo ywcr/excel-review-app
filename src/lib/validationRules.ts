@@ -140,6 +140,7 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
         params: {
           targetField: "retailChannel", // 目标字段（药店名称）
           implementerField: "implementer", // 实施人字段
+          addressField: "channelAddress", // 增加地址字段校验
         },
         message: "同一药店在周期内需由同一人拜访",
       },
@@ -262,6 +263,16 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
           groupBy: "implementer",
         },
         message: "同一实施人每日拜访不超过4家医院",
+      },
+      {
+        field: "hospitalName",
+        type: "sameImplementer",
+        params: {
+          targetField: "hospitalName",
+          implementerField: "implementer",
+          addressField: "channelAddress",
+        },
+        message: "同一医院在周期内需由同一人拜访",
       },
       {
         field: "visitDuration",
@@ -542,6 +553,16 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
         },
         message: "同一实施人每日拜访基层医疗机构不能超过4家",
       },
+      {
+        field: "hospitalName",
+        type: "sameImplementer",
+        params: {
+          targetField: "hospitalName",
+          implementerField: "implementer",
+          addressField: "channelAddress",
+        },
+        message: "同一医疗机构在周期内需由同一人拜访",
+      },
       // 禁用内容验证 - 拜访事项和信息反馈字段
       {
         field: "visitItem1",
@@ -672,6 +693,16 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
           groupBy: "implementer",
         },
         message: "同一实施人每日拜访民营医院不能超过4家",
+      },
+      {
+        field: "hospitalName",
+        type: "sameImplementer",
+        params: {
+          targetField: "hospitalName",
+          implementerField: "implementer",
+          addressField: "channelAddress",
+        },
+        message: "同一医院在周期内需由同一人拜访",
       },
       // 禁用内容验证 - 拜访事项和信息反馈字段
       {
@@ -1468,4 +1499,106 @@ export function getTaskTemplate(taskName: string): TaskTemplate | undefined {
 // 获取所有可用任务
 export function getAvailableTasks(): string[] {
   return Object.keys(TASK_TEMPLATES);
+}
+
+// ============= 动态配置支持 =============
+
+// 类型定义用于动态配置
+interface RuleConfig {
+  id: string;
+  field: string;
+  type: ValidationRule["type"];
+  enabled: boolean;
+  params?: ValidationRule["params"];
+  message: string;
+}
+
+interface TaskTemplateConfig {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  requiredFields: string[];
+  sheetNames: string[];
+  matchKeywords?: string[];
+  fieldMappings: Record<string, string>;
+  validationRules: RuleConfig[];
+}
+
+interface ValidationConfig {
+  version: string;
+  lastModified: string;
+  prohibitedTerms: string[];
+  templates: Record<string, TaskTemplateConfig>;
+}
+
+const CONFIG_STORAGE_KEY = "excel-review-validation-config";
+
+/**
+ * 从配置存储获取活跃的任务模板
+ * 优先使用用户自定义配置，如果没有则使用默认配置
+ */
+export function getActiveTaskTemplates(): Record<string, TaskTemplate> {
+  // 服务端渲染时使用默认配置
+  if (typeof window === "undefined") {
+    return TASK_TEMPLATES;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(CONFIG_STORAGE_KEY);
+    if (!stored) {
+      return TASK_TEMPLATES;
+    }
+
+    const config: ValidationConfig = JSON.parse(stored);
+    const result: Record<string, TaskTemplate> = {};
+
+    for (const [name, templateConfig] of Object.entries(config.templates)) {
+      // 跳过禁用的模板
+      if (!templateConfig.enabled) continue;
+
+      // 只保留启用的规则
+      const enabledRules: ValidationRule[] = templateConfig.validationRules
+        .filter((r: RuleConfig) => r.enabled)
+        .map((r: RuleConfig) => ({
+          field: r.field,
+          type: r.type,
+          params: r.params,
+          message: r.message,
+        }));
+
+      result[name] = {
+        name: templateConfig.name,
+        description: templateConfig.description,
+        requiredFields: templateConfig.requiredFields,
+        sheetNames: templateConfig.sheetNames,
+        matchKeywords: templateConfig.matchKeywords,
+        fieldMappings: templateConfig.fieldMappings,
+        validationRules: enabledRules,
+      };
+    }
+
+    return result;
+  } catch (error) {
+    console.warn("Failed to load custom config, using defaults:", error);
+    return TASK_TEMPLATES;
+  }
+}
+
+/**
+ * 获取单个活跃的任务模板
+ */
+export function getActiveTaskTemplate(
+  taskName: string
+): TaskTemplate | undefined {
+  const templates = getActiveTaskTemplates();
+  return templates[taskName];
+}
+
+/**
+ * 获取所有活跃的任务名称
+ */
+export function getActiveTaskNames(): string[] {
+  const templates = getActiveTaskTemplates();
+  return Object.keys(templates);
 }
