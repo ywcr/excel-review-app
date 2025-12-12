@@ -695,29 +695,37 @@ export class FrontendExcelValidator {
 
     // 获取需要跨行验证的规则
     const crossRowRules = this.template.validationRules.filter((rule) =>
-      ["unique", "frequency", "dateInterval"].includes(rule.type)
+      ["unique", "frequency", "dateInterval", "sameImplementer"].includes(
+        rule.type
+      )
     );
 
     console.log(`\n🔄 [CrossRowValidation] 开始跨行验证`, {
       templateName: this.template.name,
       totalRules: this.template.validationRules.length,
       crossRowRulesCount: crossRowRules.length,
-      crossRowRules: crossRowRules.map(r => ({ field: r.field, type: r.type })),
-      totalRows: allRows.length
+      crossRowRules: crossRowRules.map((r) => ({
+        field: r.field,
+        type: r.type,
+      })),
+      totalRows: allRows.length,
     });
 
     for (const rule of crossRowRules) {
       const columnIndex = fieldMapping.get(rule.field);
-      
+
       console.log(`\n📌 [CrossRowValidation] 处理规则:`, {
         field: rule.field,
         type: rule.type,
         columnIndex,
-        hasColumnIndex: columnIndex !== undefined
+        hasColumnIndex: columnIndex !== undefined,
       });
 
       if (columnIndex === undefined) {
-        console.warn(`⚠️ [CrossRowValidation] 跳过规则（找不到列索引）:`, rule.field);
+        console.warn(
+          `⚠️ [CrossRowValidation] 跳过规则（找不到列索引）:`,
+          rule.field
+        );
         continue;
       }
 
@@ -745,10 +753,22 @@ export class FrontendExcelValidator {
             )
           );
           break;
+        case "sameImplementer":
+          errors.push(
+            ...this.validateSameImplementerRule(
+              allRows,
+              rule,
+              columnIndex,
+              fieldMapping
+            )
+          );
+          break;
       }
     }
 
-    console.log(`\n✅ [CrossRowValidation] 跨行验证完成，共发现${errors.length}个错误\n`);
+    console.log(
+      `\n✅ [CrossRowValidation] 跨行验证完成，共发现${errors.length}个错误\n`
+    );
     return errors;
   }
 
@@ -791,6 +811,96 @@ export class FrontendExcelValidator {
       }
     });
 
+    return errors;
+  }
+
+  // 验证同一目标需由同一人拜访规则
+  private validateSameImplementerRule(
+    allRows: Array<{ rowNumber: number; data: any[] }>,
+    rule: ValidationRule,
+    columnIndex: number,
+    fieldMapping: Map<string, number>
+  ): ValidationError[] {
+    const errors: ValidationError[] = [];
+    const { params = {} } = rule;
+    const { targetField, implementerField } = params;
+
+    console.log(`🔍 [SameImplementer] 开始验证规则:`, {
+      field: rule.field,
+      targetField,
+      implementerField,
+      message: rule.message,
+      totalRows: allRows.length,
+    });
+
+    // 获取实施人列索引
+    const implementerIndex =
+      fieldMapping.get(implementerField) ??
+      fieldMapping.get("实施人") ??
+      fieldMapping.get("implementer");
+
+    if (implementerIndex === undefined) {
+      console.warn(`⚠️ [SameImplementer] 找不到实施人列索引，跳过验证`);
+      return errors;
+    }
+
+    // 按目标（如药店名称）分组，记录每个目标对应的实施人
+    // Map: targetValue -> { firstImplementer, firstRowNumber, rows: [{rowNumber, implementer}] }
+    const targetGroups = new Map<
+      string,
+      {
+        firstImplementer: string;
+        firstRowNumber: number;
+        rows: Array<{ rowNumber: number; implementer: string }>;
+      }
+    >();
+
+    allRows.forEach(({ rowNumber, data }) => {
+      const targetValue = data[columnIndex];
+      const implementerValue = data[implementerIndex];
+
+      if (!targetValue || !implementerValue) return;
+
+      const targetKey = String(targetValue).trim().toLowerCase();
+      const implementer = String(implementerValue).trim();
+
+      if (!targetGroups.has(targetKey)) {
+        targetGroups.set(targetKey, {
+          firstImplementer: implementer,
+          firstRowNumber: rowNumber,
+          rows: [],
+        });
+      }
+
+      targetGroups.get(targetKey)!.rows.push({ rowNumber, implementer });
+    });
+
+    // 检查每个目标分组，确保只有一个实施人
+    targetGroups.forEach((group, targetKey) => {
+      const { firstImplementer, firstRowNumber, rows } = group;
+
+      rows.forEach(({ rowNumber, implementer }) => {
+        // 忽略大小写比较实施人
+        if (implementer.toLowerCase() !== firstImplementer.toLowerCase()) {
+          // 找到原始的目标值用于显示
+          const originalRow = allRows.find((r) => r.rowNumber === rowNumber);
+          const originalTarget = originalRow
+            ? originalRow.data[columnIndex]
+            : targetKey;
+
+          errors.push({
+            row: rowNumber,
+            column: XLSX.utils.encode_col(columnIndex),
+            field: rule.field,
+            value: originalTarget,
+            message: `${rule.message}（第${firstRowNumber}行由"${firstImplementer}"拜访，第${rowNumber}行由"${implementer}"拜访）`,
+            errorType: rule.type,
+          });
+        }
+      });
+    });
+
+    console.log(`✅ [SameImplementer] 验证完成，发现${errors.length}个错误`);
     return errors;
   }
 
@@ -882,7 +992,7 @@ export class FrontendExcelValidator {
       groupBy,
       message: rule.message,
       columnIndex,
-      totalRows: allRows.length
+      totalRows: allRows.length,
     });
 
     if (!days || !groupBy) {
@@ -897,13 +1007,16 @@ export class FrontendExcelValidator {
       dateColumnIndex: columnIndex,
       groupColumnIndex,
       implementerColumnIndex,
-      fieldMapping: Array.from(fieldMapping.entries())
+      fieldMapping: Array.from(fieldMapping.entries()),
     });
 
-    if (groupColumnIndex === undefined || implementerColumnIndex === undefined) {
+    if (
+      groupColumnIndex === undefined ||
+      implementerColumnIndex === undefined
+    ) {
       console.warn(`⚠️ [DateInterval] 无法找到必需的列:`, {
         groupColumnIndex,
-        implementerColumnIndex
+        implementerColumnIndex,
       });
       return errors;
     }
@@ -929,7 +1042,7 @@ export class FrontendExcelValidator {
         dateValue,
         dateValueType: typeof dateValue,
         groupValue,
-        implementer
+        implementer,
       });
 
       if (groupValue && dateValue && implementer) {
@@ -938,9 +1051,9 @@ export class FrontendExcelValidator {
         const implementerStr = String(implementer).trim();
 
         console.log(`  ✓ 解析结果:`, {
-          date: date ? date.toISOString().split('T')[0] : null,
+          date: date ? date.toISOString().split("T")[0] : null,
           target,
-          implementer: implementerStr
+          implementer: implementerStr,
         });
 
         if (date) {
@@ -952,7 +1065,7 @@ export class FrontendExcelValidator {
           groupDates
             .get(uniqueKey)!
             .push({ date, rowNumber, implementer: implementerStr, target });
-          
+
           console.log(`  ✓ 添加到分组: ${uniqueKey}`);
         } else {
           console.warn(`  ⚠️ 日期解析失败`);
@@ -967,13 +1080,13 @@ export class FrontendExcelValidator {
       groups: Array.from(groupDates.entries()).map(([key, visits]) => ({
         key,
         visitCount: visits.length,
-        dates: visits.map(v => v.date.toISOString().split('T')[0])
-      }))
+        dates: visits.map((v) => v.date.toISOString().split("T")[0]),
+      })),
     });
 
     // 检查日期间隔（同一实施人+同一目标）
     console.log(`\n🔎 [DateInterval] 开始检查日期间隔（要求≥${days}天）...`);
-    
+
     groupDates.forEach((dateList, uniqueKey) => {
       // 按日期排序
       dateList.sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -989,13 +1102,16 @@ export class FrontendExcelValidator {
             (1000 * 60 * 60 * 24)
         );
 
-        console.log(`  比较: 第${previous.rowNumber}行 → 第${current.rowNumber}行`, {
-          previousDate: previous.date.toISOString().split('T')[0],
-          currentDate: current.date.toISOString().split('T')[0],
-          daysDiff,
-          requiredDays: days,
-          isViolation: daysDiff < days
-        });
+        console.log(
+          `  比较: 第${previous.rowNumber}行 → 第${current.rowNumber}行`,
+          {
+            previousDate: previous.date.toISOString().split("T")[0],
+            currentDate: current.date.toISOString().split("T")[0],
+            daysDiff,
+            requiredDays: days,
+            isViolation: daysDiff < days,
+          }
+        );
 
         if (daysDiff < days) {
           const parts = uniqueKey.split("|");

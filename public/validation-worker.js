@@ -85,23 +85,23 @@ const IMAGE_DUP_CONFIG = {
 // 🔧 方案A快速修复：放宽阈值以支持微信压缩图和现代全面屏手机
 const MOBILE_DIMENSION_CONFIG = {
   ENABLED: true,
-  MIN_SHORT_SIDE: 480,      // 从720降到480 - 支持压缩后的图片
-  MIN_LONG_SIDE: 640,       // 从1280降到640 - 兼容早期手机
-  MIN_MEGAPIXELS: 0.5,      // 从2降到0.5 - 允许微信/QQ压缩图
+  MIN_SHORT_SIDE: 480, // 从720降到480 - 支持压缩后的图片
+  MIN_LONG_SIDE: 640, // 从1280降到640 - 兼容早期手机
+  MIN_MEGAPIXELS: 0.5, // 从2降到0.5 - 允许微信/QQ压缩图
   ALLOWED_ASPECTS: [
-    { ratio: 4 / 3, tolerance: 0.1 },      // 传统手机比例
+    { ratio: 4 / 3, tolerance: 0.1 }, // 传统手机比例
     { ratio: 3 / 4, tolerance: 0.1 },
-    { ratio: 16 / 9, tolerance: 0.1 },     // 标准宽屏
+    { ratio: 16 / 9, tolerance: 0.1 }, // 标准宽屏
     { ratio: 9 / 16, tolerance: 0.1 },
-    { ratio: 18 / 9, tolerance: 0.1 },     // 全面屏 (2:1)
+    { ratio: 18 / 9, tolerance: 0.1 }, // 全面屏 (2:1)
     { ratio: 9 / 18, tolerance: 0.1 },
-    { ratio: 19.5 / 9, tolerance: 0.1 },   // iPhone X/11/12/13 系列
+    { ratio: 19.5 / 9, tolerance: 0.1 }, // iPhone X/11/12/13 系列
     { ratio: 9 / 19.5, tolerance: 0.1 },
-    { ratio: 20 / 9, tolerance: 0.1 },     // 小米/OPPO/Vivo等
+    { ratio: 20 / 9, tolerance: 0.1 }, // 小米/OPPO/Vivo等
     { ratio: 9 / 20, tolerance: 0.1 },
-    { ratio: 21 / 9, tolerance: 0.12 },    // Sony Xperia等超宽屏
+    { ratio: 21 / 9, tolerance: 0.12 }, // Sony Xperia等超宽屏
     { ratio: 9 / 21, tolerance: 0.12 },
-    { ratio: 1, tolerance: 0.05 },         // 正方形 (Instagram裁剪等)
+    { ratio: 1, tolerance: 0.05 }, // 正方形 (Instagram裁剪等)
   ],
 };
 
@@ -417,7 +417,10 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
       // 尝试根据模板匹配工作表
       const template = templateFromMainThread;
       if (template && template.sheetNames && template.sheetNames.length > 0) {
-        const matchedSheets = findAllMatchingSheets(availableSheets, template.sheetNames);
+        const matchedSheets = findAllMatchingSheets(
+          availableSheets,
+          template.sheetNames
+        );
         if (matchedSheets.length === 1) {
           // 只有一个匹配，直接使用
           targetSheet = matchedSheets[0];
@@ -474,7 +477,11 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
         needSheetSelection: true,
         availableSheets: availableSheets.map((name) => ({
           name,
-          hasData: !!(workbook.Sheets && workbook.Sheets[name] && workbook.Sheets[name]["!ref"]),
+          hasData: !!(
+            workbook.Sheets &&
+            workbook.Sheets[name] &&
+            workbook.Sheets[name]["!ref"]
+          ),
         })),
       });
       return;
@@ -590,7 +597,8 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
       // 如果声明范围疑似覆盖整表（如 1048576 行或 XFD 列），或超过阈值，则按实际单元格纠正范围
       try {
         const declaredRef = worksheet["!ref"] || "";
-        const looksFullGrid = /1048576/.test(declaredRef) || /XFD/i.test(declaredRef);
+        const looksFullGrid =
+          /1048576/.test(declaredRef) || /XFD/i.test(declaredRef);
         let declaredRows = 0;
         try {
           if (declaredRef) {
@@ -599,9 +607,10 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
           }
         } catch (_) {}
 
-        const needsCorrection = RANGE_CORRECTION_CONFIG.ENABLED && (
-          (declaredRef && looksFullGrid) || (declaredRows > RANGE_CORRECTION_CONFIG.ROW_THRESHOLD)
-        );
+        const needsCorrection =
+          RANGE_CORRECTION_CONFIG.ENABLED &&
+          ((declaredRef && looksFullGrid) ||
+            declaredRows > RANGE_CORRECTION_CONFIG.ROW_THRESHOLD);
 
         if (needsCorrection) {
           // 计算实际存在的最小/最大行列（仅统计真正存在的单元格键，忽略以 ! 开头的元数据）
@@ -610,7 +619,8 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
             maxR = -1,
             maxC = -1;
           for (const addr in worksheet) {
-            if (!Object.prototype.hasOwnProperty.call(worksheet, addr)) continue;
+            if (!Object.prototype.hasOwnProperty.call(worksheet, addr))
+              continue;
             if (addr[0] === "!") continue;
             const decoded = XLSX.utils.decode_cell(addr);
             if (decoded.r < minR) minR = decoded.r;
@@ -628,7 +638,10 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
               startC = dr.s.c;
             } catch (_) {}
             const corrected = XLSX.utils.encode_range(
-              { r: Math.min(startR, isFinite(minR) ? minR : startR), c: Math.min(startC, isFinite(minC) ? minC : startC) },
+              {
+                r: Math.min(startR, isFinite(minR) ? minR : startR),
+                c: Math.min(startC, isFinite(minC) ? minC : startC),
+              },
               { r: maxR, c: maxC }
             );
 
@@ -636,7 +649,12 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
             ImageDebugLogger.warn(
               ImageDebugLogger.STAGES.FILE_PARSE,
               "检测到异常或超阈值的工作表声明范围，已自动按实际单元格矫正",
-              { declaredRef, declaredRows, threshold: RANGE_CORRECTION_CONFIG.ROW_THRESHOLD, correctedRef: corrected }
+              {
+                declaredRef,
+                declaredRows,
+                threshold: RANGE_CORRECTION_CONFIG.ROW_THRESHOLD,
+                correctedRef: corrected,
+              }
             );
           }
         }
@@ -778,7 +796,7 @@ function findHeaderRow(data, template) {
   console.log("🔍 [findHeaderRow] 开始查找表头", {
     dataRows: data.length,
     requiredFields: requiredFields,
-    searchRange: Math.min(3, data.length)
+    searchRange: Math.min(3, data.length),
   });
 
   // 扫描前3行，寻找包含最多必需字段的行
@@ -798,7 +816,9 @@ function findHeaderRow(data, template) {
 
     // 如果非空列太少，跳过
     if (nonEmptyCount < 3) {
-      console.log(`🔍 [findHeaderRow] 第${i + 1}行: 跳过（非空列太少: ${nonEmptyCount}）`);
+      console.log(
+        `🔍 [findHeaderRow] 第${i + 1}行: 跳过（非空列太少: ${nonEmptyCount}）`
+      );
       continue;
     }
 
@@ -822,7 +842,11 @@ function findHeaderRow(data, template) {
       }
     }
 
-    console.log(`🔍 [findHeaderRow] 第${i + 1}行: 匹配字段=${matchedCount}/${requiredFields.length}, 非空列=${nonEmptyCount}, 匹配: [${matchedFields.join(", ")}]`);
+    console.log(
+      `🔍 [findHeaderRow] 第${i + 1}行: 匹配字段=${matchedCount}/${
+        requiredFields.length
+      }, 非空列=${nonEmptyCount}, 匹配: [${matchedFields.join(", ")}]`
+    );
 
     // 更新最佳匹配：优先选择匹配字段最多的行
     if (matchedCount > bestMatch.matchedCount) {
@@ -834,7 +858,7 @@ function findHeaderRow(data, template) {
     bestMatchIndex: bestMatch.index,
     matchedFields: bestMatch.matchedCount,
     totalRequired: requiredFields.length,
-    foundHeader: bestMatch.row ? "是" : "否"
+    foundHeader: bestMatch.row ? "是" : "否",
   });
 
   return {
@@ -1034,7 +1058,7 @@ async function validateCrossRows(
     templateName: template.name,
     totalDataRows: dataRows.length,
     headerRowIndex,
-    totalRules: template.validationRules?.length || 0
+    totalRules: template.validationRules?.length || 0,
   });
 
   const errors = [];
@@ -1042,7 +1066,7 @@ async function validateCrossRows(
 
   console.log("📍 [CrossRowValidation] 字段映射:", {
     fieldMappingSize: fieldMapping.size,
-    mappings: Array.from(fieldMapping.entries())
+    mappings: Array.from(fieldMapping.entries()),
   });
 
   // 将数据行转换为对象格式
@@ -1057,18 +1081,24 @@ async function validateCrossRows(
   console.log("📊 [CrossRowValidation] 处理后的行数:", {
     originalRows: dataRows.length,
     processedRows: processedRows.length,
-    filteredOut: dataRows.length - processedRows.length
+    filteredOut: dataRows.length - processedRows.length,
   });
 
   // 筛选跨行验证规则
-  const crossRowRules = (template.validationRules || []).filter(rule => 
-    ["unique", "frequency", "dateInterval"].includes(rule.type)
+  const crossRowRules = (template.validationRules || []).filter((rule) =>
+    ["unique", "frequency", "dateInterval", "sameImplementer"].includes(
+      rule.type
+    )
   );
 
   console.log("📋 [CrossRowValidation] 跨行验证规则:", {
     totalRules: template.validationRules?.length || 0,
     crossRowRulesCount: crossRowRules.length,
-    rules: crossRowRules.map(r => ({ field: r.field, type: r.type, params: r.params }))
+    rules: crossRowRules.map((r) => ({
+      field: r.field,
+      type: r.type,
+      params: r.params,
+    })),
   });
 
   // 执行各种跨行验证规则
@@ -1078,7 +1108,7 @@ async function validateCrossRows(
     console.log(`\n📌 [CrossRowValidation] 处理规则:`, {
       field: rule.field,
       type: rule.type,
-      params: rule.params
+      params: rule.params,
     });
 
     let ruleErrors = [];
@@ -1092,13 +1122,18 @@ async function validateCrossRows(
       case "dateInterval":
         ruleErrors = validateDateInterval(rule, processedRows, fieldMapping);
         break;
+      case "sameImplementer":
+        ruleErrors = validateSameImplementer(rule, processedRows, fieldMapping);
+        break;
     }
 
     console.log(`  ✓ 规则执行完成，发现${ruleErrors.length}个错误`);
     errors.push(...ruleErrors);
   }
 
-  console.log(`\n✅ [CrossRowValidation] 跨行验证完成，共发现${errors.length}个错误\n`);
+  console.log(
+    `\n✅ [CrossRowValidation] 跨行验证完成，共发现${errors.length}个错误\n`
+  );
   return errors;
 }
 
@@ -1413,7 +1448,7 @@ function validateDateInterval(rule, rows, fieldMapping) {
     field: rule.field,
     params: rule.params,
     message: rule.message,
-    totalRows: rows.length
+    totalRows: rows.length,
   });
 
   const errors = [];
@@ -1425,7 +1460,7 @@ function validateDateInterval(rule, rows, fieldMapping) {
     days,
     groupBy,
     columnIndex,
-    hasColumnIndex: columnIndex !== undefined
+    hasColumnIndex: columnIndex !== undefined,
   });
 
   if (columnIndex === undefined) {
@@ -1439,7 +1474,7 @@ function validateDateInterval(rule, rows, fieldMapping) {
   for (const { data, rowNumber } of rows) {
     const groupValue = data[groupBy];
     const implementer = data["implementer"] || data["实施人"];
-    
+
     // 从rule.field读取日期值
     const dateValue = data[rule.field];
 
@@ -1450,7 +1485,7 @@ function validateDateInterval(rule, rows, fieldMapping) {
       dateValue,
       dateValueType: typeof dateValue,
       ruleField: rule.field,
-      dataKeys: Object.keys(data)
+      dataKeys: Object.keys(data),
     });
 
     if (!groupValue || !implementer) {
@@ -1464,11 +1499,11 @@ function validateDateInterval(rule, rows, fieldMapping) {
     }
 
     const date = parseDate(dateValue);
-    
+
     console.log(`  ✓ 解析结果:`, {
-      date: date ? date.toISOString().split('T')[0] : null,
+      date: date ? date.toISOString().split("T")[0] : null,
       groupValue,
-      implementer
+      implementer,
     });
 
     if (!date) {
@@ -1489,7 +1524,7 @@ function validateDateInterval(rule, rows, fieldMapping) {
       implementer,
       target: groupValue,
     });
-    
+
     console.log(`  ✓ 添加到分组: ${uniqueKey}`);
   }
 
@@ -1498,13 +1533,13 @@ function validateDateInterval(rule, rows, fieldMapping) {
     groups: Array.from(groups.entries()).map(([key, visits]) => ({
       key,
       visitCount: visits.length,
-      dates: visits.map(v => v.date.toISOString().split('T')[0])
-    }))
+      dates: visits.map((v) => v.date.toISOString().split("T")[0]),
+    })),
   });
 
   // 检查每个分组内的日期间隔
   console.log(`\n🔎 [DateInterval] 开始检查日期间隔（要求≥${days}天）...`);
-  
+
   for (const [uniqueKey, visits] of groups) {
     // 按日期排序
     visits.sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -1520,13 +1555,16 @@ function validateDateInterval(rule, rows, fieldMapping) {
           (1000 * 60 * 60 * 24)
       );
 
-      console.log(`  比较: 第${previous.rowNumber}行 → 第${current.rowNumber}行`, {
-        previousDate: previous.date.toISOString().split('T')[0],
-        currentDate: current.date.toISOString().split('T')[0],
-        daysDiff,
-        requiredDays: days,
-        isViolation: daysDiff < days
-      });
+      console.log(
+        `  比较: 第${previous.rowNumber}行 → 第${current.rowNumber}行`,
+        {
+          previousDate: previous.date.toISOString().split("T")[0],
+          currentDate: current.date.toISOString().split("T")[0],
+          daysDiff,
+          requiredDays: days,
+          isViolation: daysDiff < days,
+        }
+      );
 
       if (daysDiff < days) {
         // 从uniqueKey中提取信息 (format: "implementer|target")
@@ -1552,6 +1590,103 @@ function validateDateInterval(rule, rows, fieldMapping) {
   }
 
   console.log(`\n✅ [DateInterval] 验证完成，发现${errors.length}个错误\n`);
+  return errors;
+}
+
+// 同一目标需由同一人拜访验证
+function validateSameImplementer(rule, rows, fieldMapping) {
+  console.log("\n🔍 [SameImplementer] 开始验证规则:", {
+    field: rule.field,
+    params: rule.params,
+    message: rule.message,
+    totalRows: rows.length,
+  });
+
+  const errors = [];
+  const { params = {} } = rule;
+  const { targetField, implementerField } = params;
+  const columnIndex = fieldMapping.get(rule.field);
+
+  if (columnIndex === undefined) {
+    console.warn("⚠️ [SameImplementer] 找不到目标列索引，跳过验证");
+    return errors;
+  }
+
+  // 获取实施人列索引
+  const implementerIndex =
+    fieldMapping.get(implementerField) ||
+    fieldMapping.get("实施人") ||
+    fieldMapping.get("implementer");
+
+  if (implementerIndex === undefined) {
+    console.warn("⚠️ [SameImplementer] 找不到实施人列索引，跳过验证");
+    return errors;
+  }
+
+  // 按目标（如药店名称）分组，记录每个目标对应的实施人
+  // Map: targetValue -> { firstImplementer, firstRowNumber, rows: [{rowNumber, implementer}] }
+  const targetGroups = new Map();
+
+  for (const { data, rowNumber } of rows) {
+    const targetValue = data[rule.field];
+    const implementerValue = data["implementer"] || data["实施人"];
+
+    if (!targetValue || !implementerValue) continue;
+
+    const targetKey = String(targetValue).trim().toLowerCase();
+    const implementer = String(implementerValue).trim();
+
+    if (!targetGroups.has(targetKey)) {
+      targetGroups.set(targetKey, {
+        firstImplementer: implementer,
+        firstRowNumber: rowNumber,
+        rows: [],
+      });
+    }
+
+    targetGroups.get(targetKey).rows.push({ rowNumber, implementer });
+  }
+
+  console.log("📊 [SameImplementer] 分组统计:", {
+    totalGroups: targetGroups.size,
+    groups: Array.from(targetGroups.entries())
+      .slice(0, 10)
+      .map(([key, group]) => ({
+        target: key,
+        firstImplementer: group.firstImplementer,
+        visitCount: group.rows.length,
+      })),
+  });
+
+  // 检查每个目标分组，确保只有一个实施人
+  for (const [targetKey, group] of targetGroups) {
+    const { firstImplementer, firstRowNumber, rows: groupRows } = group;
+
+    for (const { rowNumber, implementer } of groupRows) {
+      // 忽略大小写比较实施人
+      if (implementer.toLowerCase() !== firstImplementer.toLowerCase()) {
+        // 找到原始的目标值用于显示
+        const originalRow = rows.find((r) => r.rowNumber === rowNumber);
+        const originalTarget = originalRow
+          ? originalRow.data[rule.field]
+          : targetKey;
+
+        const error = {
+          row: rowNumber,
+          column: XLSX.utils.encode_col(columnIndex),
+          field: rule.field,
+          value: originalTarget,
+          message: `${rule.message}（第${firstRowNumber}行由"${firstImplementer}"拜访，第${rowNumber}行由"${implementer}"拜访）`,
+          errorType: rule.type,
+        };
+
+        console.log(`  ❌ 发现违规！`, error);
+        errors.push(error);
+      }
+    }
+  }
+
+  console.log(`\n✅ [SameImplementer] 验证完成，发现${errors.length}个错误\n`);
   return errors;
 }
 
@@ -1609,7 +1744,9 @@ function parseDate(value) {
       const month = parseInt(chineseDateMatch[2], 10);
       const day = parseInt(chineseDateMatch[3], 10);
       const date = new Date(year, month - 1, day); // month is 0-indexed
-      console.log(`  ✓ 中文日期解析成功: ${str} -> ${date.toISOString().split('T')[0]}`);
+      console.log(
+        `  ✓ 中文日期解析成功: ${str} -> ${date.toISOString().split("T")[0]}`
+      );
       return date;
     }
 
@@ -1992,7 +2129,8 @@ async function validateExcel(data) {
     if (includeImages && result) {
       try {
         // 优先使用解析流程最终确定的工作表名称
-        const sheetForImages = (result && result.usedSheetName) ? result.usedSheetName : selectedSheet;
+        const sheetForImages =
+          result && result.usedSheetName ? result.usedSheetName : selectedSheet;
         sendProgress("🚀 前端解析：正在验证图片...", 85);
         const imageValidationResult = await validateImagesInternal(
           actualFileBuffer,
@@ -2020,7 +2158,11 @@ async function validateExcel(data) {
 }
 
 // Internal image validation function (shared logic)
-async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWatermarkDetection = false) {
+async function validateImagesInternal(
+  fileBuffer,
+  selectedSheet = null,
+  enableWatermarkDetection = false
+) {
   ImageDebugLogger.startTimer("IMAGE_VALIDATION_TOTAL");
   ImageDebugLogger.logMemoryUsage(
     ImageDebugLogger.STAGES.IMAGE_EXTRACT,
@@ -2116,7 +2258,10 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
           const safeList = Array.isArray(list) ? list : [];
           originalCount += safeList.length;
           const newList = safeList.filter(
-            (p) => p && typeof p.column === "string" && expectedCols.includes(p.column)
+            (p) =>
+              p &&
+              typeof p.column === "string" &&
+              expectedCols.includes(p.column)
           );
           if (newList.length > 0) {
             filtered.set(key, newList);
@@ -2125,7 +2270,10 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
         });
         if (filtered.size > 0 && filteredCount > 0) {
           // 只有当过滤掉了可疑列且仍保留了大部分期望列时才应用
-          if (filteredCount <= originalCount && filteredCount / Math.max(1, originalCount) >= 0.5) {
+          if (
+            filteredCount <= originalCount &&
+            filteredCount / Math.max(1, originalCount) >= 0.5
+          ) {
             imagePositions.clear();
             filtered.forEach((v, k) => imagePositions.set(k, v));
             ImageDebugLogger.info(
@@ -2151,11 +2299,13 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
       {
         positionMappings: imagePositions.size,
         mappedImages: Array.from(imagePositions.keys()),
-        detailsForDebugging: Array.from(imagePositions.entries()).map(([key, positions]) => ({
-          key,
-          positionCount: positions.length,
-          positions: positions.map(p => `${p.column}${p.row}`).join(', ')
-        }))
+        detailsForDebugging: Array.from(imagePositions.entries()).map(
+          ([key, positions]) => ({
+            key,
+            positionCount: positions.length,
+            positions: positions.map((p) => `${p.column}${p.row}`).join(", "),
+          })
+        ),
       }
     );
 
@@ -2216,16 +2366,17 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
       // 检测同名不同后缀的图片文件
       const fileNameGroups = new Map(); // basename -> [full filenames]
       imageFiles.forEach(({ relativePath }) => {
-        const baseName = relativePath.replace(/\.[^.]+$/, ''); // remove extension
+        const baseName = relativePath.replace(/\.[^.]+$/, ""); // remove extension
         if (!fileNameGroups.has(baseName)) {
           fileNameGroups.set(baseName, []);
         }
         fileNameGroups.get(baseName).push(relativePath);
       });
-      
-      const duplicateBaseNames = Array.from(fileNameGroups.entries())
-        .filter(([, files]) => files.length > 1);
-      
+
+      const duplicateBaseNames = Array.from(fileNameGroups.entries()).filter(
+        ([, files]) => files.length > 1
+      );
+
       if (duplicateBaseNames.length > 0) {
         ImageDebugLogger.warn(
           ImageDebugLogger.STAGES.IMAGE_EXTRACT,
@@ -2235,11 +2386,11 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
             details: duplicateBaseNames.map(([baseName, files]) => ({
               baseName,
               files,
-              hasMappingForAll: files.map(f => ({
+              hasMappingForAll: files.map((f) => ({
                 file: f,
-                hasMapping: imagePositions.has(f)
-              }))
-            }))
+                hasMapping: imagePositions.has(f),
+              })),
+            })),
           }
         );
       }
@@ -2265,16 +2416,16 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
               if (!posList) {
                 posList = imagePositions.get(`xl/media/${relativePath}`);
               }
-              
+
               // 如果没有找到位置映射，尝试查找同名不同后缀的图片位置
               if (!posList || posList.length === 0) {
-                const baseNameWithoutExt = relativePath.replace(/\.[^.]+$/, '');
+                const baseNameWithoutExt = relativePath.replace(/\.[^.]+$/, "");
                 const allKeys = Array.from(imagePositions.keys());
-                const similarKeys = allKeys.filter(key => {
-                  const keyBase = key.replace(/\.[^.]+$/, '');
+                const similarKeys = allKeys.filter((key) => {
+                  const keyBase = key.replace(/\.[^.]+$/, "");
                   return keyBase === baseNameWithoutExt && key !== relativePath;
                 });
-                
+
                 if (similarKeys.length > 0) {
                   const similarKey = similarKeys[0];
                   posList = imagePositions.get(similarKey);
@@ -2285,8 +2436,11 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
                       {
                         originalFile: relativePath,
                         similarFile: similarKey,
-                        positions: posList.map(p => `${p.column}${p.row}`).join(', '),
-                        reason: '同名不同后缀的图片，Excel中可能只引用了其中一个'
+                        positions: posList
+                          .map((p) => `${p.column}${p.row}`)
+                          .join(", "),
+                        reason:
+                          "同名不同后缀的图片，Excel中可能只引用了其中一个",
                       }
                     );
                   }
@@ -2497,17 +2651,24 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
               height: hashInfo.height,
             };
             // 尺寸/比例校验（启发式判断是否像手机拍摄）
-            if (MOBILE_DIMENSION_CONFIG.ENABLED && hashInfo.width && hashInfo.height) {
+            if (
+              MOBILE_DIMENSION_CONFIG.ENABLED &&
+              hashInfo.width &&
+              hashInfo.height
+            ) {
               const longSide = Math.max(hashInfo.width, hashInfo.height);
               const shortSide = Math.min(hashInfo.width, hashInfo.height);
               const megapixels = (hashInfo.width * hashInfo.height) / 1_000_000;
               const aspect = longSide / shortSide;
 
-              const aspectOk = MOBILE_DIMENSION_CONFIG.ALLOWED_ASPECTS.some(({ ratio, tolerance }) => {
-                return Math.abs(aspect - ratio) <= tolerance * ratio;
-              });
+              const aspectOk = MOBILE_DIMENSION_CONFIG.ALLOWED_ASPECTS.some(
+                ({ ratio, tolerance }) => {
+                  return Math.abs(aspect - ratio) <= tolerance * ratio;
+                }
+              );
 
-              const isLowPixel = megapixels < MOBILE_DIMENSION_CONFIG.MIN_MEGAPIXELS;
+              const isLowPixel =
+                megapixels < MOBILE_DIMENSION_CONFIG.MIN_MEGAPIXELS;
               const sizeOk =
                 shortSide >= MOBILE_DIMENSION_CONFIG.MIN_SHORT_SIDE &&
                 longSide >= MOBILE_DIMENSION_CONFIG.MIN_LONG_SIDE &&
@@ -2520,15 +2681,26 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
               }
               if (!result.dimensionOK) {
                 const problems = [];
-                if (!aspectOk) problems.push(`非典型手机比例(≈${aspect.toFixed(2)}:1)`);
-                if (shortSide < MOBILE_DIMENSION_CONFIG.MIN_SHORT_SIDE || longSide < MOBILE_DIMENSION_CONFIG.MIN_LONG_SIDE)
-                  problems.push(`分辨率过低(${hashInfo.width}x${hashInfo.height})`);
+                if (!aspectOk)
+                  problems.push(`非典型手机比例(≈${aspect.toFixed(2)}:1)`);
+                if (
+                  shortSide < MOBILE_DIMENSION_CONFIG.MIN_SHORT_SIDE ||
+                  longSide < MOBILE_DIMENSION_CONFIG.MIN_LONG_SIDE
+                )
+                  problems.push(
+                    `分辨率过低(${hashInfo.width}x${hashInfo.height})`
+                  );
                 if (isLowPixel)
                   problems.push(`像素不足(${result.megapixels}MP)`);
                 result.dimensionIssue = problems.join("; ");
 
                 // 为尺寸异常的图片生成小预览，便于前端查看
-                const thumb = await createThumbnail(image.data, 512, result.mimeType || "image/jpeg", 0.85);
+                const thumb = await createThumbnail(
+                  image.data,
+                  512,
+                  result.mimeType || "image/jpeg",
+                  0.85
+                );
                 if (thumb) {
                   result.imageData = thumb; // Uint8Array，sendResult 会用 transferable 优化
                 }
@@ -2549,13 +2721,15 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
             // 🎯 方案B：使用新的统一评分系统
             try {
               const exif = exifQuickScan(image.data, result.mimeType);
-              
+
               // 尝试使用新评分系统
-              if (typeof calculateImageSuspicionScore === 'function') {
+              if (typeof calculateImageSuspicionScore === "function") {
                 const suspicionResult = calculateImageSuspicionScore({
                   width: hashInfo.width,
                   height: hashInfo.height,
-                  megapixels: result.megapixels || ((hashInfo.width * hashInfo.height) / 1_000_000),
+                  megapixels:
+                    result.megapixels ||
+                    (hashInfo.width * hashInfo.height) / 1_000_000,
                   mimeType: result.mimeType,
                   sizeBytes: image.data.length,
                   exif,
@@ -2564,16 +2738,16 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
                   borderWidth: result.borderWidth || {},
                   hasWatermark: result.hasWatermark || false,
                   watermarkRegions: result.watermarkRegions || [],
-                  watermarkConfidence: result.watermarkConfidence || 0
+                  watermarkConfidence: result.watermarkConfidence || 0,
                 });
-                
+
                 // 将新的评分结果添加到result中
                 result.suspicionScore = suspicionResult.suspicionScore;
                 result.suspicionLevel = suspicionResult.suspicionLevel;
                 result.suspicionLabel = suspicionResult.suspicionLabel;
                 result.suspicionColor = suspicionResult.suspicionColor;
                 result.suspicionFactors = suspicionResult.factors;
-                
+
                 // 保留旧的webLikelihood以兼容现有UI
                 result.webLikelihood = suspicionResult.suspicionScore / 100;
                 result.webReasons = suspicionResult.factors;
@@ -2583,7 +2757,9 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
                   mimeType: result.mimeType,
                   width: hashInfo.width,
                   height: hashInfo.height,
-                  megapixels: result.megapixels || ((hashInfo.width * hashInfo.height) / 1_000_000),
+                  megapixels:
+                    result.megapixels ||
+                    (hashInfo.width * hashInfo.height) / 1_000_000,
                   exif,
                   sizeBytes: image.data.length,
                   hashFrequency: undefined,
@@ -2602,7 +2778,7 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
                 result.hasBorder = borderInfo.hasBorder;
                 result.borderSides = borderInfo.borderSides;
                 result.borderWidth = borderInfo.borderWidth;
-                
+
                 // 为存在边框的图片生成缩略图，便于前端查看
                 if (!result.imageData) {
                   const thumb = await createThumbnail(
@@ -2617,26 +2793,34 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
             } catch (borderError) {
               console.warn(`边框检测失败: ${image.name}`, borderError);
             }
-            
+
             // 水印检测（仅当启用时）
-            console.log('[调试] 水印检测开关状态:', enableWatermarkDetection, '| 图片:', image.name);
+            console.log(
+              "[调试] 水印检测开关状态:",
+              enableWatermarkDetection,
+              "| 图片:",
+              image.name
+            );
             if (enableWatermarkDetection) {
-              console.log('[调试] 开始执行水印检测 -', image.name);
+              console.log("[调试] 开始执行水印检测 -", image.name);
               try {
-                const watermarkInfo = await detectWatermarkTwoBranch(image.data);
+                const watermarkInfo = await detectWatermarkTwoBranch(
+                  image.data
+                );
                 console.log(`[水印检测] ${image.name} 结果:`, {
                   confidence: watermarkInfo.watermarkConfidence,
                   level: watermarkInfo.watermarkLevel,
                   hasWatermark: watermarkInfo.hasWatermark,
-                  details: watermarkInfo.analysisDetails
+                  details: watermarkInfo.analysisDetails,
                 });
-                
+
                 if (watermarkInfo.hasWatermark) {
                   result.hasWatermark = watermarkInfo.hasWatermark;
                   result.watermarkLevel = watermarkInfo.watermarkLevel; // 新增
                   result.watermarkRegions = watermarkInfo.watermarkRegions;
-                  result.watermarkConfidence = watermarkInfo.watermarkConfidence;
-                  
+                  result.watermarkConfidence =
+                    watermarkInfo.watermarkConfidence;
+
                   // 为有水印的图片生成缩略图
                   if (!result.imageData) {
                     const thumb = await createThumbnail(
@@ -2661,7 +2845,7 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
               {
                 sharpness: sharpness.toFixed(2),
                 isBlurry: result.isBlurry,
-                hashLength: (result.hash ? result.hash.length : 0),
+                hashLength: result.hash ? result.hash.length : 0,
                 processingTime: `${processingTime.toFixed(2)}ms`,
               }
             );
@@ -2767,7 +2951,7 @@ async function validateImagesInternal(fileBuffer, selectedSheet = null, enableWa
     // 保障：对标记为重复的图片补充缩略图预览
     try {
       for (const r of results) {
-        if ((r.duplicates && r.duplicates.length > 0) && !r.imageData) {
+        if (r.duplicates && r.duplicates.length > 0 && !r.imageData) {
           const data = imageDataMap.get(r.id);
           if (data) {
             const thumb = await createThumbnail(
@@ -3034,7 +3218,7 @@ async function detectSolidBorder(imageData) {
 
     const blob = new Blob([imageData]);
     const bitmap = await createImageBitmap(blob);
-    
+
     const width = bitmap.width;
     const height = bitmap.height;
 
@@ -3053,7 +3237,7 @@ async function detectSolidBorder(imageData) {
 
     // 边框检测配置
     const BORDER_COLOR_TOLERANCE = 15; // 颜色容差（适中的容差）
-    const BORDER_CONSISTENCY_RATIO = 0.90; // 90%的像素需要符合条件（平衡的阈值）
+    const BORDER_CONSISTENCY_RATIO = 0.9; // 90%的像素需要符合条件（平衡的阈值）
     const BORDER_MIN_WIDTH = 2; // 最小边框宽度（过滤1px的细线）
     const BORDER_MAX_WIDTH = 40; // 最大边框宽度（适当提高以检测更宽的边框）
     const BORDER_BRIGHTNESS_DIFF_THRESHOLD = 30; // 亮度差异阈值（提高到30，更严格的边界判断）
@@ -3062,30 +3246,62 @@ async function detectSolidBorder(imageData) {
     const borderWidth = {};
 
     // 检测上边框
-    const topBorder = detectBorderEdge(data, width, height, 'top', BORDER_COLOR_TOLERANCE, BORDER_CONSISTENCY_RATIO, BORDER_BRIGHTNESS_DIFF_THRESHOLD);
+    const topBorder = detectBorderEdge(
+      data,
+      width,
+      height,
+      "top",
+      BORDER_COLOR_TOLERANCE,
+      BORDER_CONSISTENCY_RATIO,
+      BORDER_BRIGHTNESS_DIFF_THRESHOLD
+    );
     if (topBorder >= BORDER_MIN_WIDTH && topBorder <= BORDER_MAX_WIDTH) {
-      borderSides.push('top');
+      borderSides.push("top");
       borderWidth.top = topBorder;
     }
 
     // 检测下边框
-    const bottomBorder = detectBorderEdge(data, width, height, 'bottom', BORDER_COLOR_TOLERANCE, BORDER_CONSISTENCY_RATIO, BORDER_BRIGHTNESS_DIFF_THRESHOLD);
+    const bottomBorder = detectBorderEdge(
+      data,
+      width,
+      height,
+      "bottom",
+      BORDER_COLOR_TOLERANCE,
+      BORDER_CONSISTENCY_RATIO,
+      BORDER_BRIGHTNESS_DIFF_THRESHOLD
+    );
     if (bottomBorder >= BORDER_MIN_WIDTH && bottomBorder <= BORDER_MAX_WIDTH) {
-      borderSides.push('bottom');
+      borderSides.push("bottom");
       borderWidth.bottom = bottomBorder;
     }
 
     // 检测左边框
-    const leftBorder = detectBorderEdge(data, width, height, 'left', BORDER_COLOR_TOLERANCE, BORDER_CONSISTENCY_RATIO, BORDER_BRIGHTNESS_DIFF_THRESHOLD);
+    const leftBorder = detectBorderEdge(
+      data,
+      width,
+      height,
+      "left",
+      BORDER_COLOR_TOLERANCE,
+      BORDER_CONSISTENCY_RATIO,
+      BORDER_BRIGHTNESS_DIFF_THRESHOLD
+    );
     if (leftBorder >= BORDER_MIN_WIDTH && leftBorder <= BORDER_MAX_WIDTH) {
-      borderSides.push('left');
+      borderSides.push("left");
       borderWidth.left = leftBorder;
     }
 
     // 检测右边框
-    const rightBorder = detectBorderEdge(data, width, height, 'right', BORDER_COLOR_TOLERANCE, BORDER_CONSISTENCY_RATIO, BORDER_BRIGHTNESS_DIFF_THRESHOLD);
+    const rightBorder = detectBorderEdge(
+      data,
+      width,
+      height,
+      "right",
+      BORDER_COLOR_TOLERANCE,
+      BORDER_CONSISTENCY_RATIO,
+      BORDER_BRIGHTNESS_DIFF_THRESHOLD
+    );
     if (rightBorder >= BORDER_MIN_WIDTH && rightBorder <= BORDER_MAX_WIDTH) {
-      borderSides.push('right');
+      borderSides.push("right");
       borderWidth.right = rightBorder;
     }
 
@@ -3105,31 +3321,41 @@ async function detectSolidBorder(imageData) {
 }
 
 // 检测单条边的边框
-function detectBorderEdge(data, width, height, side, tolerance, consistencyRatio, brightnessDiffThreshold) {
+function detectBorderEdge(
+  data,
+  width,
+  height,
+  side,
+  tolerance,
+  consistencyRatio,
+  brightnessDiffThreshold
+) {
   let maxScanDepth;
   let getPixelIndex;
   let scanLength;
 
   switch (side) {
-    case 'top':
+    case "top":
       maxScanDepth = Math.min(height, 50); // 最多扫按50行
       scanLength = width;
       getPixelIndex = (depth, offset) => (depth * width + offset) * 4;
       break;
-    case 'bottom':
+    case "bottom":
       maxScanDepth = Math.min(height, 50);
       scanLength = width;
-      getPixelIndex = (depth, offset) => ((height - 1 - depth) * width + offset) * 4;
+      getPixelIndex = (depth, offset) =>
+        ((height - 1 - depth) * width + offset) * 4;
       break;
-    case 'left':
+    case "left":
       maxScanDepth = Math.min(width, 50); // 最多扫按50列
       scanLength = height;
       getPixelIndex = (depth, offset) => (offset * width + depth) * 4;
       break;
-    case 'right':
+    case "right":
       maxScanDepth = Math.min(width, 50);
       scanLength = height;
-      getPixelIndex = (depth, offset) => (offset * width + (width - 1 - depth)) * 4;
+      getPixelIndex = (depth, offset) =>
+        (offset * width + (width - 1 - depth)) * 4;
       break;
     default:
       return 0;
@@ -3137,7 +3363,7 @@ function detectBorderEdge(data, width, height, side, tolerance, consistencyRatio
 
   let borderStartDepth = -1;
   let lastLineBrightness = null;
-  
+
   // 从外向内逐行/列扫描
   for (let depth = 0; depth < maxScanDepth; depth++) {
     // 获取当前行/列的所有像素颜色
@@ -3148,9 +3374,12 @@ function detectBorderEdge(data, width, height, side, tolerance, consistencyRatio
     }
 
     // 计算当前行/列的平均亮度
-    const currentBrightness = colors.reduce((sum, color) => 
-      sum + (0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2]), 0
-    ) / colors.length;
+    const currentBrightness =
+      colors.reduce(
+        (sum, color) =>
+          sum + (0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2]),
+        0
+      ) / colors.length;
 
     // 检查这行/列是否是纯色边框
     if (isSolidColorLine(colors, tolerance, consistencyRatio)) {
@@ -3165,7 +3394,7 @@ function detectBorderEdge(data, width, height, side, tolerance, consistencyRatio
         // 第一行/列就不是纯色，无边框
         return 0;
       }
-      
+
       // 检查边框与内容的对比度（避免将内部的白色区域误判为边框）
       if (lastLineBrightness !== null) {
         const brightnessDiff = Math.abs(currentBrightness - lastLineBrightness);
@@ -3174,7 +3403,7 @@ function detectBorderEdge(data, width, height, side, tolerance, consistencyRatio
           return 0;
         }
       }
-      
+
       return depth;
     }
   }
@@ -3224,12 +3453,16 @@ async function detectWatermark(imageData) {
       typeof OffscreenCanvas === "undefined" ||
       typeof createImageBitmap === "undefined"
     ) {
-      return { hasWatermark: false, watermarkRegions: [], watermarkConfidence: 0 };
+      return {
+        hasWatermark: false,
+        watermarkRegions: [],
+        watermarkConfidence: 0,
+      };
     }
 
     const blob = new Blob([imageData]);
     const bitmap = await createImageBitmap(blob);
-    
+
     // 性能优化：降采样到合理尺寸
     const maxSize = 800;
     const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
@@ -3240,7 +3473,11 @@ async function detectWatermark(imageData) {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) {
       bitmap.close();
-      return { hasWatermark: false, watermarkRegions: [], watermarkConfidence: 0 };
+      return {
+        hasWatermark: false,
+        watermarkRegions: [],
+        watermarkConfidence: 0,
+      };
     }
 
     ctx.drawImage(bitmap, 0, 0, width, height);
@@ -3258,14 +3495,14 @@ async function detectWatermark(imageData) {
         y: 0,
         width: Math.floor(width * regionRatio),
         height: Math.floor(height * regionRatio),
-        name: 'topLeft',
+        name: "topLeft",
       },
       {
         x: Math.floor(width * (1 - regionRatio)),
         y: 0,
         width: Math.floor(width * regionRatio),
         height: Math.floor(height * regionRatio),
-        name: 'topRight',
+        name: "topRight",
       },
       // 左右中间
       {
@@ -3273,14 +3510,14 @@ async function detectWatermark(imageData) {
         y: Math.floor(height * 0.4),
         width: Math.floor(width * regionRatio),
         height: Math.floor(height * 0.2),
-        name: 'leftMiddle',
+        name: "leftMiddle",
       },
       {
         x: Math.floor(width * (1 - regionRatio)),
         y: Math.floor(height * 0.4),
         width: Math.floor(width * regionRatio),
         height: Math.floor(height * 0.2),
-        name: 'rightMiddle',
+        name: "rightMiddle",
       },
       // 底部三个区域
       {
@@ -3288,21 +3525,21 @@ async function detectWatermark(imageData) {
         y: Math.floor(height * (1 - regionRatio)),
         width: Math.floor(width * regionRatio),
         height: Math.floor(height * regionRatio),
-        name: 'bottomLeft',
+        name: "bottomLeft",
       },
       {
         x: Math.floor(width * (1 - regionRatio)),
         y: Math.floor(height * (1 - regionRatio)),
         width: Math.floor(width * regionRatio),
         height: Math.floor(height * regionRatio),
-        name: 'bottomRight',
+        name: "bottomRight",
       },
       {
         x: Math.floor(width * 0.35),
         y: Math.floor(height * 0.9),
         width: Math.floor(width * 0.3),
         height: Math.floor(height * 0.1),
-        name: 'centerBottom',
+        name: "centerBottom",
       },
     ];
 
@@ -3325,9 +3562,10 @@ async function detectWatermark(imageData) {
     canvas.height = 0;
 
     const hasWatermark = watermarkRegions.length > 0;
-    const watermarkConfidence = watermarkRegions.length > 0
-      ? totalConfidence / watermarkRegions.length
-      : 0;
+    const watermarkConfidence =
+      watermarkRegions.length > 0
+        ? totalConfidence / watermarkRegions.length
+        : 0;
 
     return {
       hasWatermark,
@@ -3336,21 +3574,30 @@ async function detectWatermark(imageData) {
     };
   } catch (error) {
     console.warn("水印检测失败:", error);
-    return { hasWatermark: false, watermarkRegions: [], watermarkConfidence: 0 };
+    return {
+      hasWatermark: false,
+      watermarkRegions: [],
+      watermarkConfidence: 0,
+    };
   }
 }
 
 // 分析区域的水印特征
 function analyzeWatermarkRegion(data, width, height, region) {
   const { x, y, width: w, height: h } = region;
-  
+
   // 提取区域像素
   const regionPixels = [];
   for (let row = y; row < y + h; row++) {
     for (let col = x; col < x + w; col++) {
       if (row >= 0 && row < height && col >= 0 && col < width) {
         const idx = (row * width + col) * 4;
-        regionPixels.push([data[idx], data[idx + 1], data[idx + 2], data[idx + 3]]);
+        regionPixels.push([
+          data[idx],
+          data[idx + 1],
+          data[idx + 2],
+          data[idx + 3],
+        ]);
       }
     }
   }
@@ -3362,23 +3609,30 @@ function analyzeWatermarkRegion(data, width, height, region) {
   // 1. 计算边缘密度（使用Sobel算子）
   let edgeCount = 0;
   const edgeThreshold = 30;
-  
+
   for (let row = y + 1; row < y + h - 1; row++) {
     for (let col = x + 1; col < x + w - 1; col++) {
       if (row >= 0 && row < height && col >= 0 && col < width) {
         const idx = (row * width + col) * 4;
-        
+
         // 简化的Sobel算子（仅计算亮度梯度）
-        const centerGray = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+        const centerGray =
+          0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
         const rightIdx = (row * width + col + 1) * 4;
-        const rightGray = 0.299 * data[rightIdx] + 0.587 * data[rightIdx + 1] + 0.114 * data[rightIdx + 2];
+        const rightGray =
+          0.299 * data[rightIdx] +
+          0.587 * data[rightIdx + 1] +
+          0.114 * data[rightIdx + 2];
         const bottomIdx = ((row + 1) * width + col) * 4;
-        const bottomGray = 0.299 * data[bottomIdx] + 0.587 * data[bottomIdx + 1] + 0.114 * data[bottomIdx + 2];
-        
+        const bottomGray =
+          0.299 * data[bottomIdx] +
+          0.587 * data[bottomIdx + 1] +
+          0.114 * data[bottomIdx + 2];
+
         const gx = Math.abs(rightGray - centerGray);
         const gy = Math.abs(bottomGray - centerGray);
         const magnitude = Math.sqrt(gx * gx + gy * gy);
-        
+
         if (magnitude > edgeThreshold) {
           edgeCount++;
         }
@@ -3389,16 +3643,20 @@ function analyzeWatermarkRegion(data, width, height, region) {
   const edgeDensity = edgeCount / regionPixels.length;
 
   // 2. 计算灰度方差（检测图案/文字对比度）
-  const grayValues = regionPixels.map(pixel => 
-    0.299 * pixel[0] + 0.587 * pixel[1] + 0.114 * pixel[2]
+  const grayValues = regionPixels.map(
+    (pixel) => 0.299 * pixel[0] + 0.587 * pixel[1] + 0.114 * pixel[2]
   );
-  const mean = grayValues.reduce((sum, val) => sum + val, 0) / grayValues.length;
-  const variance = grayValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / grayValues.length;
+  const mean =
+    grayValues.reduce((sum, val) => sum + val, 0) / grayValues.length;
+  const variance =
+    grayValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) /
+    grayValues.length;
 
   // 3. 检测半透明特征（水印常见特征）
   let semiTransparentCount = 0;
   for (const pixel of regionPixels) {
-    if (pixel[3] < 230) { // alpha < 230
+    if (pixel[3] < 230) {
+      // alpha < 230
       semiTransparentCount++;
     }
   }
@@ -3406,7 +3664,7 @@ function analyzeWatermarkRegion(data, width, height, region) {
 
   // 4. 综合判断
   let confidence = 0;
-  
+
   // 边缘密度贡献（文字/图案特征）
   if (edgeDensity > 0.05) confidence += 30;
   else if (edgeDensity > 0.03) confidence += 20;
@@ -3442,13 +3700,19 @@ function isWatermarkRegion(features) {
 // 轻量EXIF快速扫描（仅JPEG）：查找APP1/Exif和常见标签关键字（近似）
 function exifQuickScan(imageData, mimeType) {
   try {
-    const out = { hasExif: false, make: false, model: false, software: null, dateTimeOriginal: false };
+    const out = {
+      hasExif: false,
+      make: false,
+      model: false,
+      software: null,
+      dateTimeOriginal: false,
+    };
     if (!mimeType || !/jpe?g/i.test(mimeType)) return out;
     // 为减少开销，仅扫描前256KB
     const head = imageData.subarray(0, Math.min(imageData.length, 256 * 1024));
-    const td = new TextDecoder('latin1');
+    const td = new TextDecoder("latin1");
     const txt = td.decode(head);
-    if (txt.includes('Exif\x00\x00')) out.hasExif = true;
+    if (txt.includes("Exif\x00\x00")) out.hasExif = true;
     if (/Make\x00|Make\u0000|Make/.test(txt)) out.make = true;
     if (/Model\x00|Model\u0000|Model/.test(txt)) out.model = true;
     const swMatch = txt.match(/Software[^\0]{0,40}/);
@@ -3456,63 +3720,98 @@ function exifQuickScan(imageData, mimeType) {
     if (/DateTimeOriginal/.test(txt)) out.dateTimeOriginal = true;
     return out;
   } catch {
-    return { hasExif: false, make: false, model: false, software: null, dateTimeOriginal: false };
+    return {
+      hasExif: false,
+      make: false,
+      model: false,
+      software: null,
+      dateTimeOriginal: false,
+    };
   }
 }
 
 // 网图嫌疑度评分（0~1）
 // 🔧 方案A快速修复：调整权重以减少误判
-function scoreWebLikelihood({ mimeType, width, height, megapixels, exif, sizeBytes, hashFrequency }) {
+function scoreWebLikelihood({
+  mimeType,
+  width,
+  height,
+  megapixels,
+  exif,
+  sizeBytes,
+  hashFrequency,
+}) {
   let score = 0;
   const reasons = [];
 
   // EXIF - 降低权重（EXIF可伪造，微信会剥离）
   if (exif?.hasExif && (exif.make || exif.model) && exif.dateTimeOriginal) {
-    score -= 1; reasons.push('有EXIF(品牌/机型/拍摄时间)');  // 从-2改为-1
+    score -= 1;
+    reasons.push("有EXIF(品牌/机型/拍摄时间)"); // 从-2改为-1
   } else if (!exif?.hasExif) {
-    score += 1; reasons.push('无EXIF');  // 从+2改为+1（考虑微信剥离EXIF）
+    score += 1;
+    reasons.push("无EXIF"); // 从+2改为+1（考虑微信剥离EXIF）
   }
-  if (exif?.software && /photoshop|illustrator|adobe|gimp/i.test(exif.software)) {
-    score += 2; reasons.push(`专业编辑软件:${exif.software.slice(0,20)}`);
+  if (
+    exif?.software &&
+    /photoshop|illustrator|adobe|gimp/i.test(exif.software)
+  ) {
+    score += 2;
+    reasons.push(`专业编辑软件:${exif.software.slice(0, 20)}`);
   } else if (exif?.software && /meitu|美图|picsart/i.test(exif.software)) {
-    score += 1; reasons.push(`美化软件:${exif.software.slice(0,20)}`);
+    score += 1;
+    reasons.push(`美化软件:${exif.software.slice(0, 20)}`);
   } else if (exif?.software && /wechat|微信|qq/i.test(exif.software)) {
-    score += 0; reasons.push('社交软件处理');  // 社交软件处理不扣分
+    score += 0;
+    reasons.push("社交软件处理"); // 社交软件处理不扣分
   }
 
   // 格式 - 降低WebP权重（现代格式）
-  if (/gif/i.test(mimeType || '')) { 
-    score += 2; reasons.push('GIF格式'); 
-  } else if (/webp/i.test(mimeType || '')) { 
-    score += 1; reasons.push('WebP格式');  // 从+2改为+1
+  if (/gif/i.test(mimeType || "")) {
+    score += 2;
+    reasons.push("GIF格式");
+  } else if (/webp/i.test(mimeType || "")) {
+    score += 1;
+    reasons.push("WebP格式"); // 从+2改为+1
   }
-  if (/png/i.test(mimeType || '') && (megapixels || 0) < 1) { 
-    score += 1; reasons.push('小像素PNG'); 
+  if (/png/i.test(mimeType || "") && (megapixels || 0) < 1) {
+    score += 1;
+    reasons.push("小像素PNG");
   }
 
   // 尺寸/比例 - 扩大手机比例判断范围
-  const longSide = Math.max(width||0, height||0), shortSide = Math.min(width||0, height||0);
-  const aspect = shortSide>0 ? longSide/shortSide : 0;
-  const approx = (x, y, tol) => Math.abs(x-y) <= tol*y;
+  const longSide = Math.max(width || 0, height || 0),
+    shortSide = Math.min(width || 0, height || 0);
+  const aspect = shortSide > 0 ? longSide / shortSide : 0;
+  const approx = (x, y, tol) => Math.abs(x - y) <= tol * y;
   // 增加更多手机比例
-  const isPhoneAspect = approx(aspect, 4/3, 0.1) || approx(aspect, 3/4, 0.1) ||
-                        approx(aspect, 16/9, 0.1) || approx(aspect, 9/16, 0.1) ||
-                        approx(aspect, 18/9, 0.1) || approx(aspect, 9/18, 0.1) ||
-                        approx(aspect, 19.5/9, 0.1) || approx(aspect, 9/19.5, 0.1) ||
-                        approx(aspect, 20/9, 0.1) || approx(aspect, 9/20, 0.1) ||
-                        approx(aspect, 1, 0.05);  // 正方形
-  
-  if (!isPhoneAspect && (megapixels || 0) < 1.0) { 
-    score += 2; reasons.push(`非常见手机比例(${aspect.toFixed(2)}:1)+低像素`); 
-  } else if ((megapixels || 0) >= 2.0 && isPhoneAspect) { 
-    score -= 1; reasons.push('像素/比例似手机'); 
+  const isPhoneAspect =
+    approx(aspect, 4 / 3, 0.1) ||
+    approx(aspect, 3 / 4, 0.1) ||
+    approx(aspect, 16 / 9, 0.1) ||
+    approx(aspect, 9 / 16, 0.1) ||
+    approx(aspect, 18 / 9, 0.1) ||
+    approx(aspect, 9 / 18, 0.1) ||
+    approx(aspect, 19.5 / 9, 0.1) ||
+    approx(aspect, 9 / 19.5, 0.1) ||
+    approx(aspect, 20 / 9, 0.1) ||
+    approx(aspect, 9 / 20, 0.1) ||
+    approx(aspect, 1, 0.05); // 正方形
+
+  if (!isPhoneAspect && (megapixels || 0) < 1.0) {
+    score += 2;
+    reasons.push(`非常见手机比例(${aspect.toFixed(2)}:1)+低像素`);
+  } else if ((megapixels || 0) >= 2.0 && isPhoneAspect) {
+    score -= 1;
+    reasons.push("像素/比例似手机");
   }
 
   // 压缩强度
   if (megapixels && megapixels > 0) {
-    const kbPerMP = (sizeBytes/1024) / megapixels;
-    if (megapixels < 1.0 && kbPerMP < 120) { 
-      score += 1; reasons.push(`强压缩(${kbPerMP.toFixed(0)}KB/MP)`); 
+    const kbPerMP = sizeBytes / 1024 / megapixels;
+    if (megapixels < 1.0 && kbPerMP < 120) {
+      score += 1;
+      reasons.push(`强压缩(${kbPerMP.toFixed(0)}KB/MP)`);
     }
   }
 
@@ -3524,7 +3823,12 @@ function scoreWebLikelihood({ mimeType, width, height, megapixels, exif, sizeByt
 }
 
 // 生成小预览（避免内存暴涨），返回 Uint8Array 数据
-async function createThumbnail(imageData, maxSide = 512, mimeType = "image/jpeg", quality = 0.85) {
+async function createThumbnail(
+  imageData,
+  maxSide = 512,
+  mimeType = "image/jpeg",
+  quality = 0.85
+) {
   try {
     if (
       typeof OffscreenCanvas === "undefined" ||
@@ -3714,8 +4018,8 @@ function findAllMatchingSheets(availableSheets, templateSheetNames) {
 
   // 1. 精确匹配
   for (const templateName of templateSheetNames) {
-    const found = availableSheets.filter(sheet => sheet === templateName);
-    found.forEach(sheet => {
+    const found = availableSheets.filter((sheet) => sheet === templateName);
+    found.forEach((sheet) => {
       if (!matched.includes(sheet)) {
         matched.push(sheet);
       }
@@ -3728,7 +4032,7 @@ function findAllMatchingSheets(availableSheets, templateSheetNames) {
       (sheetName) =>
         sheetName.includes(templateName) || templateName.includes(sheetName)
     );
-    found.forEach(sheet => {
+    found.forEach((sheet) => {
       if (!matched.includes(sheet)) {
         matched.push(sheet);
       }
@@ -3747,7 +4051,7 @@ function findAllMatchingSheets(availableSheets, templateSheetNames) {
         normalizedTemplate.includes(normalizedSheet)
       );
     });
-    found.forEach(sheet => {
+    found.forEach((sheet) => {
       if (!matched.includes(sheet)) {
         matched.push(sheet);
       }
@@ -4102,7 +4406,7 @@ function isValidDuration(value, params) {
 // 解析持续时间，支持多种格式
 // 支持: "60", "60分钟", "60 分钟", "1.5小时", "90min", "1h30m" 等
 function parseDuration(value) {
-  if (value === null || value === undefined || value === '') return null;
+  if (value === null || value === undefined || value === "") return null;
 
   const str = String(value).trim();
   if (!str) return null;
@@ -4115,20 +4419,26 @@ function parseDuration(value) {
 
   // 匹配带中文单位的格式
   // 匹配: "60分钟", "60 分钟", "1.5小时", "90分" 等
-  const chineseMinuteMatch = str.match(/^([0-9]+\.?[0-9]*)\s*(?:分钟?|min|mins|minutes?)$/i);
+  const chineseMinuteMatch = str.match(
+    /^([0-9]+\.?[0-9]*)\s*(?:分钟?|min|mins|minutes?)$/i
+  );
   if (chineseMinuteMatch) {
     const minutes = parseFloat(chineseMinuteMatch[1]);
     return !isNaN(minutes) && minutes >= 0 ? minutes : null;
   }
 
-  const chineseHourMatch = str.match(/^([0-9]+\.?[0-9]*)\s*(?:小时|时|hour|hours?|h)$/i);
+  const chineseHourMatch = str.match(
+    /^([0-9]+\.?[0-9]*)\s*(?:小时|时|hour|hours?|h)$/i
+  );
   if (chineseHourMatch) {
     const hours = parseFloat(chineseHourMatch[1]);
     return !isNaN(hours) && hours >= 0 ? hours * 60 : null;
   }
 
   // 匹配复合格式: "1小时30分钟", "1h30m", "1时30分" 等
-  const compositeMatch = str.match(/^([0-9]+)\s*(?:小时|时|h)\s*([0-9]+)\s*(?:分钟?|m)$/i);
+  const compositeMatch = str.match(
+    /^([0-9]+)\s*(?:小时|时|h)\s*([0-9]+)\s*(?:分钟?|m)$/i
+  );
   if (compositeMatch) {
     const hours = parseInt(compositeMatch[1], 10);
     const minutes = parseInt(compositeMatch[2], 10);
@@ -4540,7 +4850,9 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
     if (selectedSheet) {
       const targetSheetFile = await getSheetFileName(selectedSheet);
       if (targetSheetFile) {
-        targetSheetFiles = sheetFiles.filter((file) => file === targetSheetFile);
+        targetSheetFiles = sheetFiles.filter(
+          (file) => file === targetSheetFile
+        );
       } else {
         console.warn(
           `⚠️ 无法找到工作表 "${selectedSheet}" 对应的文件，已跳过其他工作表的图片解析`
@@ -4691,7 +5003,9 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
             const basename = target.replace(/^.*\//, "");
 
             embedRelMap.set(id, basename);
-            console.log(`[Drawing Rels] rId: ${id} -> basename: ${basename} (from target: ${target})`);
+            console.log(
+              `[Drawing Rels] rId: ${id} -> basename: ${basename} (from target: ${target})`
+            );
           }
         }
       }
@@ -4785,8 +5099,13 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
         const list = imagePositions.get(mediaKeyFromRel) || [];
         list.push({ position, row: excelRow, column: excelColLetter });
         imagePositions.set(mediaKeyFromRel, list);
-        console.log(`[Image Position] Set mapping: ${mediaKeyFromRel} -> ${position} (${excelColLetter}${excelRow})`);
-        console.log(`[Image Position] Current mappings for ${mediaKeyFromRel}:`, list);
+        console.log(
+          `[Image Position] Set mapping: ${mediaKeyFromRel} -> ${position} (${excelColLetter}${excelRow})`
+        );
+        console.log(
+          `[Image Position] Current mappings for ${mediaKeyFromRel}:`,
+          list
+        );
       }
     }
 
@@ -4987,7 +5306,11 @@ async function extractFromCellImagesWorker(
       }
 
       // 如果指定了 selectedSheet，但无法通过 DISPIMG 精确定位到该工作表，则不接受估算位置，直接跳过
-      if (selectedSheet && positionInfo && positionInfo.method !== "dispimg_formula") {
+      if (
+        selectedSheet &&
+        positionInfo &&
+        positionInfo.method !== "dispimg_formula"
+      ) {
         continue;
       }
 
@@ -5341,7 +5664,7 @@ function sendError(message) {
 /**
  * 高级水印检测算�?
  * 基于深层像素分析的水印检测，模拟"去水�?工具的检测原�?
- * 
+ *
  * 核心技术：
  * 1. 频域分析 - 检测重复模式和周期性水�?
  * 2. 多尺度梯度分�?- 检测文字和logo的边缘特�?
@@ -5364,35 +5687,43 @@ async function detectWatermarkAdvanced(imageData) {
       typeof OffscreenCanvas === "undefined" ||
       typeof createImageBitmap === "undefined"
     ) {
-      return { 
-        hasWatermark: false, 
-        watermarkRegions: [], 
+      return {
+        hasWatermark: false,
+        watermarkRegions: [],
         watermarkConfidence: 0,
-        detectionMethod: 'unsupported',
-        analysisDetails: {} 
+        detectionMethod: "unsupported",
+        analysisDetails: {},
       };
     }
-    console.log('[水印检测] 开始高级检测流程...');
+    console.log("[水印检测] 开始高级检测流程...");
     const startTime = performance.now();
 
     const blob = new Blob([imageData]);
     const bitmap = await createImageBitmap(blob);
-    
+
     console.log(`[水印检测] 原始图片尺寸: ${bitmap.width}x${bitmap.height}px`);
-    
+
     // 性能优化：降采样到合理尺寸（但保持足够细节用于分析）
     const maxSize = 2000; // 提高到2000以更好地检测小水印（特别是Excel中的图片）
     const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
     const width = Math.floor(bitmap.width * scale);
     const height = Math.floor(bitmap.height * scale);
-    
-    console.log(`[水印检测] 分析尺寸: ${width}x${height}px (缩放比例: ${(scale * 100).toFixed(1)}%)`);
+
+    console.log(
+      `[水印检测] 分析尺寸: ${width}x${height}px (缩放比例: ${(
+        scale * 100
+      ).toFixed(1)}%)`
+    );
 
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) {
       bitmap.close();
-      return { hasWatermark: false, watermarkRegions: [], watermarkConfidence: 0 };
+      return {
+        hasWatermark: false,
+        watermarkRegions: [],
+        watermarkConfidence: 0,
+      };
     }
 
     ctx.drawImage(bitmap, 0, 0, width, height);
@@ -5402,48 +5733,52 @@ async function detectWatermarkAdvanced(imageData) {
     const data = imagePixelData.data;
 
     // ==================== 多种分析方法并行执行 ====================
-    
-    console.log('[水印检测] 执行像素级分�?..');
-    
+
+    console.log("[水印检测] 执行像素级分�?..");
+
     // 1. 频域分析 - 检测重复模�?
     const frequencyAnalysis = analyzeFrequencyDomain(data, width, height);
-    
+
     // 2. 梯度一致性分�?- 检测不自然的边�?
     const gradientAnalysis = analyzeGradientConsistency(data, width, height);
-    
+
     // 3. 纹理特征分析 - 使用简化的LBP
     const textureAnalysis = analyzeTexturePattern(data, width, height);
-    
+
     // 4. 颜色通道差异分析
-    const colorChannelAnalysis = analyzeColorChannelDifference(data, width, height);
-    
+    const colorChannelAnalysis = analyzeColorChannelDifference(
+      data,
+      width,
+      height
+    );
+
     // 5. 区域对比分析 - 检测特定区域的异常
     const regionAnalysis = analyzeRegionsAdvanced(data, width, height);
-    
+
     // 6. 透明度分析（如果有alpha通道�?
     const alphaAnalysis = analyzeAlphaChannel(data, width, height);
-    
-    console.log('[水印检测] 分析结果:', {
+
+    console.log("[水印检测] 分析结果:", {
       frequency: frequencyAnalysis.score,
       gradient: gradientAnalysis.score,
       texture: textureAnalysis.score,
       colorChannel: colorChannelAnalysis.score,
       region: regionAnalysis.score,
-      alpha: alphaAnalysis.score
+      alpha: alphaAnalysis.score,
     });
 
     // ==================== 综合评分 ====================
-    
+
     const weights = {
-      frequency: 0.25,      // 频域分析权重（适度增加）
-      gradient: 0.20,       // 梯度分析权重（恢复一些权重）
-      texture: 0.20,        // 纹理分析权重（降低，避免过度依赖）
-      colorChannel: 0.15,   // 颜色通道权重（恢复）
-      region: 0.15,         // 区域分析权重（恢复）
-      alpha: 0.05           // 透明度权重
+      frequency: 0.25, // 频域分析权重（适度增加）
+      gradient: 0.2, // 梯度分析权重（恢复一些权重）
+      texture: 0.2, // 纹理分析权重（降低，避免过度依赖）
+      colorChannel: 0.15, // 颜色通道权重（恢复）
+      region: 0.15, // 区域分析权重（恢复）
+      alpha: 0.05, // 透明度权重
     };
-    
-    const totalScore = 
+
+    const totalScore =
       frequencyAnalysis.score * weights.frequency +
       gradientAnalysis.score * weights.gradient +
       textureAnalysis.score * weights.texture +
@@ -5452,21 +5787,25 @@ async function detectWatermarkAdvanced(imageData) {
       alphaAnalysis.score * weights.alpha;
 
     const confidence = Math.min(100, Math.max(0, totalScore));
-    
+
     // 收集检测到水印的区�?
     const watermarkRegions = [
       ...regionAnalysis.detectedRegions,
       ...gradientAnalysis.suspiciousRegions,
-      ...textureAnalysis.anomalyRegions
+      ...textureAnalysis.anomalyRegions,
     ];
-    
+
     // 去重
     const uniqueRegions = [...new Set(watermarkRegions)];
-    
+
     const hasWatermark = confidence >= 50; // 提高阈值以减少误报，同时保持maxSize=2000保留细节
 
     const processingTime = (performance.now() - startTime).toFixed(2);
-    console.log(`[水印检测] 完成！耗时: ${processingTime}ms, 置信�? ${confidence.toFixed(2)}`);
+    console.log(
+      `[水印检测] 完成！耗时: ${processingTime}ms, 置信�? ${confidence.toFixed(
+        2
+      )}`
+    );
 
     // 清理资源
     canvas.width = 0;
@@ -5476,7 +5815,7 @@ async function detectWatermarkAdvanced(imageData) {
       hasWatermark,
       watermarkRegions: uniqueRegions,
       watermarkConfidence: confidence,
-      detectionMethod: 'advanced_pixel_analysis',
+      detectionMethod: "advanced_pixel_analysis",
       processingTime: parseFloat(processingTime),
       analysisDetails: {
         frequencyScore: frequencyAnalysis.score.toFixed(2),
@@ -5491,18 +5830,18 @@ async function detectWatermarkAdvanced(imageData) {
           texture: textureAnalysis.score,
           colorChannel: colorChannelAnalysis.score,
           region: regionAnalysis.score,
-          alpha: alphaAnalysis.score
-        })
-      }
+          alpha: alphaAnalysis.score,
+        }),
+      },
     };
   } catch (error) {
-    console.error('[水印检测] 失败:', error);
-    return { 
-      hasWatermark: false, 
-      watermarkRegions: [], 
+    console.error("[水印检测] 失败:", error);
+    return {
+      hasWatermark: false,
+      watermarkRegions: [],
       watermarkConfidence: 0,
-      detectionMethod: 'error',
-      error: error.message 
+      detectionMethod: "error",
+      error: error.message,
     };
   }
 }
@@ -5519,22 +5858,24 @@ function analyzeFrequencyDomain(data, width, height) {
     const gray = new Float32Array(width * height);
     for (let i = 0; i < width * height; i++) {
       const idx = i * 4;
-      gray[i] = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+      gray[i] =
+        0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
     }
 
     // 简化的频域分析：检测周期性模�?
     // 使用水平和垂直方向的自相�?
     let horizontalPeriodicity = 0;
     let verticalPeriodicity = 0;
-    
+
     // 水平方向自相关（检测重复的水平水印�?
     const hSteps = [10, 20, 30, 50, 80]; // 检测不同周�?
     for (const step of hSteps) {
       if (step >= width / 2) continue;
       let correlation = 0;
       let count = 0;
-      
-      for (let y = 0; y < height; y += 5) { // 采样以提高性能
+
+      for (let y = 0; y < height; y += 5) {
+        // 采样以提高性能
         for (let x = 0; x < width - step; x += 5) {
           const idx1 = y * width + x;
           const idx2 = y * width + x + step;
@@ -5542,7 +5883,7 @@ function analyzeFrequencyDomain(data, width, height) {
           count++;
         }
       }
-      
+
       const avgCorrelation = count > 0 ? correlation / count : 255;
       // 相关性高（差异小）说明可能有重复模式
       if (avgCorrelation < 15) {
@@ -5556,7 +5897,7 @@ function analyzeFrequencyDomain(data, width, height) {
       if (step >= height / 2) continue;
       let correlation = 0;
       let count = 0;
-      
+
       for (let y = 0; y < height - step; y += 5) {
         for (let x = 0; x < width; x += 5) {
           const idx1 = y * width + x;
@@ -5565,7 +5906,7 @@ function analyzeFrequencyDomain(data, width, height) {
           count++;
         }
       }
-      
+
       const avgCorrelation = count > 0 ? correlation / count : 255;
       if (avgCorrelation < 15) {
         verticalPeriodicity += (15 - avgCorrelation) * 2;
@@ -5579,10 +5920,12 @@ function analyzeFrequencyDomain(data, width, height) {
       score,
       horizontalPeriodicity,
       verticalPeriodicity,
-      details: `H:${horizontalPeriodicity.toFixed(1)} V:${verticalPeriodicity.toFixed(1)}`
+      details: `H:${horizontalPeriodicity.toFixed(
+        1
+      )} V:${verticalPeriodicity.toFixed(1)}`,
     };
   } catch (error) {
-    console.warn('[频域分析] 失败:', error);
+    console.warn("[频域分析] 失败:", error);
     return { score: 0, horizontalPeriodicity: 0, verticalPeriodicity: 0 };
   }
 }
@@ -5598,30 +5941,54 @@ function analyzeGradientConsistency(data, width, height) {
     // 计算全图Sobel梯度
     const gradientMagnitude = new Float32Array(width * height);
     const gradientDirection = new Float32Array(width * height);
-    
+
     for (let y = 1; y < height - 1; y++) {
       for (let x = 1; x < width - 1; x++) {
         const idx = (y * width + x) * 4;
-        
+
         // 获取周围8个像素的灰度�?
-        const tl = 0.299 * data[((y-1) * width + (x-1)) * 4] + 0.587 * data[((y-1) * width + (x-1)) * 4 + 1] + 0.114 * data[((y-1) * width + (x-1)) * 4 + 2];
-        const tc = 0.299 * data[((y-1) * width + x) * 4] + 0.587 * data[((y-1) * width + x) * 4 + 1] + 0.114 * data[((y-1) * width + x) * 4 + 2];
-        const tr = 0.299 * data[((y-1) * width + (x+1)) * 4] + 0.587 * data[((y-1) * width + (x+1)) * 4 + 1] + 0.114 * data[((y-1) * width + (x+1)) * 4 + 2];
-        
-        const ml = 0.299 * data[(y * width + (x-1)) * 4] + 0.587 * data[(y * width + (x-1)) * 4 + 1] + 0.114 * data[(y * width + (x-1)) * 4 + 2];
-        const mr = 0.299 * data[(y * width + (x+1)) * 4] + 0.587 * data[(y * width + (x+1)) * 4 + 1] + 0.114 * data[(y * width + (x+1)) * 4 + 2];
-        
-        const bl = 0.299 * data[((y+1) * width + (x-1)) * 4] + 0.587 * data[((y+1) * width + (x-1)) * 4 + 1] + 0.114 * data[((y+1) * width + (x-1)) * 4 + 2];
-        const bc = 0.299 * data[((y+1) * width + x) * 4] + 0.587 * data[((y+1) * width + x) * 4 + 1] + 0.114 * data[((y+1) * width + x) * 4 + 2];
-        const br = 0.299 * data[((y+1) * width + (x+1)) * 4] + 0.587 * data[((y+1) * width + (x+1)) * 4 + 1] + 0.114 * data[((y+1) * width + (x+1)) * 4 + 2];
-        
+        const tl =
+          0.299 * data[((y - 1) * width + (x - 1)) * 4] +
+          0.587 * data[((y - 1) * width + (x - 1)) * 4 + 1] +
+          0.114 * data[((y - 1) * width + (x - 1)) * 4 + 2];
+        const tc =
+          0.299 * data[((y - 1) * width + x) * 4] +
+          0.587 * data[((y - 1) * width + x) * 4 + 1] +
+          0.114 * data[((y - 1) * width + x) * 4 + 2];
+        const tr =
+          0.299 * data[((y - 1) * width + (x + 1)) * 4] +
+          0.587 * data[((y - 1) * width + (x + 1)) * 4 + 1] +
+          0.114 * data[((y - 1) * width + (x + 1)) * 4 + 2];
+
+        const ml =
+          0.299 * data[(y * width + (x - 1)) * 4] +
+          0.587 * data[(y * width + (x - 1)) * 4 + 1] +
+          0.114 * data[(y * width + (x - 1)) * 4 + 2];
+        const mr =
+          0.299 * data[(y * width + (x + 1)) * 4] +
+          0.587 * data[(y * width + (x + 1)) * 4 + 1] +
+          0.114 * data[(y * width + (x + 1)) * 4 + 2];
+
+        const bl =
+          0.299 * data[((y + 1) * width + (x - 1)) * 4] +
+          0.587 * data[((y + 1) * width + (x - 1)) * 4 + 1] +
+          0.114 * data[((y + 1) * width + (x - 1)) * 4 + 2];
+        const bc =
+          0.299 * data[((y + 1) * width + x) * 4] +
+          0.587 * data[((y + 1) * width + x) * 4 + 1] +
+          0.114 * data[((y + 1) * width + x) * 4 + 2];
+        const br =
+          0.299 * data[((y + 1) * width + (x + 1)) * 4] +
+          0.587 * data[((y + 1) * width + (x + 1)) * 4 + 1] +
+          0.114 * data[((y + 1) * width + (x + 1)) * 4 + 2];
+
         // Sobel算子
-        const gx = -tl - 2*ml - bl + tr + 2*mr + br;
-        const gy = -tl - 2*tc - tr + bl + 2*bc + br;
-        
+        const gx = -tl - 2 * ml - bl + tr + 2 * mr + br;
+        const gy = -tl - 2 * tc - tr + bl + 2 * bc + br;
+
         const magnitude = Math.sqrt(gx * gx + gy * gy);
         const direction = Math.atan2(gy, gx);
-        
+
         const pixelIdx = y * width + x;
         gradientMagnitude[pixelIdx] = magnitude;
         gradientDirection[pixelIdx] = direction;
@@ -5632,54 +5999,93 @@ function analyzeGradientConsistency(data, width, height) {
     let inconsistentEdges = 0;
     let totalEdges = 0;
     const edgeThreshold = 30;
-    
+
     const suspiciousRegions = [];
-    
+
     // 定义检测区域（边缘和角落）
     const regions = [
-      { name: 'topLeft', x: 0, y: 0, w: Math.floor(width * 0.2), h: Math.floor(height * 0.2) },
-      { name: 'topRight', x: Math.floor(width * 0.8), y: 0, w: Math.floor(width * 0.2), h: Math.floor(height * 0.2) },
-      { name: 'bottomLeft', x: 0, y: Math.floor(height * 0.8), w: Math.floor(width * 0.2), h: Math.floor(height * 0.2) },
-      { name: 'bottomRight', x: Math.floor(width * 0.8), y: Math.floor(height * 0.8), w: Math.floor(width * 0.2), h: Math.floor(height * 0.2) },
-      { name: 'centerBottom', x: Math.floor(width * 0.35), y: Math.floor(height * 0.85), w: Math.floor(width * 0.3), h: Math.floor(height * 0.15) }
+      {
+        name: "topLeft",
+        x: 0,
+        y: 0,
+        w: Math.floor(width * 0.2),
+        h: Math.floor(height * 0.2),
+      },
+      {
+        name: "topRight",
+        x: Math.floor(width * 0.8),
+        y: 0,
+        w: Math.floor(width * 0.2),
+        h: Math.floor(height * 0.2),
+      },
+      {
+        name: "bottomLeft",
+        x: 0,
+        y: Math.floor(height * 0.8),
+        w: Math.floor(width * 0.2),
+        h: Math.floor(height * 0.2),
+      },
+      {
+        name: "bottomRight",
+        x: Math.floor(width * 0.8),
+        y: Math.floor(height * 0.8),
+        w: Math.floor(width * 0.2),
+        h: Math.floor(height * 0.2),
+      },
+      {
+        name: "centerBottom",
+        x: Math.floor(width * 0.35),
+        y: Math.floor(height * 0.85),
+        w: Math.floor(width * 0.3),
+        h: Math.floor(height * 0.15),
+      },
     ];
-    
+
     for (const region of regions) {
       let regionEdges = 0;
       let regionInconsistent = 0;
-      
-      for (let y = region.y + 2; y < Math.min(region.y + region.h - 2, height - 2); y++) {
-        for (let x = region.x + 2; x < Math.min(region.x + region.w - 2, width - 2); x++) {
+
+      for (
+        let y = region.y + 2;
+        y < Math.min(region.y + region.h - 2, height - 2);
+        y++
+      ) {
+        for (
+          let x = region.x + 2;
+          x < Math.min(region.x + region.w - 2, width - 2);
+          x++
+        ) {
           const idx = y * width + x;
-          
+
           if (gradientMagnitude[idx] > edgeThreshold) {
             regionEdges++;
             totalEdges++;
-            
+
             // 检查周�?个邻居的梯度方向
             const neighbors = [
-              gradientDirection[(y-1) * width + (x-1)],
-              gradientDirection[(y-1) * width + x],
-              gradientDirection[(y-1) * width + (x+1)],
-              gradientDirection[y * width + (x-1)],
-              gradientDirection[y * width + (x+1)],
-              gradientDirection[(y+1) * width + (x-1)],
-              gradientDirection[(y+1) * width + x],
-              gradientDirection[(y+1) * width + (x+1)]
+              gradientDirection[(y - 1) * width + (x - 1)],
+              gradientDirection[(y - 1) * width + x],
+              gradientDirection[(y - 1) * width + (x + 1)],
+              gradientDirection[y * width + (x - 1)],
+              gradientDirection[y * width + (x + 1)],
+              gradientDirection[(y + 1) * width + (x - 1)],
+              gradientDirection[(y + 1) * width + x],
+              gradientDirection[(y + 1) * width + (x + 1)],
             ];
-            
+
             const currentDir = gradientDirection[idx];
             let similarNeighbors = 0;
-            
+
             for (const neighborDir of neighbors) {
               const dirDiff = Math.abs(currentDir - neighborDir);
               // 考虑角度的周期�?
               const normalizedDiff = Math.min(dirDiff, 2 * Math.PI - dirDiff);
-              if (normalizedDiff < Math.PI / 4) { // 45度以内认为相�?
+              if (normalizedDiff < Math.PI / 4) {
+                // 45度以内认为相�?
                 similarNeighbors++;
               }
             }
-            
+
             // 如果周围相似方向的邻居少�?个，认为是不一致的边缘
             if (similarNeighbors < 3) {
               inconsistentEdges++;
@@ -5688,14 +6094,15 @@ function analyzeGradientConsistency(data, width, height) {
           }
         }
       }
-      
+
       // 如果该区域不一致边缘比例较高，标记为可�?
       if (regionEdges > 50 && regionInconsistent / regionEdges > 0.4) {
         suspiciousRegions.push(region.name);
       }
     }
 
-    const inconsistencyRatio = totalEdges > 0 ? inconsistentEdges / totalEdges : 0;
+    const inconsistencyRatio =
+      totalEdges > 0 ? inconsistentEdges / totalEdges : 0;
     const score = Math.min(100, inconsistencyRatio * 200); // 放大评分
 
     return {
@@ -5703,11 +6110,16 @@ function analyzeGradientConsistency(data, width, height) {
       inconsistentEdges,
       totalEdges,
       inconsistencyRatio,
-      suspiciousRegions
+      suspiciousRegions,
     };
   } catch (error) {
-    console.warn('[梯度分析] 失败:', error);
-    return { score: 0, inconsistentEdges: 0, totalEdges: 0, suspiciousRegions: [] };
+    console.warn("[梯度分析] 失败:", error);
+    return {
+      score: 0,
+      inconsistentEdges: 0,
+      totalEdges: 0,
+      suspiciousRegions: [],
+    };
   }
 }
 
@@ -5722,53 +6134,62 @@ function analyzeTexturePattern(data, width, height) {
     // 简化的LBP：计算每个像素与�?邻域的关�?
     const lbpHistogram = new Array(256).fill(0);
     let totalPixels = 0;
-    
+
     const anomalyRegions = [];
     const regionSize = 50; // 分块大小
     const regionScores = [];
-    
+
     // 分块计算LBP
     for (let ry = 0; ry < Math.floor(height / regionSize); ry++) {
       for (let rx = 0; rx < Math.floor(width / regionSize); rx++) {
         const regionLBP = new Array(256).fill(0);
         let regionPixels = 0;
-        
+
         const startX = rx * regionSize + 1;
         const startY = ry * regionSize + 1;
         const endX = Math.min(startX + regionSize - 2, width - 1);
         const endY = Math.min(startY + regionSize - 2, height - 1);
-        
+
         for (let y = startY; y < endY; y++) {
           for (let x = startX; x < endX; x++) {
             const idx = (y * width + x) * 4;
-            const center = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-            
+            const center =
+              0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+
             // 计算LBP�?
             let lbpValue = 0;
             const neighbors = [
-              [x-1, y-1], [x, y-1], [x+1, y-1],
-              [x-1, y],             [x+1, y],
-              [x-1, y+1], [x, y+1], [x+1, y+1]
+              [x - 1, y - 1],
+              [x, y - 1],
+              [x + 1, y - 1],
+              [x - 1, y],
+              [x + 1, y],
+              [x - 1, y + 1],
+              [x, y + 1],
+              [x + 1, y + 1],
             ];
-            
+
             for (let i = 0; i < neighbors.length; i++) {
               const [nx, ny] = neighbors[i];
               if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
                 const nidx = (ny * width + nx) * 4;
-                const neighborGray = 0.299 * data[nidx] + 0.587 * data[nidx + 1] + 0.114 * data[nidx + 2];
+                const neighborGray =
+                  0.299 * data[nidx] +
+                  0.587 * data[nidx + 1] +
+                  0.114 * data[nidx + 2];
                 if (neighborGray >= center) {
-                  lbpValue |= (1 << i);
+                  lbpValue |= 1 << i;
                 }
               }
             }
-            
+
             regionLBP[lbpValue]++;
             regionPixels++;
             lbpHistogram[lbpValue]++;
             totalPixels++;
           }
         }
-        
+
         // 计算该区域的纹理复杂�?
         let entropy = 0;
         for (let i = 0; i < 256; i++) {
@@ -5777,17 +6198,17 @@ function analyzeTexturePattern(data, width, height) {
             entropy -= p * Math.log2(p);
           }
         }
-        
+
         regionScores.push({
           x: rx,
           y: ry,
           entropy,
           startX: rx * regionSize,
-          startY: ry * regionSize
+          startY: ry * regionSize,
         });
       }
     }
-    
+
     // 计算整体纹理�?
     let globalEntropy = 0;
     for (let i = 0; i < 256; i++) {
@@ -5796,30 +6217,41 @@ function analyzeTexturePattern(data, width, height) {
         globalEntropy -= p * Math.log2(p);
       }
     }
-    
+
     // 找出熵异常的区域（可能是水印�?
-    const avgEntropy = regionScores.reduce((sum, r) => sum + r.entropy, 0) / regionScores.length;
+    const avgEntropy =
+      regionScores.reduce((sum, r) => sum + r.entropy, 0) / regionScores.length;
     const stdEntropy = Math.sqrt(
-      regionScores.reduce((sum, r) => sum + Math.pow(r.entropy - avgEntropy, 2), 0) / regionScores.length
+      regionScores.reduce(
+        (sum, r) => sum + Math.pow(r.entropy - avgEntropy, 2),
+        0
+      ) / regionScores.length
     );
-    
+
     for (const region of regionScores) {
       // 熵明显低于平均值（纹理简单，可能是水印）
       if (region.entropy < avgEntropy - stdEntropy * 0.5) {
         // 判断位置（边缘区域更可疑�?
-        const isEdgeRegion = 
-          region.x === 0 || region.x === Math.floor(width / regionSize) - 1 ||
-          region.y === 0 || region.y === Math.floor(height / regionSize) - 1;
-        
+        const isEdgeRegion =
+          region.x === 0 ||
+          region.x === Math.floor(width / regionSize) - 1 ||
+          region.y === 0 ||
+          region.y === Math.floor(height / regionSize) - 1;
+
         if (isEdgeRegion || region.entropy < avgEntropy - stdEntropy * 1.0) {
-          const regionName = determineRegionName(region.startX, region.startY, width, height);
+          const regionName = determineRegionName(
+            region.startX,
+            region.startY,
+            width,
+            height
+          );
           if (!anomalyRegions.includes(regionName)) {
             anomalyRegions.push(regionName);
           }
         }
       }
     }
-    
+
     // 评分：基于异常区域数量和全局�?
     const anomalyScore = anomalyRegions.length * 15;
     const entropyScore = Math.max(0, (8 - globalEntropy) * 10); // 熵低可能是水�?
@@ -5830,10 +6262,10 @@ function analyzeTexturePattern(data, width, height) {
       globalEntropy,
       avgEntropy,
       anomalyRegions,
-      anomalyCount: anomalyRegions.length
+      anomalyCount: anomalyRegions.length,
     };
   } catch (error) {
-    console.warn('[纹理分析] 失败:', error);
+    console.warn("[纹理分析] 失败:", error);
     return { score: 0, globalEntropy: 0, avgEntropy: 0, anomalyRegions: [] };
   }
 }
@@ -5846,43 +6278,45 @@ function analyzeTexturePattern(data, width, height) {
  */
 function analyzeColorChannelDifference(data, width, height) {
   try {
-    let rDiff = 0, gDiff = 0, bDiff = 0;
+    let rDiff = 0,
+      gDiff = 0,
+      bDiff = 0;
     let totalPixels = 0;
-    
+
     // 计算相邻像素在各通道的差�?
     for (let y = 0; y < height - 1; y++) {
       for (let x = 0; x < width - 1; x++) {
         const idx = (y * width + x) * 4;
         const rightIdx = (y * width + x + 1) * 4;
         const downIdx = ((y + 1) * width + x) * 4;
-        
+
         // 水平方向
         rDiff += Math.abs(data[idx] - data[rightIdx]);
         gDiff += Math.abs(data[idx + 1] - data[rightIdx + 1]);
         bDiff += Math.abs(data[idx + 2] - data[rightIdx + 2]);
-        
+
         // 垂直方向
         rDiff += Math.abs(data[idx] - data[downIdx]);
         gDiff += Math.abs(data[idx + 1] - data[downIdx + 1]);
         bDiff += Math.abs(data[idx + 2] - data[downIdx + 2]);
-        
+
         totalPixels += 2;
       }
     }
-    
+
     const avgRDiff = rDiff / totalPixels;
     const avgGDiff = gDiff / totalPixels;
     const avgBDiff = bDiff / totalPixels;
-    
+
     // 计算通道间的不平衡度
     const avgDiff = (avgRDiff + avgGDiff + avgBDiff) / 3;
-    const variance = 
+    const variance =
       Math.pow(avgRDiff - avgDiff, 2) +
       Math.pow(avgGDiff - avgDiff, 2) +
       Math.pow(avgBDiff - avgDiff, 2);
-    
+
     const channelImbalance = Math.sqrt(variance / 3);
-    
+
     // 水印通常导致某个通道差异更大
     const score = Math.min(100, channelImbalance * 5);
 
@@ -5891,11 +6325,17 @@ function analyzeColorChannelDifference(data, width, height) {
       avgRDiff,
       avgGDiff,
       avgBDiff,
-      channelImbalance
+      channelImbalance,
     };
   } catch (error) {
-    console.warn('[颜色通道分析] 失败:', error);
-    return { score: 0, avgRDiff: 0, avgGDiff: 0, avgBDiff: 0, channelImbalance: 0 };
+    console.warn("[颜色通道分析] 失败:", error);
+    return {
+      score: 0,
+      avgRDiff: 0,
+      avgGDiff: 0,
+      avgBDiff: 0,
+      channelImbalance: 0,
+    };
   }
 }
 
@@ -5907,36 +6347,79 @@ function analyzeColorChannelDifference(data, width, height) {
 function analyzeRegionsAdvanced(data, width, height) {
   try {
     const regions = [
-      { name: 'topLeft', x: 0, y: 0, w: Math.floor(width * 0.15), h: Math.floor(height * 0.15) },
-      { name: 'topRight', x: Math.floor(width * 0.85), y: 0, w: Math.floor(width * 0.15), h: Math.floor(height * 0.15) },
-      { name: 'bottomLeft', x: 0, y: Math.floor(height * 0.85), w: Math.floor(width * 0.15), h: Math.floor(height * 0.15) },
-      { name: 'bottomRight', x: Math.floor(width * 0.85), y: Math.floor(height * 0.85), w: Math.floor(width * 0.15), h: Math.floor(height * 0.15) },
-      { name: 'centerBottom', x: Math.floor(width * 0.35), y: Math.floor(height * 0.9), w: Math.floor(width * 0.3), h: Math.floor(height * 0.1) },
-      { name: 'leftMiddle', x: 0, y: Math.floor(height * 0.4), w: Math.floor(width * 0.15), h: Math.floor(height * 0.2) },
-      { name: 'rightMiddle', x: Math.floor(width * 0.85), y: Math.floor(height * 0.4), w: Math.floor(width * 0.15), h: Math.floor(height * 0.2) }
+      {
+        name: "topLeft",
+        x: 0,
+        y: 0,
+        w: Math.floor(width * 0.15),
+        h: Math.floor(height * 0.15),
+      },
+      {
+        name: "topRight",
+        x: Math.floor(width * 0.85),
+        y: 0,
+        w: Math.floor(width * 0.15),
+        h: Math.floor(height * 0.15),
+      },
+      {
+        name: "bottomLeft",
+        x: 0,
+        y: Math.floor(height * 0.85),
+        w: Math.floor(width * 0.15),
+        h: Math.floor(height * 0.15),
+      },
+      {
+        name: "bottomRight",
+        x: Math.floor(width * 0.85),
+        y: Math.floor(height * 0.85),
+        w: Math.floor(width * 0.15),
+        h: Math.floor(height * 0.15),
+      },
+      {
+        name: "centerBottom",
+        x: Math.floor(width * 0.35),
+        y: Math.floor(height * 0.9),
+        w: Math.floor(width * 0.3),
+        h: Math.floor(height * 0.1),
+      },
+      {
+        name: "leftMiddle",
+        x: 0,
+        y: Math.floor(height * 0.4),
+        w: Math.floor(width * 0.15),
+        h: Math.floor(height * 0.2),
+      },
+      {
+        name: "rightMiddle",
+        x: Math.floor(width * 0.85),
+        y: Math.floor(height * 0.4),
+        w: Math.floor(width * 0.15),
+        h: Math.floor(height * 0.2),
+      },
     ];
-    
+
     const detectedRegions = [];
     let totalScore = 0;
-    
+
     for (const region of regions) {
       const features = analyzeRegionPixelFeatures(data, width, height, region);
-      
+
       if (features.score > 50) {
         detectedRegions.push(region.name);
         totalScore += features.score;
       }
     }
-    
-    const avgScore = detectedRegions.length > 0 ? totalScore / detectedRegions.length : 0;
-    
+
+    const avgScore =
+      detectedRegions.length > 0 ? totalScore / detectedRegions.length : 0;
+
     return {
       score: avgScore,
       detectedRegions,
-      detectedCount: detectedRegions.length
+      detectedCount: detectedRegions.length,
     };
   } catch (error) {
-    console.warn('[区域分析] 失败:', error);
+    console.warn("[区域分析] 失败:", error);
     return { score: 0, detectedRegions: [], detectedCount: 0 };
   }
 }
@@ -5946,15 +6429,15 @@ function analyzeRegionsAdvanced(data, width, height) {
  */
 function analyzeRegionPixelFeatures(data, width, height, region) {
   const { x, y, w, h } = region;
-  
+
   let edgePixels = 0;
   let lowContrastPixels = 0;
   let semiTransparentPixels = 0;
   let totalPixels = 0;
-  
+
   let sumBrightness = 0;
   let sumSaturation = 0;
-  
+
   for (let row = y; row < y + h && row < height; row++) {
     for (let col = x; col < x + w && col < width; col++) {
       const idx = (row * width + col) * 4;
@@ -5962,87 +6445,93 @@ function analyzeRegionPixelFeatures(data, width, height, region) {
       const g = data[idx + 1];
       const b = data[idx + 2];
       const a = data[idx + 3];
-      
+
       // 亮度
       const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
       sumBrightness += brightness;
-      
+
       // 饱和�?
       const max = Math.max(r, g, b);
       const min = Math.min(r, g, b);
       const saturation = max > 0 ? (max - min) / max : 0;
       sumSaturation += saturation;
-      
+
       // 半透明检�?
       if (a < 230) {
         semiTransparentPixels++;
       }
-      
+
       // 边缘检测（简化版�?
       if (col < x + w - 1 && row < y + h - 1) {
         const rightIdx = (row * width + col + 1) * 4;
         const downIdx = ((row + 1) * width + col) * 4;
-        
-        const rightBrightness = 0.299 * data[rightIdx] + 0.587 * data[rightIdx + 1] + 0.114 * data[rightIdx + 2];
-        const downBrightness = 0.299 * data[downIdx] + 0.587 * data[downIdx + 1] + 0.114 * data[downIdx + 2];
-        
+
+        const rightBrightness =
+          0.299 * data[rightIdx] +
+          0.587 * data[rightIdx + 1] +
+          0.114 * data[rightIdx + 2];
+        const downBrightness =
+          0.299 * data[downIdx] +
+          0.587 * data[downIdx + 1] +
+          0.114 * data[downIdx + 2];
+
         const gradientH = Math.abs(brightness - rightBrightness);
         const gradientV = Math.abs(brightness - downBrightness);
-        
+
         if (gradientH > 25 || gradientV > 25) {
           edgePixels++;
         }
-        
+
         // 低对比度检�?
         if (gradientH < 5 && gradientV < 5) {
           lowContrastPixels++;
         }
       }
-      
+
       totalPixels++;
     }
   }
-  
+
   if (totalPixels === 0) {
     return { score: 0 };
   }
-  
+
   const avgBrightness = sumBrightness / totalPixels;
   const avgSaturation = sumSaturation / totalPixels;
   const edgeDensity = edgePixels / totalPixels;
   const lowContrastRatio = lowContrastPixels / totalPixels;
   const semiTransparentRatio = semiTransparentPixels / totalPixels;
-  
+
   // 综合评分
   let score = 0;
-  
+
   // 边缘密度：文字水印通常有较高边缘密�?
   if (edgeDensity > 0.05) score += 25;
   else if (edgeDensity > 0.03) score += 15;
   else if (edgeDensity > 0.01) score += 8;
-  
+
   // 半透明：水印常见特�?
   if (semiTransparentRatio > 0.2) score += 30;
   else if (semiTransparentRatio > 0.05) score += 15;
-  
+
   // 饱和度：水印通常饱和度较�?
   if (avgSaturation < 0.3) score += 15;
   else if (avgSaturation < 0.5) score += 8;
-  
+
   // 亮度：水印通常较浅或较�?
   if (avgBrightness < 80 || avgBrightness > 200) score += 15;
   else if (avgBrightness < 100 || avgBrightness > 180) score += 8;
-  
+
   // 低对比度：大面积低对比度可能是半透明水印
   if (lowContrastRatio > 0.6 && edgeDensity > 0.02) score += 15;
-  
+
   return {
     score: Math.min(100, score),
     edgeDensity,
     avgBrightness,
     avgSaturation,
     semiTransparentRatio,
-    lowContrastRatio
+    lowContrastRatio,
   };
 }
 
@@ -6057,55 +6546,61 @@ function analyzeAlphaChannel(data, width, height) {
     let semiTransparentPixels = 0;
     let transparentRegions = [];
     let totalPixels = width * height;
-    
+
     // 统计alpha值分�?
     const alphaHistogram = new Array(256).fill(0);
-    
+
     for (let i = 3; i < data.length; i += 4) {
       const alpha = data[i];
       alphaHistogram[alpha]++;
-      
-      if (alpha < 230 && alpha > 25) { // 半透明范围
+
+      if (alpha < 230 && alpha > 25) {
+        // 半透明范围
         semiTransparentPixels++;
       }
     }
-    
+
     const semiTransparentRatio = semiTransparentPixels / totalPixels;
-    
+
     // 检查是否有大量特定alpha值（水印常用固定alpha�?
     let maxAlphaCount = 0;
     let dominantAlpha = 255;
-    
+
     for (let i = 0; i < 256; i++) {
       if (i !== 255 && alphaHistogram[i] > maxAlphaCount) {
         maxAlphaCount = alphaHistogram[i];
         dominantAlpha = i;
       }
     }
-    
+
     const dominantAlphaRatio = maxAlphaCount / totalPixels;
-    
+
     // 评分
     let score = 0;
-    
+
     if (semiTransparentRatio > 0.15) score += 40;
     else if (semiTransparentRatio > 0.08) score += 25;
     else if (semiTransparentRatio > 0.03) score += 15;
-    
+
     // 如果有显著的特定alpha值（除了255），可能是水�?
     if (dominantAlpha < 255 && dominantAlphaRatio > 0.05) {
       score += 30;
     }
-    
+
     return {
       score: Math.min(100, score),
       semiTransparentRatio,
       dominantAlpha,
-      dominantAlphaRatio
+      dominantAlphaRatio,
     };
   } catch (error) {
-    console.warn('[Alpha通道分析] 失败:', error);
-    return { score: 0, semiTransparentRatio: 0, dominantAlpha: 255, dominantAlphaRatio: 0 };
+    console.warn("[Alpha通道分析] 失败:", error);
+    return {
+      score: 0,
+      semiTransparentRatio: 0,
+      dominantAlpha: 255,
+      dominantAlphaRatio: 0,
+    };
   }
 }
 
@@ -6117,19 +6612,19 @@ function analyzeAlphaChannel(data, width, height) {
 function determineRegionName(x, y, width, height) {
   const xRatio = x / width;
   const yRatio = y / height;
-  
+
   if (yRatio < 0.33) {
-    if (xRatio < 0.33) return 'topLeft';
-    if (xRatio > 0.67) return 'topRight';
-    return 'topCenter';
+    if (xRatio < 0.33) return "topLeft";
+    if (xRatio > 0.67) return "topRight";
+    return "topCenter";
   } else if (yRatio > 0.67) {
-    if (xRatio < 0.33) return 'bottomLeft';
-    if (xRatio > 0.67) return 'bottomRight';
-    return 'bottomCenter';
+    if (xRatio < 0.33) return "bottomLeft";
+    if (xRatio > 0.67) return "bottomRight";
+    return "bottomCenter";
   } else {
-    if (xRatio < 0.33) return 'leftMiddle';
-    if (xRatio > 0.67) return 'rightMiddle';
-    return 'center';
+    if (xRatio < 0.33) return "leftMiddle";
+    if (xRatio > 0.67) return "rightMiddle";
+    return "center";
   }
 }
 
@@ -6141,40 +6636,66 @@ function getDominantFeatures(scores) {
     .map(([name, score]) => ({ name, score }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 3)
-    .filter(f => f.score > 30)
-    .map(f => f.name);
-  
-  return features.length > 0 ? features : ['none'];
+    .filter((f) => f.score > 30)
+    .map((f) => f.name);
+
+  return features.length > 0 ? features : ["none"];
 }
 
 // ========= 两分支融合水印检测（Repeated + Single） BEGIN =========
 async function detectWatermarkTwoBranch(imageData) {
   const startTime = performance.now();
   try {
-    if (typeof OffscreenCanvas === 'undefined' || typeof createImageBitmap === 'undefined') {
-      return { hasWatermark: false, watermarkRegions: [], watermarkConfidence: 0 };
+    if (
+      typeof OffscreenCanvas === "undefined" ||
+      typeof createImageBitmap === "undefined"
+    ) {
+      return {
+        hasWatermark: false,
+        watermarkRegions: [],
+        watermarkConfidence: 0,
+      };
     }
 
     const CFG = {
       preprocess: { maxSize: 1200, edgeThreshold: 30 },
       gating: {
-        centerEdgePenalty: { centerRatio: 0.70, factor: 0.50 },
+        centerEdgePenalty: { centerRatio: 0.7, factor: 0.5 },
         uniformRegionPenalty: { regionScore: 75, whiteness: 12, factor: 0.65 },
-        lowAnglePenalty: { angleCoherence: 25, factor: 0.75 }
+        lowAnglePenalty: { angleCoherence: 25, factor: 0.75 },
       },
       repeated: {
-        angles: [-45,-30,-15,0,15,30,45],
+        angles: [-45, -30, -15, 0, 15, 30, 45],
         thresholds: { periodicity: 58, angleCoherence: 55, whiteness: 25 },
-        weights: { periodicity: 0.5, angleCoherence: 0.25, whiteness: 0.15, strokeWidth: 0.10 },
-        pass: 45
+        weights: {
+          periodicity: 0.5,
+          angleCoherence: 0.25,
+          whiteness: 0.15,
+          strokeWidth: 0.1,
+        },
+        pass: 45,
       },
       single: {
-        roi: { edgeBand: 0.15, cornerBox: 0.20 },
-        thresholds: { textlikeness: 65, overlayConsistency: 30, alphaLike: 18, positionMin: 55, strokeWidthMax: 11 },
-        weights: { textlikeness: 0.4, overlayConsistency: 0.25, position: 0.2, alphaLike: 0.15 },
-        pass: 36
+        roi: { edgeBand: 0.15, cornerBox: 0.2 },
+        thresholds: {
+          textlikeness: 65,
+          overlayConsistency: 30,
+          alphaLike: 18,
+          positionMin: 55,
+          strokeWidthMax: 11,
+        },
+        weights: {
+          textlikeness: 0.4,
+          overlayConsistency: 0.25,
+          position: 0.2,
+          alphaLike: 0.15,
+        },
+        pass: 36,
       },
-      fusion: { scale: { repeated: 0.7, single: 0.75, baseline: 1.2 }, decision: 40 }
+      fusion: {
+        scale: { repeated: 0.7, single: 0.75, baseline: 1.2 },
+        decision: 40,
+      },
     };
 
     const blob = new Blob([imageData]);
@@ -6185,7 +6706,7 @@ async function detectWatermarkTwoBranch(imageData) {
     const height = Math.floor(bitmap.height * scale);
 
     const canvas = new OffscreenCanvas(width, height);
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     ctx.drawImage(bitmap, 0, 0, width, height);
     bitmap.close();
 
@@ -6195,7 +6716,12 @@ async function detectWatermarkTwoBranch(imageData) {
     // 基础特征
     const gray = vw_toGrayscale(data);
     const grad = vw_computeGradients(gray, width, height);
-    const edgeMap = vw_buildEdgeMap(grad.mag, width, height, CFG.preprocess.edgeThreshold);
+    const edgeMap = vw_buildEdgeMap(
+      grad.mag,
+      width,
+      height,
+      CFG.preprocess.edgeThreshold
+    );
 
     const edgeInfo = vw_analyzeEdgeDistribution(data, width, height);
     const regionInfo = vw_analyzeRegionConsistency(data, width, height);
@@ -6203,140 +6729,560 @@ async function detectWatermarkTwoBranch(imageData) {
     const alphaInfo = vw_analyzeAlphaFeatures(data);
 
     // Repeated 分支
-    const periodicity = vw_computePeriodicityScore(edgeMap, width, height, CFG.repeated.angles);
-    const angleCoh = vw_computeAngleCoherence(grad.ori, grad.mag, width, height, CFG.preprocess.edgeThreshold);
-    const whiteness = vw_computeWhitenessNearEdges(data, edgeMap, width, height);
+    const periodicity = vw_computePeriodicityScore(
+      edgeMap,
+      width,
+      height,
+      CFG.repeated.angles
+    );
+    const angleCoh = vw_computeAngleCoherence(
+      grad.ori,
+      grad.mag,
+      width,
+      height,
+      CFG.preprocess.edgeThreshold
+    );
+    const whiteness = vw_computeWhitenessNearEdges(
+      data,
+      edgeMap,
+      width,
+      height
+    );
     const strokeWidth = vw_estimateStrokeWidth(edgeMap, width, height);
     const strokeScore = vw_mapStrokeWidthToScore(strokeWidth);
 
-    let repeatedScore = 0; let repeatedPassed = false;
-    if (periodicity >= CFG.repeated.thresholds.periodicity && angleCoh >= CFG.repeated.thresholds.angleCoherence && whiteness >= CFG.repeated.thresholds.whiteness) {
-      repeatedScore = CFG.repeated.weights.periodicity * periodicity + CFG.repeated.weights.angleCoherence * angleCoh + CFG.repeated.weights.whiteness * whiteness + CFG.repeated.weights.strokeWidth * strokeScore;
+    let repeatedScore = 0;
+    let repeatedPassed = false;
+    if (
+      periodicity >= CFG.repeated.thresholds.periodicity &&
+      angleCoh >= CFG.repeated.thresholds.angleCoherence &&
+      whiteness >= CFG.repeated.thresholds.whiteness
+    ) {
+      repeatedScore =
+        CFG.repeated.weights.periodicity * periodicity +
+        CFG.repeated.weights.angleCoherence * angleCoh +
+        CFG.repeated.weights.whiteness * whiteness +
+        CFG.repeated.weights.strokeWidth * strokeScore;
       repeatedPassed = repeatedScore >= CFG.repeated.pass;
     }
 
     // Single 分支
-    const singleFeat = vw_analyzeSingleWatermark(gray, data, edgeMap, grad, width, height, CFG.single);
-    let singleScore = 0; let singlePassed = false;
+    const singleFeat = vw_analyzeSingleWatermark(
+      gray,
+      data,
+      edgeMap,
+      grad,
+      width,
+      height,
+      CFG.single
+    );
+    let singleScore = 0;
+    let singlePassed = false;
     if (
       singleFeat.textlikeness >= CFG.single.thresholds.textlikeness &&
       singleFeat.positionWeight >= CFG.single.thresholds.positionMin &&
       strokeWidth <= CFG.single.thresholds.strokeWidthMax &&
-      (singleFeat.alphaLike >= CFG.single.thresholds.alphaLike || singleFeat.overlayConsistency >= CFG.single.thresholds.overlayConsistency)
+      (singleFeat.alphaLike >= CFG.single.thresholds.alphaLike ||
+        singleFeat.overlayConsistency >=
+          CFG.single.thresholds.overlayConsistency)
     ) {
-      singleScore = CFG.single.weights.textlikeness * singleFeat.textlikeness + CFG.single.weights.overlayConsistency * singleFeat.overlayConsistency + CFG.single.weights.position * singleFeat.positionWeight + CFG.single.weights.alphaLike * singleFeat.alphaLike;
+      singleScore =
+        CFG.single.weights.textlikeness * singleFeat.textlikeness +
+        CFG.single.weights.overlayConsistency * singleFeat.overlayConsistency +
+        CFG.single.weights.position * singleFeat.positionWeight +
+        CFG.single.weights.alphaLike * singleFeat.alphaLike;
       singlePassed = singleScore >= CFG.single.pass;
     }
 
     // Baseline 与惩罚（方案4增强版）
     let baseline = 0;
-    if (edgeInfo.positionScore > 30) baseline += edgeInfo.positionScore * 0.40;
-    if (regionInfo.score > 20) baseline += regionInfo.score * 0.20;
-    if (colorInfo.uniformity > 0.6 || colorInfo.isMonochromatic) baseline += colorInfo.score * 0.25;
+    if (edgeInfo.positionScore > 30) baseline += edgeInfo.positionScore * 0.4;
+    if (regionInfo.score > 20) baseline += regionInfo.score * 0.2;
+    if (colorInfo.uniformity > 0.6 || colorInfo.isMonochromatic)
+      baseline += colorInfo.score * 0.25;
     if (alphaInfo.score > 15) baseline += alphaInfo.score * 0.15;
     baseline = Math.min(baseline, 100);
 
-    if (edgeInfo.centerRatio >= CFG.gating.centerEdgePenalty.centerRatio) baseline *= CFG.gating.centerEdgePenalty.factor;
-    if (regionInfo.score >= CFG.gating.uniformRegionPenalty.regionScore && whiteness < CFG.gating.uniformRegionPenalty.whiteness) baseline *= CFG.gating.uniformRegionPenalty.factor;
-    if (angleCoh < CFG.gating.lowAnglePenalty.angleCoherence) baseline *= CFG.gating.lowAnglePenalty.factor;
+    if (edgeInfo.centerRatio >= CFG.gating.centerEdgePenalty.centerRatio)
+      baseline *= CFG.gating.centerEdgePenalty.factor;
+    if (
+      regionInfo.score >= CFG.gating.uniformRegionPenalty.regionScore &&
+      whiteness < CFG.gating.uniformRegionPenalty.whiteness
+    )
+      baseline *= CFG.gating.uniformRegionPenalty.factor;
+    if (angleCoh < CFG.gating.lowAnglePenalty.angleCoherence)
+      baseline *= CFG.gating.lowAnglePenalty.factor;
 
-    const confidence = Math.min(100, Math.max(
-      CFG.fusion.scale.repeated * (repeatedPassed ? repeatedScore : 0),
-      CFG.fusion.scale.single * (singlePassed ? singleScore : 0),
-      CFG.fusion.scale.baseline * baseline
-    ));
+    const confidence = Math.min(
+      100,
+      Math.max(
+        CFG.fusion.scale.repeated * (repeatedPassed ? repeatedScore : 0),
+        CFG.fusion.scale.single * (singlePassed ? singleScore : 0),
+        CFG.fusion.scale.baseline * baseline
+      )
+    );
 
     // 🔍 详细调试日志
-    console.log('[水印检测详情]', {
-      '图片尺寸': `${width}×${height}`,
-      'Repeated分支': { periodicity, angleCoh, whiteness, strokeWidth, strokeScore, repeatedScore, repeatedPassed },
-      'Single分支': { ...singleFeat, singleScore, singlePassed },
-      'Baseline': { edgeInfo, regionInfo: regionInfo.score, colorInfo: colorInfo.score, alphaInfo: alphaInfo.score, baseline },
-      '最终置信度': confidence,
-      '判定结果': confidence >= CFG.fusion.decision ? '有水印' : '无水印'
+    console.log("[水印检测详情]", {
+      图片尺寸: `${width}×${height}`,
+      Repeated分支: {
+        periodicity,
+        angleCoh,
+        whiteness,
+        strokeWidth,
+        strokeScore,
+        repeatedScore,
+        repeatedPassed,
+      },
+      Single分支: { ...singleFeat, singleScore, singlePassed },
+      Baseline: {
+        edgeInfo,
+        regionInfo: regionInfo.score,
+        colorInfo: colorInfo.score,
+        alphaInfo: alphaInfo.score,
+        baseline,
+      },
+      最终置信度: confidence,
+      判定结果: confidence >= CFG.fusion.decision ? "有水印" : "无水印",
     });
 
-    const processingTime = parseFloat((performance.now() - startTime).toFixed(2));
+    const processingTime = parseFloat(
+      (performance.now() - startTime).toFixed(2)
+    );
     const hasWatermark = confidence >= CFG.fusion.decision;
 
     return {
       hasWatermark,
       watermarkRegions: regionInfo.regions || [],
       watermarkConfidence: confidence,
-      detectionMethod: 'two-branch-fusion',
+      detectionMethod: "two-branch-fusion",
       processingTime,
       analysisDetails: {
         frequencyScore: periodicity.toFixed(2),
         textureScore: angleCoh.toFixed(2),
         gradientScore: edgeInfo.positionScore.toFixed(2),
-        regionScore: (regionInfo.score||0).toFixed(2),
+        regionScore: (regionInfo.score || 0).toFixed(2),
         colorChannelScore: colorInfo.score.toFixed(2),
-        alphaScore: (alphaInfo.score||0).toFixed(2)
-      }
+        alphaScore: (alphaInfo.score || 0).toFixed(2),
+      },
     };
   } catch (e) {
-    return { hasWatermark: false, watermarkRegions: [], watermarkConfidence: 0, detectionMethod: 'two-branch-fusion-error', error: e?.message };
+    return {
+      hasWatermark: false,
+      watermarkRegions: [],
+      watermarkConfidence: 0,
+      detectionMethod: "two-branch-fusion-error",
+      error: e?.message,
+    };
   }
 }
 
 function vw_toGrayscale(data) {
-  const gray = new Float32Array(data.length/4);
-  for (let i=0,j=0;i<data.length;i+=4,j++) gray[j] = 0.299*data[i]+0.587*data[i+1]+0.114*data[i+2];
+  const gray = new Float32Array(data.length / 4);
+  for (let i = 0, j = 0; i < data.length; i += 4, j++)
+    gray[j] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
   return gray;
 }
-function vw_computeGradients(gray,w,h){
-  const mag=new Float32Array(w*h), ori=new Float32Array(w*h);
-  for(let y=1;y<h-1;y++){
-    for(let x=1;x<w-1;x++){
-      const i=y*w+x;
-      const gx=-gray[i-1-w]-2*gray[i-w]-gray[i+1-w]+gray[i-1+w]+2*gray[i+w]+gray[i+1+w];
-      const gy=-gray[i-1-w]-2*gray[i-1]-gray[i-1+w]+gray[i+1-w]+2*gray[i+1]+gray[i+1+w];
-      mag[i]=Math.hypot(gx,gy);
-      let a=Math.atan2(gy,gx)*180/Math.PI; if(a<0)a+=180; ori[i]=a;
+function vw_computeGradients(gray, w, h) {
+  const mag = new Float32Array(w * h),
+    ori = new Float32Array(w * h);
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const gx =
+        -gray[i - 1 - w] -
+        2 * gray[i - w] -
+        gray[i + 1 - w] +
+        gray[i - 1 + w] +
+        2 * gray[i + w] +
+        gray[i + 1 + w];
+      const gy =
+        -gray[i - 1 - w] -
+        2 * gray[i - 1] -
+        gray[i - 1 + w] +
+        gray[i + 1 - w] +
+        2 * gray[i + 1] +
+        gray[i + 1 + w];
+      mag[i] = Math.hypot(gx, gy);
+      let a = (Math.atan2(gy, gx) * 180) / Math.PI;
+      if (a < 0) a += 180;
+      ori[i] = a;
     }
   }
-  return {mag,ori};
+  return { mag, ori };
 }
-function vw_buildEdgeMap(mag,w,h,thr){
-  const e=new Uint8Array(w*h); for(let i=0;i<mag.length;i++) e[i]=mag[i]>thr?1:0; return e;
+function vw_buildEdgeMap(mag, w, h, thr) {
+  const e = new Uint8Array(w * h);
+  for (let i = 0; i < mag.length; i++) e[i] = mag[i] > thr ? 1 : 0;
+  return e;
 }
-function vw_computeAngleCoherence(ori,mag,w,h,thr){
-  const bins=12,hist=new Float32Array(bins); for(let i=0;i<ori.length;i++){ if(mag[i]>thr){ let b=Math.floor((ori[i]/180)*bins); if(b>=bins)b=bins-1; hist[b]+=1; } }
-  const sum=hist.reduce((a,b)=>a+b,0); if(!sum) return 0; const sorted=[...hist].sort((a,b)=>a-b); const med=sorted[Math.floor(bins/2)]; const mx=Math.max(...hist); const ratio=mx/(med+1e-6); return Math.max(0,Math.min(100,(ratio-1)*20));
-}
-function vw_computePeriodicityScore(edge,w,h,angles){
-  const diag=Math.ceil(Math.hypot(w,h)); const scores=[]; const step=2;
-  for(const deg of angles){ const rad=deg*Math.PI/180, cos=Math.cos(rad), sin=Math.sin(rad); const bins=new Float32Array(diag+1);
-    for(let y=0;y<h;y+=step){ for(let x=0;x<w;x+=step){ const i=y*w+x; if(edge[i]){ const u=Math.floor(x*cos+y*sin+diag/2); if(u>=0 && u<=diag) bins[u]+=1; } } }
-    let peak=0, baseSum=0, baseCnt=0; const minLag=8, maxLag=Math.min(150,Math.floor(diag/3));
-    for(let lag=minLag;lag<maxLag;lag++){ let c=0; for(let i=0;i+lag<bins.length;i+=2) c+=bins[i]*bins[i+lag]; if(c>peak) peak=c; baseSum+=c; baseCnt++; }
-    const base=baseCnt?baseSum/baseCnt:0; const s=base>0?(peak/base):0; const score=Math.max(0,Math.min(100,(s-1)*25)); scores.push(score);
+function vw_computeAngleCoherence(ori, mag, w, h, thr) {
+  const bins = 12,
+    hist = new Float32Array(bins);
+  for (let i = 0; i < ori.length; i++) {
+    if (mag[i] > thr) {
+      let b = Math.floor((ori[i] / 180) * bins);
+      if (b >= bins) b = bins - 1;
+      hist[b] += 1;
+    }
   }
-  return Math.max(...scores,0);
+  const sum = hist.reduce((a, b) => a + b, 0);
+  if (!sum) return 0;
+  const sorted = [...hist].sort((a, b) => a - b);
+  const med = sorted[Math.floor(bins / 2)];
+  const mx = Math.max(...hist);
+  const ratio = mx / (med + 1e-6);
+  return Math.max(0, Math.min(100, (ratio - 1) * 20));
 }
-function vw_computeWhitenessNearEdges(rgba,edge,w,h){ let white=0,total=0; const tol=12; for(let y=0;y<h;y+=2){ for(let x=0;x<w;x+=2){ const i=y*w+x; if(!edge[i]) continue; const idx=i*4; const r=rgba[idx],g=rgba[idx+1],b=rgba[idx+2]; const maxc=Math.max(r,g,b),minc=Math.min(r,g,b); if(maxc-minc<=tol && maxc>=200) white++; total++; } } return total?Math.min(100,white/total*100):0; }
-function vw_estimateStrokeWidth(edge,w,h){ let runSum=0,runCnt=0; for(let y=0;y<h;y+=2){ let x=0; while(x<w){ while(x<w && !edge[y*w+x]) x++; let len=0; while(x<w && edge[y*w+x]){ len++; x++; } if(len>0){ runSum+=len; runCnt++; } } } return runCnt?(runSum/runCnt):0; }
-function vw_mapStrokeWidthToScore(w){ if(w<=0) return 0; const center=2.5, spread=1.5; const s=Math.exp(-Math.pow((w-center)/spread,2)); return Math.round(s*100); }
-function vw_analyzeSingleWatermark(gray,rgba,edge,grad,w,h,cfg){
-  const eb=Math.floor(Math.min(w,h)*cfg.roi.edgeBand); const cb=Math.floor(Math.min(w,h)*cfg.roi.cornerBox);
-  const rois=[{name:'左上',x:0,y:0,w:cb,h:cb,posW:100},{name:'右上',x:w-cb,y:0,w:cb,h:cb,posW:100},{name:'左下',x:0,y:h-cb,w:cb,h:cb,posW:100},{name:'右下',x:w-cb,y:h-cb,w:cb,h:cb,posW:100},{name:'上边',x:0,y:0,w,w: w,h:eb,posW:60},{name:'下边',x:0,y:h-eb,w:w,h:eb,posW:60},{name:'左边',x:0,y:0,w:eb,h:h,posW:60},{name:'右边',x:w-eb,y:0,w:eb,h:h,posW:60}];
-  let best={name:'',textlikeness:0,overlayConsistency:0,positionWeight:0,alphaLike:0};
-  for(const r of rois){ const feat=vw_computeROITextAndOverlay(gray,rgba,edge,grad,w,h,r); const tl=feat.textlikeness, oc=feat.overlayConsistency, al=feat.alphaLike, pw=r.posW; const tmp=0.4*tl+0.25*oc+0.2*pw+0.15*al; const bestScore=0.4*best.textlikeness+0.25*best.overlayConsistency+0.2*best.positionWeight+0.15*best.alphaLike; if(tmp>bestScore){ best={name:r.name,textlikeness:tl,overlayConsistency:oc,positionWeight:pw,alphaLike:al}; } }
+function vw_computePeriodicityScore(edge, w, h, angles) {
+  const diag = Math.ceil(Math.hypot(w, h));
+  const scores = [];
+  const step = 2;
+  for (const deg of angles) {
+    const rad = (deg * Math.PI) / 180,
+      cos = Math.cos(rad),
+      sin = Math.sin(rad);
+    const bins = new Float32Array(diag + 1);
+    for (let y = 0; y < h; y += step) {
+      for (let x = 0; x < w; x += step) {
+        const i = y * w + x;
+        if (edge[i]) {
+          const u = Math.floor(x * cos + y * sin + diag / 2);
+          if (u >= 0 && u <= diag) bins[u] += 1;
+        }
+      }
+    }
+    let peak = 0,
+      baseSum = 0,
+      baseCnt = 0;
+    const minLag = 8,
+      maxLag = Math.min(150, Math.floor(diag / 3));
+    for (let lag = minLag; lag < maxLag; lag++) {
+      let c = 0;
+      for (let i = 0; i + lag < bins.length; i += 2)
+        c += bins[i] * bins[i + lag];
+      if (c > peak) peak = c;
+      baseSum += c;
+      baseCnt++;
+    }
+    const base = baseCnt ? baseSum / baseCnt : 0;
+    const s = base > 0 ? peak / base : 0;
+    const score = Math.max(0, Math.min(100, (s - 1) * 25));
+    scores.push(score);
+  }
+  return Math.max(...scores, 0);
+}
+function vw_computeWhitenessNearEdges(rgba, edge, w, h) {
+  let white = 0,
+    total = 0;
+  const tol = 12;
+  for (let y = 0; y < h; y += 2) {
+    for (let x = 0; x < w; x += 2) {
+      const i = y * w + x;
+      if (!edge[i]) continue;
+      const idx = i * 4;
+      const r = rgba[idx],
+        g = rgba[idx + 1],
+        b = rgba[idx + 2];
+      const maxc = Math.max(r, g, b),
+        minc = Math.min(r, g, b);
+      if (maxc - minc <= tol && maxc >= 200) white++;
+      total++;
+    }
+  }
+  return total ? Math.min(100, (white / total) * 100) : 0;
+}
+function vw_estimateStrokeWidth(edge, w, h) {
+  let runSum = 0,
+    runCnt = 0;
+  for (let y = 0; y < h; y += 2) {
+    let x = 0;
+    while (x < w) {
+      while (x < w && !edge[y * w + x]) x++;
+      let len = 0;
+      while (x < w && edge[y * w + x]) {
+        len++;
+        x++;
+      }
+      if (len > 0) {
+        runSum += len;
+        runCnt++;
+      }
+    }
+  }
+  return runCnt ? runSum / runCnt : 0;
+}
+function vw_mapStrokeWidthToScore(w) {
+  if (w <= 0) return 0;
+  const center = 2.5,
+    spread = 1.5;
+  const s = Math.exp(-Math.pow((w - center) / spread, 2));
+  return Math.round(s * 100);
+}
+function vw_analyzeSingleWatermark(gray, rgba, edge, grad, w, h, cfg) {
+  const eb = Math.floor(Math.min(w, h) * cfg.roi.edgeBand);
+  const cb = Math.floor(Math.min(w, h) * cfg.roi.cornerBox);
+  const rois = [
+    { name: "左上", x: 0, y: 0, w: cb, h: cb, posW: 100 },
+    { name: "右上", x: w - cb, y: 0, w: cb, h: cb, posW: 100 },
+    { name: "左下", x: 0, y: h - cb, w: cb, h: cb, posW: 100 },
+    { name: "右下", x: w - cb, y: h - cb, w: cb, h: cb, posW: 100 },
+    { name: "上边", x: 0, y: 0, w, w: w, h: eb, posW: 60 },
+    { name: "下边", x: 0, y: h - eb, w: w, h: eb, posW: 60 },
+    { name: "左边", x: 0, y: 0, w: eb, h: h, posW: 60 },
+    { name: "右边", x: w - eb, y: 0, w: eb, h: h, posW: 60 },
+  ];
+  let best = {
+    name: "",
+    textlikeness: 0,
+    overlayConsistency: 0,
+    positionWeight: 0,
+    alphaLike: 0,
+  };
+  for (const r of rois) {
+    const feat = vw_computeROITextAndOverlay(gray, rgba, edge, grad, w, h, r);
+    const tl = feat.textlikeness,
+      oc = feat.overlayConsistency,
+      al = feat.alphaLike,
+      pw = r.posW;
+    const tmp = 0.4 * tl + 0.25 * oc + 0.2 * pw + 0.15 * al;
+    const bestScore =
+      0.4 * best.textlikeness +
+      0.25 * best.overlayConsistency +
+      0.2 * best.positionWeight +
+      0.15 * best.alphaLike;
+    if (tmp > bestScore) {
+      best = {
+        name: r.name,
+        textlikeness: tl,
+        overlayConsistency: oc,
+        positionWeight: pw,
+        alphaLike: al,
+      };
+    }
+  }
   return best;
 }
-function vw_computeROITextAndOverlay(gray,rgba,edge,grad,w,h,roi){ const step=2; let edges=0,total=0; const bins=8; const hist=new Float32Array(bins); let sum=0,sum2=0, brightEdgeCnt=0; for(let y=roi.y;y<roi.y+roi.h;y+=step){ for(let x=roi.x;x<roi.x+roi.w;x+=step){ if(x<=0||y<=0||x>=w-1||y>=h-1) continue; const i=y*w+x; const g=grad.mag[i]; if(g>25){ edges++; let b=Math.floor((grad.ori[i]/180)*bins); if(b>=bins)b=bins-1; hist[b]+=1; const idx=i*4; const r=rgba[idx],gg=rgba[idx+1],bb=rgba[idx+2]; const maxc=Math.max(r,gg,bb),minc=Math.min(r,gg,bb); if(maxc-minc<12 && maxc>200) brightEdgeCnt++; } total++; sum+=gray[i]; sum2+=gray[i]*gray[i]; } }
-  const edgeDensity= total? edges/total:0; const variance= total? (sum2/total - Math.pow(sum/total,2)):0; const histSum=hist.reduce((a,b)=>a+b,0); const maxBin=histSum? Math.max(...hist):0; const textlikeness=Math.min(100,(edgeDensity*350)+(histSum?(maxBin/histSum)*100:0)); const overlayConsistency=Math.min(100,(Math.max(0,50-variance))*1.2 + (edges>0? (brightEdgeCnt/edges)*40:0)); const alphaLike=Math.max(0,Math.min(100,(sum/Math.max(1,total))/2 - (edgeDensity*50))); return {textlikeness, overlayConsistency, alphaLike}; }
-function vw_analyzeColorFeatures(data,width,height){ const colorCounts=new Map(); let total=0; const step=5; for(let i=0;i<data.length;i+=4*step){ const key=`${data[i]},${data[i+1]},${data[i+2]}`; colorCounts.set(key,(colorCounts.get(key)||0)+1); total++; } const unique= colorCounts.size; let maxCount=0; for (const v of colorCounts.values()) { if (v>maxCount) maxCount=v; } const domRatio= total? maxCount/total:0; const isMono= unique < total*0.05 || domRatio>0.7; const uniformity= Math.max(0,1- unique/(total*0.1)); let score=0; if(isMono) score+=40; score+= uniformity*60; return { uniformity, isMonochromatic:isMono, score: Math.min(100,score) }; }
-function vw_analyzeRegionConsistency(data,width,height){ const regions=['左上','右上','左下','右下','中心']; const regionSize=Math.min(width,height)*0.2; const regionScores=[]; const detectedRegions=[]; const positions=[{x:0,y:0,name:'左上'},{x:width-regionSize,y:0,name:'右上'},{x:0,y:height-regionSize,name:'左下'},{x:width-regionSize,y:height-regionSize,name:'右下'},{x:(width-regionSize)/2,y:(height-regionSize)/2,name:'中心'}]; positions.forEach(r=>{ const s=vw_analyzeRegionUniformity(data,width,height,r.x,r.y,regionSize); regionScores.push(s); if(s>30) detectedRegions.push(r.name); }); const avg= regionScores.length? regionScores.reduce((a,b)=>a+b,0)/regionScores.length:0; return { score: avg, regions: detectedRegions } }
-function vw_analyzeRegionUniformity(data,width,height,startX,startY,size){ const colors=[]; let alphaCount=0; for(let y=startY;y<Math.min(startY+size,height);y++){ for(let x=startX;x<Math.min(startX+size,width);x++){ const idx=(y*width+x)*4; colors.push({r:data[idx],g:data[idx+1],b:data[idx+2],a:data[idx+3]}); if(data[idx+3]<255) alphaCount++; } } if(colors.length===0) return 0; const avgR=colors.reduce((s,c)=>s+c.r,0)/colors.length; const avgG=colors.reduce((s,c)=>s+c.g,0)/colors.length; const avgB=colors.reduce((s,c)=>s+c.b,0)/colors.length; const variance=colors.reduce((sum,c)=> sum + Math.pow(c.r-avgR,2)+Math.pow(c.g-avgG,2)+Math.pow(c.b-avgB,2),0)/colors.length; const uniformityScore=Math.max(0,100-variance/100); const alphaBonus=(alphaCount/colors.length)*20; return Math.min(uniformityScore+alphaBonus,100); }
-function vw_analyzeAlphaFeatures(data){ let semi=0, full=0, opaque=0; for(let i=3;i<data.length;i+=4){ const a=data[i]; if(a===0) full++; else if(a<255) semi++; else opaque++; } const total=data.length/4; const ratio= total? semi/total:0; let score=0; if(ratio>0.1 && ratio<0.9) score=ratio*100; return { semiTransparentRatio: ratio, fullyTransparentRatio: total? full/total:0, opaqueRatio: total? opaque/total:0, score: Math.min(score,100) }; }
-function vw_analyzeEdgeDistribution(data,width,height){ let edgeCount=0, cornerEdges=0, borderEdges=0, centerEdges=0; const cornerSize=Math.min(width,height)*0.25; const borderSize=Math.min(width,height)*0.15; for(let y=1;y<height-1;y+=2){ for(let x=1;x<width-1;x+=2){ const idx=(y*width+x)*4; const gx=-data[idx-4-width*4]-2*data[idx-width*4]-data[idx+4-width*4]+data[idx-4+width*4]+2*data[idx+width*4]+data[idx+4+width*4]; const gy=-data[idx-4-width*4]-2*data[idx-4]-data[idx-4+width*4]+data[idx+4-width*4]+2*data[idx+4]+data[idx+4+width*4]; const mag=Math.sqrt(gx*gx+gy*gy); if(mag>30){ edgeCount++; const isCorner=(x<cornerSize||x>width-cornerSize)&&(y<cornerSize||y>height-cornerSize); const isBorder= x<borderSize||x>width-borderSize||y<borderSize||y>height-borderSize; if(isCorner) cornerEdges++; else if(isBorder) borderEdges++; else centerEdges++; } } } const total=width*height; const density=(edgeCount/total)*100; const cornerRatio= edgeCount? cornerEdges/edgeCount:0; const borderRatio= edgeCount? borderEdges/edgeCount:0; const centerRatio= edgeCount? centerEdges/edgeCount:0; let positionScore=0; if(centerRatio<0.6){ positionScore=(cornerRatio*50 + borderRatio*30)*(density/5); } else { positionScore= density*0.2; } return { density, positionScore: Math.min(positionScore,100), cornerRatio, borderRatio, centerRatio };
+function vw_computeROITextAndOverlay(gray, rgba, edge, grad, w, h, roi) {
+  const step = 2;
+  let edges = 0,
+    total = 0;
+  const bins = 8;
+  const hist = new Float32Array(bins);
+  let sum = 0,
+    sum2 = 0,
+    brightEdgeCnt = 0;
+  for (let y = roi.y; y < roi.y + roi.h; y += step) {
+    for (let x = roi.x; x < roi.x + roi.w; x += step) {
+      if (x <= 0 || y <= 0 || x >= w - 1 || y >= h - 1) continue;
+      const i = y * w + x;
+      const g = grad.mag[i];
+      if (g > 25) {
+        edges++;
+        let b = Math.floor((grad.ori[i] / 180) * bins);
+        if (b >= bins) b = bins - 1;
+        hist[b] += 1;
+        const idx = i * 4;
+        const r = rgba[idx],
+          gg = rgba[idx + 1],
+          bb = rgba[idx + 2];
+        const maxc = Math.max(r, gg, bb),
+          minc = Math.min(r, gg, bb);
+        if (maxc - minc < 12 && maxc > 200) brightEdgeCnt++;
+      }
+      total++;
+      sum += gray[i];
+      sum2 += gray[i] * gray[i];
+    }
+  }
+  const edgeDensity = total ? edges / total : 0;
+  const variance = total ? sum2 / total - Math.pow(sum / total, 2) : 0;
+  const histSum = hist.reduce((a, b) => a + b, 0);
+  const maxBin = histSum ? Math.max(...hist) : 0;
+  const textlikeness = Math.min(
+    100,
+    edgeDensity * 350 + (histSum ? (maxBin / histSum) * 100 : 0)
+  );
+  const overlayConsistency = Math.min(
+    100,
+    Math.max(0, 50 - variance) * 1.2 +
+      (edges > 0 ? (brightEdgeCnt / edges) * 40 : 0)
+  );
+  const alphaLike = Math.max(
+    0,
+    Math.min(100, sum / Math.max(1, total) / 2 - edgeDensity * 50)
+  );
+  return { textlikeness, overlayConsistency, alphaLike };
+}
+function vw_analyzeColorFeatures(data, width, height) {
+  const colorCounts = new Map();
+  let total = 0;
+  const step = 5;
+  for (let i = 0; i < data.length; i += 4 * step) {
+    const key = `${data[i]},${data[i + 1]},${data[i + 2]}`;
+    colorCounts.set(key, (colorCounts.get(key) || 0) + 1);
+    total++;
+  }
+  const unique = colorCounts.size;
+  let maxCount = 0;
+  for (const v of colorCounts.values()) {
+    if (v > maxCount) maxCount = v;
+  }
+  const domRatio = total ? maxCount / total : 0;
+  const isMono = unique < total * 0.05 || domRatio > 0.7;
+  const uniformity = Math.max(0, 1 - unique / (total * 0.1));
+  let score = 0;
+  if (isMono) score += 40;
+  score += uniformity * 60;
+  return { uniformity, isMonochromatic: isMono, score: Math.min(100, score) };
+}
+function vw_analyzeRegionConsistency(data, width, height) {
+  const regions = ["左上", "右上", "左下", "右下", "中心"];
+  const regionSize = Math.min(width, height) * 0.2;
+  const regionScores = [];
+  const detectedRegions = [];
+  const positions = [
+    { x: 0, y: 0, name: "左上" },
+    { x: width - regionSize, y: 0, name: "右上" },
+    { x: 0, y: height - regionSize, name: "左下" },
+    { x: width - regionSize, y: height - regionSize, name: "右下" },
+    { x: (width - regionSize) / 2, y: (height - regionSize) / 2, name: "中心" },
+  ];
+  positions.forEach((r) => {
+    const s = vw_analyzeRegionUniformity(
+      data,
+      width,
+      height,
+      r.x,
+      r.y,
+      regionSize
+    );
+    regionScores.push(s);
+    if (s > 30) detectedRegions.push(r.name);
+  });
+  const avg = regionScores.length
+    ? regionScores.reduce((a, b) => a + b, 0) / regionScores.length
+    : 0;
+  return { score: avg, regions: detectedRegions };
+}
+function vw_analyzeRegionUniformity(data, width, height, startX, startY, size) {
+  const colors = [];
+  let alphaCount = 0;
+  for (let y = startY; y < Math.min(startY + size, height); y++) {
+    for (let x = startX; x < Math.min(startX + size, width); x++) {
+      const idx = (y * width + x) * 4;
+      colors.push({
+        r: data[idx],
+        g: data[idx + 1],
+        b: data[idx + 2],
+        a: data[idx + 3],
+      });
+      if (data[idx + 3] < 255) alphaCount++;
+    }
+  }
+  if (colors.length === 0) return 0;
+  const avgR = colors.reduce((s, c) => s + c.r, 0) / colors.length;
+  const avgG = colors.reduce((s, c) => s + c.g, 0) / colors.length;
+  const avgB = colors.reduce((s, c) => s + c.b, 0) / colors.length;
+  const variance =
+    colors.reduce(
+      (sum, c) =>
+        sum +
+        Math.pow(c.r - avgR, 2) +
+        Math.pow(c.g - avgG, 2) +
+        Math.pow(c.b - avgB, 2),
+      0
+    ) / colors.length;
+  const uniformityScore = Math.max(0, 100 - variance / 100);
+  const alphaBonus = (alphaCount / colors.length) * 20;
+  return Math.min(uniformityScore + alphaBonus, 100);
+}
+function vw_analyzeAlphaFeatures(data) {
+  let semi = 0,
+    full = 0,
+    opaque = 0;
+  for (let i = 3; i < data.length; i += 4) {
+    const a = data[i];
+    if (a === 0) full++;
+    else if (a < 255) semi++;
+    else opaque++;
+  }
+  const total = data.length / 4;
+  const ratio = total ? semi / total : 0;
+  let score = 0;
+  if (ratio > 0.1 && ratio < 0.9) score = ratio * 100;
+  return {
+    semiTransparentRatio: ratio,
+    fullyTransparentRatio: total ? full / total : 0,
+    opaqueRatio: total ? opaque / total : 0,
+    score: Math.min(score, 100),
+  };
+}
+function vw_analyzeEdgeDistribution(data, width, height) {
+  let edgeCount = 0,
+    cornerEdges = 0,
+    borderEdges = 0,
+    centerEdges = 0;
+  const cornerSize = Math.min(width, height) * 0.25;
+  const borderSize = Math.min(width, height) * 0.15;
+  for (let y = 1; y < height - 1; y += 2) {
+    for (let x = 1; x < width - 1; x += 2) {
+      const idx = (y * width + x) * 4;
+      const gx =
+        -data[idx - 4 - width * 4] -
+        2 * data[idx - width * 4] -
+        data[idx + 4 - width * 4] +
+        data[idx - 4 + width * 4] +
+        2 * data[idx + width * 4] +
+        data[idx + 4 + width * 4];
+      const gy =
+        -data[idx - 4 - width * 4] -
+        2 * data[idx - 4] -
+        data[idx - 4 + width * 4] +
+        data[idx + 4 - width * 4] +
+        2 * data[idx + 4] +
+        data[idx + 4 + width * 4];
+      const mag = Math.sqrt(gx * gx + gy * gy);
+      if (mag > 30) {
+        edgeCount++;
+        const isCorner =
+          (x < cornerSize || x > width - cornerSize) &&
+          (y < cornerSize || y > height - cornerSize);
+        const isBorder =
+          x < borderSize ||
+          x > width - borderSize ||
+          y < borderSize ||
+          y > height - borderSize;
+        if (isCorner) cornerEdges++;
+        else if (isBorder) borderEdges++;
+        else centerEdges++;
+      }
+    }
+  }
+  const total = width * height;
+  const density = (edgeCount / total) * 100;
+  const cornerRatio = edgeCount ? cornerEdges / edgeCount : 0;
+  const borderRatio = edgeCount ? borderEdges / edgeCount : 0;
+  const centerRatio = edgeCount ? centerEdges / edgeCount : 0;
+  let positionScore = 0;
+  if (centerRatio < 0.6) {
+    positionScore = (cornerRatio * 50 + borderRatio * 30) * (density / 5);
+  } else {
+    positionScore = density * 0.2;
+  }
+  return {
+    density,
+    positionScore: Math.min(positionScore, 100),
+    cornerRatio,
+    borderRatio,
+    centerRatio,
+  };
 }
 // ========= 两分支融合水印检测（Repeated + Single） END =========
 
 // ==================== 导出函数 ====================
 
 // 在worker环境中，直接替换原有的detectWatermark函数
-if (typeof self !== 'undefined' && typeof detectWatermark === 'undefined') {
+if (typeof self !== "undefined" && typeof detectWatermark === "undefined") {
   self.detectWatermark = detectWatermarkAdvanced;
 }

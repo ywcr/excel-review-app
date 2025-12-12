@@ -13,7 +13,8 @@ export interface ValidationRule {
     | "medicalLevel"
     | "sixMonthsInterval"
     | "crossTaskValidation"
-    | "prohibitedContent";
+    | "prohibitedContent"
+    | "sameImplementer"; // 同一目标需由同一人拜访
   params?: any;
   message: string;
 }
@@ -131,6 +132,15 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
           groupBy: "implementer",
         },
         message: "同一实施人每日拜访不超过5家药店",
+      },
+      {
+        field: "retailChannel",
+        type: "sameImplementer",
+        params: {
+          targetField: "retailChannel", // 目标字段（药店名称）
+          implementerField: "implementer", // 实施人字段
+        },
+        message: "同一药店在周期内需由同一人拜访",
       },
       {
         field: "visitDuration",
