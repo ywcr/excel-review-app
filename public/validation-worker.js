@@ -244,26 +244,54 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
   );
 
   const fileSizeMB = fileBuffer.byteLength / 1024 / 1024;
+  const fileSizeGB = fileSizeMB / 1024;
   const isLargeFile = fileSizeMB > 100;
+  const isVeryLargeFile = fileSizeMB > 1024; // 1GB+
+  const isHugeFile = fileSizeMB > 2048; // 2GB+
 
   ImageDebugLogger.info(
     ImageDebugLogger.STAGES.FILE_PARSE,
     `开始验证Excel文件`,
     {
-      fileSize: `${fileSizeMB.toFixed(2)}MB`,
+      fileSize:
+        fileSizeMB > 1024
+          ? `${fileSizeGB.toFixed(2)}GB`
+          : `${fileSizeMB.toFixed(2)}MB`,
       taskName,
       selectedSheet: selectedSheet || "未指定",
       isLargeFile,
+      isVeryLargeFile,
+      isHugeFile,
     }
   );
 
-  // For large files, add memory warnings
-  if (isLargeFile) {
+  // For large files, add memory warnings with different levels
+  if (isHugeFile) {
     ImageDebugLogger.warn(
       ImageDebugLogger.STAGES.FILE_PARSE,
-      `检测到大文件 (${fileSizeMB.toFixed(2)}MB)，将使用优化处理模式`,
+      `检测到超大文件 (${fileSizeGB.toFixed(2)}GB)，处理时间可能较长`,
       {
-        recommendedMaxSize: "100MB",
+        estimatedTime: "10-30分钟",
+        currentSize: `${fileSizeGB.toFixed(2)}GB`,
+        optimizations: ["最简解析模式", "单工作表处理", "内存优化"],
+      }
+    );
+  } else if (isVeryLargeFile) {
+    ImageDebugLogger.warn(
+      ImageDebugLogger.STAGES.FILE_PARSE,
+      `检测到大文件 (${fileSizeGB.toFixed(2)}GB)，将使用优化处理模式`,
+      {
+        estimatedTime: "5-15分钟",
+        currentSize: `${fileSizeGB.toFixed(2)}GB`,
+        optimizations: ["简化解析选项", "分块处理", "内存监控"],
+      }
+    );
+  } else if (isLargeFile) {
+    ImageDebugLogger.warn(
+      ImageDebugLogger.STAGES.FILE_PARSE,
+      `检测到较大文件 (${fileSizeMB.toFixed(0)}MB)，将使用优化处理模式`,
+      {
+        estimatedTime: "1-5分钟",
         currentSize: `${fileSizeMB.toFixed(2)}MB`,
         optimizations: ["分块处理", "内存监控", "垃圾回收"],
       }
@@ -286,13 +314,29 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
 
       if (fileBuffer.byteLength > 500 * 1024 * 1024) {
         // 超大文件（>500MB）：使用最简单的解析选项
+        const sizeMB = fileBuffer.byteLength / 1024 / 1024;
+        const sizeGB = sizeMB / 1024;
         ImageDebugLogger.warn(
           ImageDebugLogger.STAGES.FILE_PARSE,
-          "检测到超大文件，使用简单解析选项",
+          `检测到超大文件 (${
+            sizeGB > 1 ? sizeGB.toFixed(2) + "GB" : sizeMB.toFixed(0) + "MB"
+          })，使用最简解析选项`,
           {
-            fileSize: `${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`,
+            fileSize:
+              sizeGB > 1 ? `${sizeGB.toFixed(2)}GB` : `${sizeMB.toFixed(0)}MB`,
+            strategy: "minimal_parsing",
           }
         );
+        // 发送更明确的进度信息
+        postMessage({
+          type: MESSAGE_TYPES.PROGRESS,
+          data: {
+            progress: 8,
+            message: `正在解析超大文件 (${
+              sizeGB > 1 ? sizeGB.toFixed(1) + "GB" : sizeMB.toFixed(0) + "MB"
+            })，请耐心等待...`,
+          },
+        });
         parseOptions = {
           type: "array",
         };
