@@ -158,11 +158,16 @@ export default function ValidationResults({
       timeRange: "时间范围错误",
       duration: "时长不符",
       dateInterval: "日期间隔冲突",
+      conditionalDateInterval: "日期间隔冲突",
       frequency: "频次超限",
       unique: "重复值",
       structure: "结构错误",
       dateFormat: "日期格式错误",
       prohibitedContent: "禁用内容",
+      contentSimilarity: "内容不符",
+      addressFormat: "地址格式错误",
+      sameImplementer: "实施人不一致",
+      medicalLevel: "医疗类型错误",
     };
     return labels[type] || type;
   };
@@ -174,11 +179,16 @@ export default function ValidationResults({
       timeRange: "bg-orange-100 text-orange-800",
       duration: "bg-yellow-100 text-yellow-800",
       dateInterval: "bg-purple-100 text-purple-800",
+      conditionalDateInterval: "bg-purple-100 text-purple-800",
       frequency: "bg-blue-100 text-blue-800",
       unique: "bg-pink-100 text-pink-800",
       structure: "bg-gray-100 text-gray-800",
       dateFormat: "bg-orange-100 text-orange-800",
       prohibitedContent: "bg-red-100 text-red-800",
+      contentSimilarity: "bg-orange-100 text-orange-800",
+      addressFormat: "bg-yellow-100 text-yellow-800",
+      sameImplementer: "bg-pink-100 text-pink-800",
+      medicalLevel: "bg-red-100 text-red-800",
     };
     return colors[type] || "bg-gray-100 text-gray-800";
   };

@@ -4438,9 +4438,168 @@ function validateField(value, rule, row, column, rowData) {
         }
       }
       break;
+
+    case "addressFormat":
+      if (value && typeof value === "string") {
+        const addressError = validateAddressFormat(value, rule.params);
+        if (addressError) {
+          console.log(
+            `❌ [地址格式] 行${row} 字段"${rule.field}"地址不完整: ${value}`
+          );
+          return {
+            row,
+            column: columnLetter,
+            field: rule.field,
+            value,
+            message: `${rule.message}：${addressError}`,
+            errorType: rule.type,
+          };
+        }
+      }
+      break;
+
+    case "contentSimilarity":
+      if (value && typeof value === "string") {
+        const content = value.trim();
+        if (content && rule.params?.templates) {
+          const similarityResult = validateContentSimilarity(
+            content,
+            rule.params.templates,
+            rule.params.threshold || 0.8
+          );
+          if (!similarityResult.isValid) {
+            console.log(
+              `❌ [内容相似度] 行${row} 字段"${rule.field}"与模板差异过大: ${similarityResult.maxSimilarity.toFixed(2)}`
+            );
+            return {
+              row,
+              column: columnLetter,
+              field: rule.field,
+              value,
+              message: `${rule.message}（最高匹配度：${(similarityResult.maxSimilarity * 100).toFixed(0)}%）`,
+              errorType: rule.type,
+            };
+          }
+        }
+      }
+      break;
   }
 
   return null;
+}
+
+// 地址格式验证
+function validateAddressFormat(address, params) {
+  if (!address) return null;
+
+  const trimmedAddress = address.trim();
+  const minLength = params?.minLength || 10;
+
+  // 检查地址长度
+  if (trimmedAddress.length < minLength) {
+    return `地址过短（当前${trimmedAddress.length}字符，至少需要${minLength}字符）`;
+  }
+
+  // 检查是否包含省/市级关键词
+  const provinceKeywords = ["省", "市", "自治区", "特别行政区"];
+  const hasProvince = provinceKeywords.some((kw) => trimmedAddress.includes(kw));
+
+  // 检查是否包含区/县级关键词
+  const districtKeywords = ["区", "县", "市", "旗", "盟"];
+  const hasDistrict = districtKeywords.some((kw) => trimmedAddress.includes(kw));
+
+  // 检查是否包含街道/路/号等关键词
+  const streetKeywords = ["路", "街", "道", "巷", "弄", "号", "栋", "楼", "室", "层", "单元", "大厦", "广场", "小区"];
+  const hasStreet = streetKeywords.some((kw) => trimmedAddress.includes(kw));
+
+  // 必须同时包含省市级、区县级和街道级信息
+  if (!hasProvince) {
+    return "缺少省/市信息";
+  }
+  if (!hasDistrict) {
+    return "缺少区/县信息";
+  }
+  if (!hasStreet) {
+    return "缺少街道/门牌号信息";
+  }
+
+  return null; // 验证通过
+}
+
+// 内容相似度验证
+function validateContentSimilarity(content, templates, threshold) {
+  if (!templates || templates.length === 0) {
+    return { isValid: true, maxSimilarity: 1 };
+  }
+
+  let maxSimilarity = 0;
+
+  for (const template of templates) {
+    const similarity = calculateContentSimilarity(content, template);
+    if (similarity > maxSimilarity) {
+      maxSimilarity = similarity;
+    }
+    // 如果已经达到阈值，提前返回
+    if (maxSimilarity >= threshold) {
+      return { isValid: true, maxSimilarity };
+    }
+  }
+
+  return { isValid: maxSimilarity >= threshold, maxSimilarity };
+}
+
+// 计算两个字符串的相似度（使用 Levenshtein 编辑距离）
+function calculateContentSimilarity(str1, str2) {
+  const s1 = str1.trim().toLowerCase();
+  const s2 = str2.trim().toLowerCase();
+
+  if (s1 === s2) return 1;
+  if (s1.length === 0 || s2.length === 0) return 0;
+
+  // 如果一个字符串包含另一个，给予较高相似度
+  if (s1.includes(s2) || s2.includes(s1)) {
+    const minLen = Math.min(s1.length, s2.length);
+    const maxLen = Math.max(s1.length, s2.length);
+    return minLen / maxLen;
+  }
+
+  // 计算 Levenshtein 编辑距离
+  const distance = levenshteinDistanceForContent(s1, s2);
+  const maxLen = Math.max(s1.length, s2.length);
+
+  return 1 - distance / maxLen;
+}
+
+// Levenshtein 编辑距离算法（用于内容相似度）
+function levenshteinDistanceForContent(str1, str2) {
+  const m = str1.length;
+  const n = str2.length;
+
+  // 创建距离矩阵
+  const dp = Array(m + 1)
+    .fill(null)
+    .map(() => Array(n + 1).fill(0));
+
+  // 初始化第一行和第一列
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  // 填充矩阵
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (str1[i - 1] === str2[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1];
+      } else {
+        dp[i][j] = Math.min(
+          dp[i - 1][j] + 1, // 删除
+          dp[i][j - 1] + 1, // 插入
+          dp[i - 1][j - 1] + 1 // 替换
+        );
+      }
+    }
+  }
+
+  return dp[m][n];
 }
 
 // 日期格式验证 - 简化版本，主要用于基本验证

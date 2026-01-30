@@ -245,10 +245,50 @@ export default function ValidationRequirements({
     // 禁用内容验证
     if (
       requirementText.includes("禁用词汇") ||
-      requirementText.includes("不能包含") ||
-      requirementText.includes("内容合规")
+      requirementText.includes("不能包含")
     ) {
       return ["prohibitedContent"];
+    }
+
+    // 地址格式验证
+    if (
+      requirementText.includes("地址") &&
+      (requirementText.includes("完整") ||
+        requirementText.includes("详细") ||
+        requirementText.includes("省/市") ||
+        requirementText.includes("门牌号"))
+    ) {
+      return ["addressFormat"];
+    }
+
+    // 内容相似度验证
+    if (
+      requirementText.includes("如实填写") ||
+      requirementText.includes("标准模板相符") ||
+      requirementText.includes("内容需与")
+    ) {
+      return ["contentSimilarity"];
+    }
+
+    // 同一实施人要求
+    if (
+      requirementText.includes("同一人拜访") ||
+      requirementText.includes("同一实施人")
+    ) {
+      return ["sameImplementer"];
+    }
+
+    // 条件日期间隔（按医疗类型区分）
+    if (
+      requirementText.includes("按医疗类型区分") ||
+      (requirementText.includes("等级医院") &&
+        requirementText.includes("日内不能重复")) ||
+      (requirementText.includes("基层医疗") &&
+        requirementText.includes("日内不能重复")) ||
+      (requirementText.includes("民营医院") &&
+        requirementText.includes("日内不能重复"))
+    ) {
+      return ["conditionalDateInterval"];
     }
 
     return []; // 未映射的通用要求，显示为"未验证"中性状态
@@ -263,13 +303,13 @@ export default function ValidationRequirements({
             {
               category: "重复拜访限制",
               items: [
-                "同一药店1日内不能重复拜访",
+                "同一药店2日内不能重复拜访",
                 "同一对接人7日内不能重复拜访",
               ],
             },
             {
               category: "频次限制",
-              items: ["同一实施人每日拜访不超过5家药店"],
+              items: ["同一实施人每日拜访不超过8家药店"],
             },
             {
               category: "拜访时长要求",
@@ -280,32 +320,51 @@ export default function ValidationRequirements({
               items: ["必须在08:00-19:00范围内"],
             },
             {
+              category: "地址格式要求",
+              items: [
+                "渠道地址需填写完整详细",
+                "需包含：省/市 + 区/县 + 街道/门牌号",
+                "示例：北京市朝阳区建国路88号",
+              ],
+            },
+            {
               category: "内容合规要求",
               items: [
-                "拜访事项（1）、信息反馈（1）、拜访事项（2）、信息反馈（2）内容不能包含禁用词汇",
-                "禁用词汇包括：统方、买票、购票、销票、捐赠、资助、赞助、行贿、受贿、返利、返佣、临床观察费、好处费、手续费、回款、费用、佣金、提成、红利、红包、礼品、礼金、消费卡、有价证券、股权、商业贿赂、宴请、娱乐、信息费、感谢费、提单费、返现、票折、指标、回扣、销量、销售、logo等",
+                "拜访事项、信息反馈内容不能包含禁用词汇",
+                "拜访事项和信息反馈需如实填写，内容需与标准模板相符",
+                "照片中不能出现打火机、香烟等物品",
+              ],
+            },
+            {
+              category: "其他要求",
+              items: [
+                "同一药店在周期内需由同一人拜访",
+                "连锁药店需写清分店名称（如：XX大药房XX路店）",
               ],
             },
           ],
         };
 
-      case "等级医院拜访":
+      case "医院拜访":
         return {
-          title: "等级医院拜访验证要求",
+          title: "医院拜访验证要求（统一模板）",
           requirements: [
             {
               category: "医疗类型要求",
+              items: ["必须选择以下类别：等级、基层、民营"],
+            },
+            {
+              category: "重复拜访限制（按医疗类型区分）",
               items: [
-                "必须选择以下医疗机构类别之一：等级医院、基层医疗、民营医院",
+                "等级医院（二级以上）：同一医院1日内不能重复拜访",
+                "基层医疗机构：同一医院3日内不能重复拜访",
+                "民营医院：同一医院3日内不能重复拜访",
+                "所有类型：同一医生7日内不能重复拜访",
               ],
             },
             {
-              category: "重复拜访限制",
-              items: ["同一医院1日内不能重复拜访", "同一医生7日内不能重复拜访"],
-            },
-            {
               category: "频次限制",
-              items: ["同一实施人每日拜访不超过4家医院"],
+              items: ["同一实施人每日拜访不超过5家医院（所有医疗类型合计）"],
             },
             {
               category: "拜访时长要求",
@@ -316,82 +375,25 @@ export default function ValidationRequirements({
               items: ["必须在07:00-19:00范围内"],
             },
             {
-              category: "内容合规要求",
+              category: "地址格式要求",
               items: [
-                "拜访事项（1）、信息反馈（1）、拜访事项（2）、信息反馈（2）内容不能包含禁用词汇",
-                "禁用词汇包括：统方、买票、购票、销票、捐赠、资助、赞助、行贿、受贿、返利、返佣、临床观察费、好处费、手续费、回款、费用、佣金、提成、红利、红包、礼品、礼金、消费卡、有价证券、股权、商业贿赂、宴请、娱乐、信息费、感谢费、提单费、返现、票折、指标、回扣、销量、销售、logo等",
+                "渠道地址需填写完整详细",
+                "需包含：省/市 + 区/县 + 街道/门牌号",
+                "示例：北京市朝阳区建国路88号",
               ],
-            },
-          ],
-        };
-
-      case "基层医疗机构拜访":
-        return {
-          title: "基层医疗机构拜访验证要求",
-          requirements: [
-            {
-              category: "医疗类型要求",
-              items: [
-                "必须选择以下医疗机构类别之一：等级医院、基层医疗、民营医院",
-              ],
-            },
-            {
-              category: "重复拜访限制",
-              items: ["同一医院2日内不能重复拜访", "同一医生7日内不能重复拜访"],
-            },
-            {
-              category: "频次限制",
-              items: ["同一实施人每日拜访不超过4家医院"],
-            },
-            {
-              category: "拜访时长要求",
-              items: ["拜访有效时间不低于100分钟"],
-            },
-            {
-              category: "拜访时间范围",
-              items: ["必须在07:00-19:00范围内"],
             },
             {
               category: "内容合规要求",
               items: [
-                "拜访事项（1）、信息反馈（1）、拜访事项（2）、信息反馈（2）内容不能包含禁用词汇",
-                "禁用词汇包括：统方、买票、购票、销票、捐赠、资助、赞助、行贿、受贿、返利、返佣、临床观察费、好处费、手续费、回款、费用、佣金、提成、红利、红包、礼品、礼金、消费卡、有价证券、股权、商业贿赂、宴请、娱乐、信息费、感谢费、提单费、返现、票折、指标、回扣、销量、销售、logo等",
-              ],
-            },
-          ],
-        };
-
-      case "民营医院拜访":
-        return {
-          title: "民营医院拜访验证要求",
-          requirements: [
-            {
-              category: "医疗类型要求",
-              items: [
-                "必须选择以下医疗机构类别之一：等级医院、基层医疗、民营医院",
+                "拜访事项、信息反馈内容不能包含禁用词汇",
+                "拜访事项和信息反馈需如实填写，内容需与标准模板相符",
               ],
             },
             {
-              category: "重复拜访限制",
-              items: ["同一医院2日内不能重复拜访", "同一医生7日内不能重复拜访"],
-            },
-            {
-              category: "频次限制",
-              items: ["同一实施人每日拜访不超过4家医院"],
-            },
-            {
-              category: "拜访时长要求",
-              items: ["拜访有效时间不低于100分钟"],
-            },
-            {
-              category: "拜访时间范围",
-              items: ["必须在07:00-19:00范围内"],
-            },
-            {
-              category: "内容合规要求",
+              category: "其他要求",
               items: [
-                "拜访事项（1）、信息反馈（1）、拜访事项（2）、信息反馈（2）内容不能包含禁用词汇",
-                "禁用词汇包括：统方、买票、购票、销票、捐赠、资助、赞助、行贿、受贿、返利、返佣、临床观察费、好处费、手续费、回款、费用、佣金、提成、红利、红包、礼品、礼金、消费卡、有价证券、股权、商业贿赂、宴请、娱乐、信息费、感谢费、提单费、返现、票折、指标、回扣、销量、销售、logo 等",
+                "同一医院在周期内需由同一人拜访",
+                "照片中不能出现打火机、香烟等物品",
               ],
             },
           ],
