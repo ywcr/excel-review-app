@@ -260,26 +260,38 @@ function HomeContent() {
 
     // Check file size and show warning for large files
     const fileSizeMB = file.size / (1024 * 1024);
-    if (fileSizeMB > 2000) {
+    const fileSizeGB = fileSizeMB / 1024;
+    if (fileSizeMB > 3072) {
+      // 3GB 限制
       setLocalError(
-        `文件过大 (${fileSizeMB.toFixed(
-          1
-        )}MB)。建议文件大小不超过2GB以确保最佳性能。`
+        `文件过大 (${fileSizeGB.toFixed(
+          2
+        )}GB)。系统支持最大3GB文件，请分割文件后重试。`
       );
       return;
-    } else if (fileSizeMB > 1000) {
+    } else if (fileSizeMB > 2000) {
+      // 2-3GB: 超大文件警告
       setLocalError(
-        `检测到超大文件 (${fileSizeMB.toFixed(
-          1
-        )}MB)。处理可能需要很长时间，建议使用更小的文件或分批处理。`
+        `检测到超大文件 (${fileSizeGB.toFixed(
+          2
+        )}GB)。处理可能需要10-30分钟，请确保浏览器保持运行。`
+      );
+      // Clear error after 8 seconds to allow processing
+      setTimeout(() => setLocalError(null), 8000);
+    } else if (fileSizeMB > 1000) {
+      // 1-2GB: 大文件警告
+      setLocalError(
+        `检测到大文件 (${fileSizeGB.toFixed(
+          2
+        )}GB)。处理可能需要5-15分钟，请耐心等待。`
       );
       // Clear error after 5 seconds to allow processing
       setTimeout(() => setLocalError(null), 5000);
     } else if (fileSizeMB > 100) {
       setLocalError(
-        `检测到大文件 (${fileSizeMB.toFixed(
-          1
-        )}MB)。处理可能需要较长时间，请耐心等待。`
+        `检测到较大文件 (${fileSizeMB.toFixed(
+          0
+        )}MB)。处理可能需要1-5分钟，请耐心等待。`
       );
       // Clear error after 3 seconds to allow processing
       setTimeout(() => setLocalError(null), 3000);
