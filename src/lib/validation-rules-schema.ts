@@ -18,7 +18,10 @@ export type RuleType =
   | "prohibitedContent"
   | "sameImplementer"
   | "sixMonthsInterval"
-  | "crossTaskValidation";
+  | "crossTaskValidation"
+  | "conditionalDateInterval"
+  | "addressFormat"
+  | "contentSimilarity";
 
 // 规则参数类型定义
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -84,6 +87,22 @@ export interface CrossTaskValidationParams {
   groupBy: string;
 }
 
+export interface ConditionalDateIntervalParams {
+  groupBy: string;
+  conditionField: string;
+  conditions: Record<string, { days: number; message?: string }>;
+  defaultDays: number;
+}
+
+export interface AddressFormatParams {
+  minLength: number;
+}
+
+export interface ContentSimilarityParams {
+  templates: readonly string[] | string[];
+  threshold: number;
+}
+
 // 规则参数联合类型
 export type RuleParams =
   | RequiredParams
@@ -98,7 +117,10 @@ export type RuleParams =
   | ProhibitedContentParams
   | SameImplementerParams
   | SixMonthsIntervalParams
-  | CrossTaskValidationParams;
+  | CrossTaskValidationParams
+  | ConditionalDateIntervalParams
+  | AddressFormatParams
+  | ContentSimilarityParams;
 
 // 规则配置接口
 export interface RuleConfig {
@@ -172,6 +194,17 @@ export function getDefaultParams(type: RuleType): RuleParams {
       return { groupBy: "" };
     case "crossTaskValidation":
       return { scope: "month", excludeTasks: [], groupBy: "" };
+    case "conditionalDateInterval":
+      return {
+        groupBy: "",
+        conditionField: "",
+        conditions: {},
+        defaultDays: 1,
+      };
+    case "addressFormat":
+      return { minLength: 10 };
+    case "contentSimilarity":
+      return { templates: [], threshold: 0.8 };
     default:
       return {};
   }
@@ -192,6 +225,9 @@ export const RULE_TYPE_LABELS: Record<RuleType, string> = {
   sameImplementer: "同一实施人验证",
   sixMonthsInterval: "半年间隔验证",
   crossTaskValidation: "跨任务验证",
+  conditionalDateInterval: "条件间隔验证",
+  addressFormat: "地址格式验证",
+  contentSimilarity: "内容相似度验证",
 };
 
 // 规则类型描述
@@ -209,4 +245,7 @@ export const RULE_TYPE_DESCRIPTIONS: Record<RuleType, string> = {
   sameImplementer: "同一目标必须由同一人执行",
   sixMonthsInterval: "同一对象半年内不能重复",
   crossTaskValidation: "跨任务的互斥验证",
+  conditionalDateInterval: "根据条件应用不同的间隔限制",
+  addressFormat: "地址需包含省市区等详细信息",
+  contentSimilarity: "内容需与标准模板保持一定相似度",
 };
