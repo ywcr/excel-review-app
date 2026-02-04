@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import "./mobile-optimizations.css";
 
@@ -66,6 +67,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased safe-area-top safe-area-bottom safe-area-left safe-area-right`}
       >
         {children}
+        <Analytics />
       </body>
     </html>
   );
