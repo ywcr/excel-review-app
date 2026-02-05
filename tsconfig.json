@@ -29,5 +29,5 @@
     "next-env.d.ts",
     ".next-dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "_archive"]
+  "exclude": ["node_modules", "_archive", "crested-gecko-diet"]
 }

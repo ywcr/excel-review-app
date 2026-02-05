@@ -122,6 +122,15 @@ export default function UserMenu({
                 <Link href="/multi-review" className={itemClass}>
                   🚀 多文件审核
                 </Link>
+                <Link href="/gecko-diet" className={itemClass}>
+                  🦎 守宫饮食指南
+                </Link>
+                <Link href="/gecko-diet/breeding" className={itemClass}>
+                  🧬 守宫选育指南
+                </Link>
+                <Link href="/gecko-diet/calculator" className={itemClass}>
+                  🧮 基因计算器
+                </Link>
               </>
             )}
             {/* {onSwitchSkin && (
