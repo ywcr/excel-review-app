@@ -1,0 +1,64 @@
+/* Gecko Diet Theme - 睫角守宫饮食指南主题 */
+
+/* Custom colors for crested gecko theme */
+:root {
+  --color-forest-green: oklch(0.35 0.08 145);
+  --color-amber-orange: oklch(0.65 0.15 65);
+  --color-warm-gray: oklch(0.55 0.02 70);
+  --color-emerald: oklch(0.65 0.15 160);
+
+  /* Semantic colors */
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.25 0.02 70);
+  --color-muted: oklch(0.95 0.01 70);
+  --color-muted-foreground: oklch(0.5 0.02 70);
+  --color-border: oklch(0.88 0.01 70);
+  --color-primary: var(--color-forest-green);
+  --color-primary-foreground: oklch(0.98 0.01 145);
+  --color-secondary: var(--color-amber-orange);
+  --color-secondary-foreground: oklch(0.98 0.01 65);
+  --color-accent: var(--color-emerald);
+  --color-accent-foreground: oklch(0.98 0.01 160);
+  --color-destructive: oklch(0.577 0.245 27.325);
+  --color-background: oklch(0.98 0.01 70);
+  --color-foreground: oklch(0.25 0.02 70);
+  --color-ring: var(--color-forest-green);
+}
+
+/* Gecko diet page specific styles */
+.gecko-diet-page {
+  --radius: 0.75rem;
+}
+
+.gecko-diet-page h1,
+.gecko-diet-page h2,
+.gecko-diet-page h3,
+.gecko-diet-page h4,
+.gecko-diet-page h5,
+.gecko-diet-page h6 {
+  font-weight: 700;
+}
+
+/* Container utility */
+.gecko-container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .gecko-container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .gecko-container {
+    padding-left: 2rem;
+    padding-right: 2rem;
+    max-width: 1280px;
+  }
+}
