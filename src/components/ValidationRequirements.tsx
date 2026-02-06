@@ -312,10 +312,6 @@ export default function ValidationRequirements({
               items: ["同一实施人每日拜访不超过8家药店"],
             },
             {
-              category: "拜访时长要求",
-              items: ["拜访有效时间不低于60分钟"],
-            },
-            {
               category: "拜访时间范围",
               items: ["必须在08:00-19:00范围内"],
             },
@@ -367,10 +363,6 @@ export default function ValidationRequirements({
               items: ["同一实施人每日拜访不超过5家医院（所有医疗类型合计）"],
             },
             {
-              category: "拜访时长要求",
-              items: ["拜访有效时间不低于100分钟"],
-            },
-            {
               category: "拜访时间范围",
               items: ["必须在07:00-19:00范围内"],
             },
@@ -410,10 +402,6 @@ export default function ValidationRequirements({
             {
               category: "频次限制",
               items: ["同一实施人每日拜访不超过4家医院"],
-            },
-            {
-              category: "拜访时长要求",
-              items: ["拜访有效时间不低于100分钟"],
             },
             {
               category: "拜访时间范围",
