@@ -243,7 +243,7 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
   药店拜访: {
     name: "药店拜访",
     description: "药店拜访任务验证",
-    requiredFields: ["实施人", "零售渠道", "拜访开始时间", "拜访时长"],
+    requiredFields: ["实施人", "零售渠道", "拜访开始时间"],
     sheetNames: ["药店拜访"],
     matchKeywords: ["药店"],
     fieldMappings: {
@@ -256,7 +256,6 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
       渠道地址: "channelAddress",
       拜访开始时间: "visitStartTime",
       "拜访开始\n时间": "visitStartTime",
-      拜访时长: "visitDuration",
       "拜访事项（1）": "visitItem1",
       "拜访事项\n（1）": "visitItem1",
       "信息反馈（1）": "feedback1",
@@ -313,12 +312,6 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
           addressField: "channelAddress", // 增加地址字段校验
         },
         message: "同一药店在周期内需由同一人拜访",
-      },
-      {
-        field: "visitDuration",
-        type: "duration",
-        params: { minMinutes: 60 },
-        message: "拜访有效时间不低于60分钟",
       },
       {
         field: "visitStartTime",
@@ -409,7 +402,6 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
       "医疗机构名称",
       "医疗类型",
       "拜访开始时间",
-      "拜访时长",
     ],
     sheetNames: ["医院拜访", "等级医院拜访", "基层医疗机构拜访", "民营医院拜访"],
     matchKeywords: ["医院", "医疗机构"],
@@ -423,7 +415,6 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
       渠道地址: "channelAddress",
       科室: "department",
       拜访开始时间: "visitStartTime",
-      拜访时长: "visitDuration",
       "拜访事项（1）": "visitItem1",
       "信息反馈（1）": "feedback1",
       "拜访事项（2）": "visitItem2",
@@ -504,12 +495,6 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
           addressField: "channelAddress",
         },
         message: "同一医院在周期内需由同一人拜访",
-      },
-      {
-        field: "visitDuration",
-        type: "duration",
-        params: { minMinutes: 100 },
-        message: "拜访有效时间不低于100分钟",
       },
       {
         field: "visitStartTime",
@@ -612,7 +597,6 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
       "医疗机构名称",
       "科室",
       "拜访开始时间",
-      "拜访时长",
     ],
     sheetNames: ["科室拜访"],
     matchKeywords: ["科室"],
@@ -625,7 +609,6 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
       渠道地址: "channelAddress",
       科室: "departmentName",
       拜访开始时间: "visitStartTime",
-      拜访时长: "visitDuration",
       "拜访事项（1）": "visitItem1",
       "信息反馈（1）": "feedback1",
       "拜访事项（2）": "visitItem2",
@@ -659,12 +642,6 @@ export const TASK_TEMPLATES: Record<string, TaskTemplate> = {
         type: "dateFormat",
         params: { allowTimeComponent: false },
         message: "拜访开始时间格式不正确，应为纯日期格式（如：2025-08-01）",
-      },
-      {
-        field: "visitDuration",
-        type: "duration",
-        params: { minMinutes: 100 },
-        message: "拜访有效时间不低于100分钟",
       },
       {
         field: "visitStartTime",

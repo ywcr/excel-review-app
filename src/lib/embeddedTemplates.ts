@@ -162,8 +162,7 @@ export const EMBEDDED_TEMPLATES = {
     "requiredFields": [
       "实施人",
       "零售渠道",
-      "拜访开始时间",
-      "拜访时长"
+      "拜访开始时间"
     ],
     "validationRules": []
   },
@@ -175,8 +174,7 @@ export const EMBEDDED_TEMPLATES = {
       "医生姓名",
       "医疗机构名称",
       "医疗类型",
-      "拜访开始时间",
-      "拜访时长"
+      "拜访开始时间"
     ],
     "validationRules": []
   },
@@ -188,8 +186,7 @@ export const EMBEDDED_TEMPLATES = {
       "医生姓名",
       "医疗机构名称",
       "医疗类型",
-      "拜访开始时间",
-      "拜访时长"
+      "拜访开始时间"
     ],
     "validationRules": []
   },
@@ -201,8 +198,7 @@ export const EMBEDDED_TEMPLATES = {
       "医生姓名",
       "医疗机构名称",
       "医疗类型",
-      "拜访开始时间",
-      "拜访时长"
+      "拜访开始时间"
     ],
     "validationRules": []
   },
@@ -214,8 +210,7 @@ export const EMBEDDED_TEMPLATES = {
       "医生姓名",
       "医疗机构名称",
       "科室",
-      "拜访开始时间",
-      "拜访时长"
+      "拜访开始时间"
     ],
     "validationRules": []
   },
