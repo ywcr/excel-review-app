@@ -1191,7 +1191,7 @@ async function validateCrossRows(
 
   // 筛选跨行验证规则
   const crossRowRules = (template.validationRules || []).filter((rule) =>
-    ["unique", "frequency", "dateInterval", "sameImplementer"].includes(
+    ["unique", "frequency", "dateInterval", "sameImplementer", "conditionalDateInterval"].includes(
       rule.type
     )
   );
@@ -1229,6 +1229,9 @@ async function validateCrossRows(
         break;
       case "sameImplementer":
         ruleErrors = validateSameImplementer(rule, processedRows, fieldMapping);
+        break;
+      case "conditionalDateInterval":
+        ruleErrors = validateConditionalDateInterval(rule, processedRows, fieldMapping);
         break;
     }
 
@@ -1699,6 +1702,159 @@ function validateDateInterval(rule, rows, fieldMapping) {
   }
 
   console.log(`\n✅ [DateInterval] 验证完成，发现${errors.length}个错误\n`);
+  return errors;
+}
+
+// 条件性日期间隔验证：根据条件字段值应用不同的日期间隔限制
+function validateConditionalDateInterval(rule, rows, fieldMapping) {
+  console.log("\n🔍 [ConditionalDateInterval] 开始验证规则:", {
+    field: rule.field,
+    params: rule.params,
+    message: rule.message,
+    totalRows: rows.length,
+  });
+
+  const errors = [];
+  const { params = {} } = rule;
+  const { groupBy, conditionField, conditions, defaultDays = 3 } = params;
+  const columnIndex = fieldMapping.get(rule.field);
+
+  console.log("📍 [ConditionalDateInterval] 参数检查:", {
+    groupBy,
+    conditionField,
+    conditions,
+    defaultDays,
+    columnIndex,
+    hasColumnIndex: columnIndex !== undefined,
+  });
+
+  if (columnIndex === undefined) {
+    console.warn("⚠️ [ConditionalDateInterval] 找不到列索引，跳过验证");
+    return errors;
+  }
+
+  // 按目标(groupBy，如医院名称)分组
+  const groups = new Map();
+
+  for (const { data, rowNumber } of rows) {
+    // 获取分组字段值（如医院名称）
+    let groupValue = data[groupBy];
+    if (!groupValue && groupBy === "hospitalName") {
+      groupValue = data["医疗机构名称"] || data["医疗机构\n名称"] || data["医院名称"];
+    }
+
+    // 获取条件字段值（如医疗类型）
+    let conditionValue = data[conditionField];
+    if (!conditionValue && conditionField === "medicalType") {
+      conditionValue = data["医疗类型"];
+    }
+
+    // 从rule.field读取日期值
+    let dateValue = data[rule.field];
+    if (!dateValue && rule.field === "visitStartTime") {
+      dateValue = data["拜访开始时间"] || data["拜访开始\n时间"];
+    }
+
+    console.log(`📝 [ConditionalDateInterval] 处理第${rowNumber}行:`, {
+      rowNumber,
+      groupValue,
+      conditionValue,
+      dateValue,
+      dateValueType: typeof dateValue,
+    });
+
+    if (!groupValue) {
+      console.log(`  ⊘ 跳过（缺少分组值）`);
+      continue;
+    }
+
+    if (!dateValue) {
+      console.log(`  ⊘ 跳过（缺少日期值）`);
+      continue;
+    }
+
+    const date = parseDate(dateValue);
+
+    if (!date) {
+      console.warn(`  ⚠️ 日期解析失败`);
+      continue;
+    }
+
+    // 使用医院名称作为唯一键
+    const uniqueKey = groupValue;
+
+    if (!groups.has(uniqueKey)) {
+      groups.set(uniqueKey, []);
+    }
+
+    groups.get(uniqueKey).push({
+      date,
+      rowNumber,
+      conditionValue: conditionValue || "",
+      target: groupValue,
+    });
+
+    console.log(`  ✓ 添加到分组: ${uniqueKey}, 条件: ${conditionValue}`);
+  }
+
+  console.log("\n📊 [ConditionalDateInterval] 分组统计:", {
+    totalGroups: groups.size,
+  });
+
+  // 检查每个分组内的日期间隔
+  console.log(`\n🔎 [ConditionalDateInterval] 开始检查日期间隔...`);
+
+  for (const [uniqueKey, visits] of groups) {
+    // 按日期排序
+    visits.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    console.log(`\n检查分组: ${uniqueKey} (${visits.length}次访问)`);
+
+    for (let i = 1; i < visits.length; i++) {
+      const current = visits[i];
+      const previous = visits[i - 1];
+
+      const daysDiff = Math.floor(
+        (current.date.getTime() - previous.date.getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
+
+      // 根据条件字段获取对应的间隔天数
+      const conditionConfig = conditions[current.conditionValue] || conditions[previous.conditionValue];
+      const requiredDays = conditionConfig ? conditionConfig.days : defaultDays;
+      const customMessage = conditionConfig ? conditionConfig.message : rule.message;
+
+      console.log(
+        `  比较: 第${previous.rowNumber}行 → 第${current.rowNumber}行`,
+        {
+          previousDate: previous.date.toISOString().split("T")[0],
+          currentDate: current.date.toISOString().split("T")[0],
+          daysDiff,
+          conditionValue: current.conditionValue,
+          requiredDays,
+          isViolation: daysDiff < requiredDays,
+        }
+      );
+
+      if (daysDiff < requiredDays) {
+        const error = {
+          row: current.rowNumber,
+          column: XLSX.utils.encode_col(columnIndex),
+          field: rule.field,
+          value: current.target,
+          message: `${customMessage}（与第${previous.rowNumber}行冲突，间隔${daysDiff}天，要求≥${requiredDays}天）`,
+          errorType: rule.type,
+        };
+
+        console.log(`  ❌ 发现违规！`, error);
+        errors.push(error);
+      } else {
+        console.log(`  ✓ 符合规则`);
+      }
+    }
+  }
+
+  console.log(`\n✅ [ConditionalDateInterval] 验证完成，发现${errors.length}个错误\n`);
   return errors;
 }
 
@@ -4553,7 +4709,7 @@ function validateAddressFormat(address, params) {
   const hasDistrict = districtKeywords.some((kw) => trimmedAddress.includes(kw));
 
   // 检查是否包含街道/路/号等关键词
-  const streetKeywords = ["路", "街", "道", "巷", "弄", "号", "栋", "楼", "室", "层", "单元", "大厦", "广场", "小区"];
+  const streetKeywords = ["路", "街", "道", "巷", "弄", "号", "栋", "楼", "室", "层", "单元", "大厦", "广场", "小区", "村", "镇", "乡"];
   const hasStreet = streetKeywords.some((kw) => trimmedAddress.includes(kw));
 
   // 必须同时包含省市级、区县级和街道级信息
