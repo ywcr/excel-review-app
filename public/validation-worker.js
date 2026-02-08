@@ -8,8 +8,18 @@
 
 // Worker Version: 1.0.6 - 表头选择优化（匹配+列数双重验证）
 const WORKER_VERSION = "1.0.6";
-console.log("🔧 Validation Worker Version:", WORKER_VERSION);
-console.log("📋 表头搜索范围: 前10行（完全匹配立即返回）");
+
+// ============================================================
+// 调试开关 - 生产环境设置为 false 以禁用调试日志
+// ============================================================
+const DEBUG_MODE = false;
+
+// 封装的日志函数，仅在调试模式下输出
+const debugLog = (...args) => { if (DEBUG_MODE) console.log(...args); };
+const debugWarn = (...args) => { if (DEBUG_MODE) console.warn(...args); };
+
+debugLog("🔧 Validation Worker Version:", WORKER_VERSION);
+debugLog("📋 表头搜索范围: 前10行（完全匹配立即返回）");
 
 importScripts("/vendor/xlsx.full.min.js");
 importScripts("/vendor/jszip.min.js");
@@ -17,9 +27,9 @@ importScripts("/vendor/jszip.min.js");
 // 📊 加载新的可疑度评分系统 （方案B）
 try {
   importScripts("/image-suspicion-scorer.js");
-  console.log("✅ 可疑度评分系统加载成功");
+  debugLog("✅ 可疑度评分系统加载成功");
 } catch (error) {
-  console.warn("⚠️ 可疑度评分系统加载失败，将使用旧系统", error);
+  debugWarn("⚠️ 可疑度评分系统加载失败，将使用旧系统", error);
 }
 
 // 尝试加载 blockhash-core.js，如果失败则跳过图片验证
@@ -37,7 +47,7 @@ try {
   }
   blockHashAvailable = true;
 } catch (error) {
-  console.warn("blockhash-core.js 加载失败，图片验证功能将被禁用:", error);
+  debugWarn("blockhash-core.js 加载失败，图片验证功能将被禁用:", error);
   // 提供一个空的 blockhash 函数作为后备
   self.blockhash = function () {
     return null;
@@ -160,13 +170,13 @@ const ImageDebugLogger = {
         console.error(consoleMsg, data);
         break;
       case this.LEVELS.WARN:
-        console.warn(consoleMsg, data);
+        debugWarn(consoleMsg, data);
         break;
       case this.LEVELS.DEBUG:
         console.debug(consoleMsg, data);
         break;
       default:
-        console.log(consoleMsg, data);
+        debugLog(consoleMsg, data);
     }
   },
 
@@ -538,7 +548,7 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
     let worksheet;
     try {
       // 调试：检查 workbook.Sheets 对象状态
-      console.log("[DEBUG] 尝试获取工作表:", {
+      debugLog("[DEBUG] 尝试获取工作表:", {
         targetSheetName: sheetName,
         availableSheetNames: workbook.SheetNames,
         hasSheets: !!workbook.Sheets,
@@ -584,13 +594,13 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
             worksheet = wb2.Sheets[sheetName] || null;
           }
           if (worksheet) {
-            console.log(
+            debugLog(
               "[DEBUG] 单表重读成功:",
               worksheet["!ref"] || "无范围信息"
             );
           }
         } catch (reReadErr) {
-          console.warn("[WARN] 单表重读失败:", reReadErr);
+          debugWarn("[WARN] 单表重读失败:", reReadErr);
         }
       }
 
@@ -599,7 +609,7 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
         const firstExistingSheetName = sheetKeys.find((n) => !!sheetsObj[n]);
         if (firstExistingSheetName) {
           worksheet = sheetsObj[firstExistingSheetName];
-          console.log(
+          debugLog(
             `工作表 "${sheetName}" 不存在，使用存在的工作表: "${firstExistingSheetName}"`
           );
         }
@@ -609,7 +619,7 @@ async function validateExcelStreaming(fileBuffer, taskName, selectedSheet) {
         throw new Error(`无法获取工作表: ${sheetName}`);
       }
 
-      console.log("工作表获取成功:", worksheet["!ref"] || "无范围信息");
+      debugLog("工作表获取成功:", worksheet["!ref"] || "无范围信息");
     } catch (error) {
       console.error("获取工作表失败:", error);
       throw new Error(`获取工作表失败: ${error.message}`);
@@ -837,7 +847,7 @@ function findHeaderRow(data, template) {
   const requiredFields = template.requiredFields || [];
   let bestMatch = { row: null, index: 0, matchedCount: 0, nonEmptyCount: 0 };
 
-  console.log("🔍 [findHeaderRow] 开始查找表头", {
+  debugLog("🔍 [findHeaderRow] 开始查找表头", {
     dataRows: data.length,
     requiredFields: requiredFields,
     searchRange: `前${Math.min(10, data.length)}行`,
@@ -860,7 +870,7 @@ function findHeaderRow(data, template) {
 
     // 如果非空列太少，跳过
     if (nonEmptyCount < 3) {
-      console.log(
+      debugLog(
         `🔍 [findHeaderRow] 第${i + 1}行: 跳过（非空列太少: ${nonEmptyCount}）`
       );
       continue;
@@ -896,7 +906,7 @@ function findHeaderRow(data, template) {
       }
     }
 
-    console.log(
+    debugLog(
       `🔍 [findHeaderRow] 第${i + 1}行: 匹配字段=${matchedCount}/${
         requiredFields.length
       }, 非空列=${nonEmptyCount}, 匹配: [${matchedFields.join(", ")}]`
@@ -912,7 +922,7 @@ function findHeaderRow(data, template) {
       matchedCount === requiredFields.length &&
       nonEmptyCount >= minNonEmptyCols
     ) {
-      console.log(
+      debugLog(
         `🔍 [findHeaderRow] ✓ 第${
           i + 1
         }行完全匹配且列数充足(${nonEmptyCount}>=${minNonEmptyCols})，选为表头`
@@ -933,7 +943,7 @@ function findHeaderRow(data, template) {
     }
   }
 
-  console.log("🔍 [findHeaderRow] 查找完成", {
+  debugLog("🔍 [findHeaderRow] 查找完成", {
     选中行: bestMatch.row ? `第${bestMatch.index + 1}行` : "无",
     匹配字段数: `${bestMatch.matchedCount}/${requiredFields.length}`,
     非空列数: bestMatch.nonEmptyCount,
@@ -1159,7 +1169,7 @@ async function validateCrossRows(
   headerRow,
   headerRowIndex
 ) {
-  console.log("\n🔄 [CrossRowValidation] 开始跨行验证", {
+  debugLog("\n🔄 [CrossRowValidation] 开始跨行验证", {
     templateName: template.name,
     totalDataRows: dataRows.length,
     headerRowIndex,
@@ -1169,7 +1179,7 @@ async function validateCrossRows(
   const errors = [];
   const fieldMapping = createFieldMapping(headerRow, template);
 
-  console.log("📍 [CrossRowValidation] 字段映射:", {
+  debugLog("📍 [CrossRowValidation] 字段映射:", {
     fieldMappingSize: fieldMapping.size,
     mappings: Array.from(fieldMapping.entries()),
   });
@@ -1183,22 +1193,37 @@ async function validateCrossRows(
     }))
     .filter((item) => !Object.values(item.data).every((v) => !v));
 
-  console.log("📊 [CrossRowValidation] 处理后的行数:", {
+  debugLog("📊 [CrossRowValidation] 处理后的行数:", {
     originalRows: dataRows.length,
     processedRows: processedRows.length,
     filteredOut: dataRows.length - processedRows.length,
   });
 
+  // ============================================================
+  // 统一规则注册表 - 新增跨行验证规则时只需在此处添加
+  // ============================================================
+  const CROSS_ROW_RULE_HANDLERS = {
+    unique: validateUnique,
+    frequency: validateFrequency,
+    dateInterval: validateDateInterval,
+    sameImplementer: validateSameImplementer,
+    conditionalDateInterval: validateConditionalDateInterval,
+    sixMonthsInterval: validateSixMonthsInterval,
+    crossTaskValidation: validateCrossTaskValidation,
+  };
+
+  // 自动获取所有已注册的跨行规则类型
+  const CROSS_ROW_RULE_TYPES = Object.keys(CROSS_ROW_RULE_HANDLERS);
+
   // 筛选跨行验证规则
   const crossRowRules = (template.validationRules || []).filter((rule) =>
-    ["unique", "frequency", "dateInterval", "sameImplementer", "conditionalDateInterval"].includes(
-      rule.type
-    )
+    CROSS_ROW_RULE_TYPES.includes(rule.type)
   );
 
-  console.log("📋 [CrossRowValidation] 跨行验证规则:", {
+  debugLog("📋 [CrossRowValidation] 跨行验证规则:", {
     totalRules: template.validationRules?.length || 0,
     crossRowRulesCount: crossRowRules.length,
+    registeredRuleTypes: CROSS_ROW_RULE_TYPES,
     rules: crossRowRules.map((r) => ({
       field: r.field,
       type: r.type,
@@ -1210,36 +1235,27 @@ async function validateCrossRows(
   for (const rule of crossRowRules) {
     if (isValidationCancelled) break;
 
-    console.log(`\n📌 [CrossRowValidation] 处理规则:`, {
+    debugLog(`\n📌 [CrossRowValidation] 处理规则:`, {
       field: rule.field,
       type: rule.type,
       params: rule.params,
     });
 
     let ruleErrors = [];
-    switch (rule.type) {
-      case "unique":
-        ruleErrors = validateUnique(rule, processedRows, fieldMapping);
-        break;
-      case "frequency":
-        ruleErrors = validateFrequency(rule, processedRows, fieldMapping);
-        break;
-      case "dateInterval":
-        ruleErrors = validateDateInterval(rule, processedRows, fieldMapping);
-        break;
-      case "sameImplementer":
-        ruleErrors = validateSameImplementer(rule, processedRows, fieldMapping);
-        break;
-      case "conditionalDateInterval":
-        ruleErrors = validateConditionalDateInterval(rule, processedRows, fieldMapping);
-        break;
+
+    // 使用注册表获取处理函数
+    const handler = CROSS_ROW_RULE_HANDLERS[rule.type];
+    if (handler) {
+      ruleErrors = handler(rule, processedRows, fieldMapping);
+    } else {
+      debugWarn(`⚠️ [CrossRowValidation] 未找到规则处理器: ${rule.type}`);
     }
 
-    console.log(`  ✓ 规则执行完成，发现${ruleErrors.length}个错误`);
+    debugLog(`  ✓ 规则执行完成，发现${ruleErrors.length}个错误`);
     errors.push(...ruleErrors);
   }
 
-  console.log(
+  debugLog(
     `\n✅ [CrossRowValidation] 跨行验证完成，共发现${errors.length}个错误\n`
   );
   return errors;
@@ -1556,7 +1572,7 @@ function validateFrequency(rule, rows, fieldMapping) {
 
 // 日期间隔验证：按实施人+目标分组，检查日期间隔
 function validateDateInterval(rule, rows, fieldMapping) {
-  console.log("\n🔍 [DateInterval] 开始验证规则:", {
+  debugLog("\n🔍 [DateInterval] 开始验证规则:", {
     field: rule.field,
     params: rule.params,
     message: rule.message,
@@ -1568,7 +1584,7 @@ function validateDateInterval(rule, rows, fieldMapping) {
   const { days, groupBy } = params;
   const columnIndex = fieldMapping.get(rule.field);
 
-  console.log("📍 [DateInterval] 参数检查:", {
+  debugLog("📍 [DateInterval] 参数检查:", {
     days,
     groupBy,
     columnIndex,
@@ -1576,7 +1592,7 @@ function validateDateInterval(rule, rows, fieldMapping) {
   });
 
   if (columnIndex === undefined) {
-    console.warn("⚠️ [DateInterval] 找不到列索引，跳过验证");
+    debugWarn("⚠️ [DateInterval] 找不到列索引，跳过验证");
     return errors;
   }
 
@@ -1590,7 +1606,7 @@ function validateDateInterval(rule, rows, fieldMapping) {
     // 从rule.field读取日期值
     const dateValue = data[rule.field];
 
-    console.log(`📝 [DateInterval] 处理第${rowNumber}行:`, {
+    debugLog(`📝 [DateInterval] 处理第${rowNumber}行:`, {
       rowNumber,
       groupValue,
       implementer,
@@ -1601,25 +1617,25 @@ function validateDateInterval(rule, rows, fieldMapping) {
     });
 
     if (!groupValue || !implementer) {
-      console.log(`  ⊘ 跳过（缺少分组值或实施人）`);
+      debugLog(`  ⊘ 跳过（缺少分组值或实施人）`);
       continue;
     }
 
     if (!dateValue) {
-      console.log(`  ⊘ 跳过（缺少日期值）`);
+      debugLog(`  ⊘ 跳过（缺少日期值）`);
       continue;
     }
 
     const date = parseDate(dateValue);
 
-    console.log(`  ✓ 解析结果:`, {
+    debugLog(`  ✓ 解析结果:`, {
       date: date ? date.toISOString().split("T")[0] : null,
       groupValue,
       implementer,
     });
 
     if (!date) {
-      console.warn(`  ⚠️ 日期解析失败`);
+      debugWarn(`  ⚠️ 日期解析失败`);
       continue;
     }
 
@@ -1637,10 +1653,10 @@ function validateDateInterval(rule, rows, fieldMapping) {
       target: groupValue,
     });
 
-    console.log(`  ✓ 添加到分组: ${uniqueKey}`);
+    debugLog(`  ✓ 添加到分组: ${uniqueKey}`);
   }
 
-  console.log("\n📊 [DateInterval] 分组统计:", {
+  debugLog("\n📊 [DateInterval] 分组统计:", {
     totalGroups: groups.size,
     groups: Array.from(groups.entries()).map(([key, visits]) => ({
       key,
@@ -1650,13 +1666,13 @@ function validateDateInterval(rule, rows, fieldMapping) {
   });
 
   // 检查每个分组内的日期间隔
-  console.log(`\n🔎 [DateInterval] 开始检查日期间隔（要求≥${days}天）...`);
+  debugLog(`\n🔎 [DateInterval] 开始检查日期间隔（要求≥${days}天）...`);
 
   for (const [uniqueKey, visits] of groups) {
     // 按日期排序
     visits.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    console.log(`\n检查分组: ${uniqueKey} (${visits.length}次访问)`);
+    debugLog(`\n检查分组: ${uniqueKey} (${visits.length}次访问)`);
 
     for (let i = 1; i < visits.length; i++) {
       const current = visits[i];
@@ -1667,7 +1683,7 @@ function validateDateInterval(rule, rows, fieldMapping) {
           (1000 * 60 * 60 * 24)
       );
 
-      console.log(
+      debugLog(
         `  比较: 第${previous.rowNumber}行 → 第${current.rowNumber}行`,
         {
           previousDate: previous.date.toISOString().split("T")[0],
@@ -1693,21 +1709,21 @@ function validateDateInterval(rule, rows, fieldMapping) {
           errorType: rule.type,
         };
 
-        console.log(`  ❌ 发现违规！`, error);
+        debugLog(`  ❌ 发现违规！`, error);
         errors.push(error);
       } else {
-        console.log(`  ✓ 符合规则`);
+        debugLog(`  ✓ 符合规则`);
       }
     }
   }
 
-  console.log(`\n✅ [DateInterval] 验证完成，发现${errors.length}个错误\n`);
+  debugLog(`\n✅ [DateInterval] 验证完成，发现${errors.length}个错误\n`);
   return errors;
 }
 
 // 条件性日期间隔验证：根据条件字段值应用不同的日期间隔限制
 function validateConditionalDateInterval(rule, rows, fieldMapping) {
-  console.log("\n🔍 [ConditionalDateInterval] 开始验证规则:", {
+  debugLog("\n🔍 [ConditionalDateInterval] 开始验证规则:", {
     field: rule.field,
     params: rule.params,
     message: rule.message,
@@ -1719,7 +1735,7 @@ function validateConditionalDateInterval(rule, rows, fieldMapping) {
   const { groupBy, conditionField, conditions, defaultDays = 3 } = params;
   const columnIndex = fieldMapping.get(rule.field);
 
-  console.log("📍 [ConditionalDateInterval] 参数检查:", {
+  debugLog("📍 [ConditionalDateInterval] 参数检查:", {
     groupBy,
     conditionField,
     conditions,
@@ -1729,7 +1745,7 @@ function validateConditionalDateInterval(rule, rows, fieldMapping) {
   });
 
   if (columnIndex === undefined) {
-    console.warn("⚠️ [ConditionalDateInterval] 找不到列索引，跳过验证");
+    debugWarn("⚠️ [ConditionalDateInterval] 找不到列索引，跳过验证");
     return errors;
   }
 
@@ -1755,7 +1771,7 @@ function validateConditionalDateInterval(rule, rows, fieldMapping) {
       dateValue = data["拜访开始时间"] || data["拜访开始\n时间"];
     }
 
-    console.log(`📝 [ConditionalDateInterval] 处理第${rowNumber}行:`, {
+    debugLog(`📝 [ConditionalDateInterval] 处理第${rowNumber}行:`, {
       rowNumber,
       groupValue,
       conditionValue,
@@ -1764,19 +1780,19 @@ function validateConditionalDateInterval(rule, rows, fieldMapping) {
     });
 
     if (!groupValue) {
-      console.log(`  ⊘ 跳过（缺少分组值）`);
+      debugLog(`  ⊘ 跳过（缺少分组值）`);
       continue;
     }
 
     if (!dateValue) {
-      console.log(`  ⊘ 跳过（缺少日期值）`);
+      debugLog(`  ⊘ 跳过（缺少日期值）`);
       continue;
     }
 
     const date = parseDate(dateValue);
 
     if (!date) {
-      console.warn(`  ⚠️ 日期解析失败`);
+      debugWarn(`  ⚠️ 日期解析失败`);
       continue;
     }
 
@@ -1794,21 +1810,21 @@ function validateConditionalDateInterval(rule, rows, fieldMapping) {
       target: groupValue,
     });
 
-    console.log(`  ✓ 添加到分组: ${uniqueKey}, 条件: ${conditionValue}`);
+    debugLog(`  ✓ 添加到分组: ${uniqueKey}, 条件: ${conditionValue}`);
   }
 
-  console.log("\n📊 [ConditionalDateInterval] 分组统计:", {
+  debugLog("\n📊 [ConditionalDateInterval] 分组统计:", {
     totalGroups: groups.size,
   });
 
   // 检查每个分组内的日期间隔
-  console.log(`\n🔎 [ConditionalDateInterval] 开始检查日期间隔...`);
+  debugLog(`\n🔎 [ConditionalDateInterval] 开始检查日期间隔...`);
 
   for (const [uniqueKey, visits] of groups) {
     // 按日期排序
     visits.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    console.log(`\n检查分组: ${uniqueKey} (${visits.length}次访问)`);
+    debugLog(`\n检查分组: ${uniqueKey} (${visits.length}次访问)`);
 
     for (let i = 1; i < visits.length; i++) {
       const current = visits[i];
@@ -1824,7 +1840,7 @@ function validateConditionalDateInterval(rule, rows, fieldMapping) {
       const requiredDays = conditionConfig ? conditionConfig.days : defaultDays;
       const customMessage = conditionConfig ? conditionConfig.message : rule.message;
 
-      console.log(
+      debugLog(
         `  比较: 第${previous.rowNumber}行 → 第${current.rowNumber}行`,
         {
           previousDate: previous.date.toISOString().split("T")[0],
@@ -1846,21 +1862,198 @@ function validateConditionalDateInterval(rule, rows, fieldMapping) {
           errorType: rule.type,
         };
 
-        console.log(`  ❌ 发现违规！`, error);
+        debugLog(`  ❌ 发现违规！`, error);
         errors.push(error);
       } else {
-        console.log(`  ✓ 符合规则`);
+        debugLog(`  ✓ 符合规则`);
       }
     }
   }
 
-  console.log(`\n✅ [ConditionalDateInterval] 验证完成，发现${errors.length}个错误\n`);
+  debugLog(`\n✅ [ConditionalDateInterval] 验证完成，发现${errors.length}个错误\n`);
+  return errors;
+}
+
+// 半年间隔验证：同一目标半年内不能重复
+function validateSixMonthsInterval(rule, rows, fieldMapping) {
+  debugLog("\n🔍 [SixMonthsInterval] 开始验证规则:", {
+    field: rule.field,
+    params: rule.params,
+    message: rule.message,
+    totalRows: rows.length,
+  });
+
+  const errors = [];
+  const { params = {} } = rule;
+  const { groupBy } = params;
+  const columnIndex = fieldMapping.get(rule.field);
+
+  if (columnIndex === undefined) {
+    debugWarn("⚠️ [SixMonthsInterval] 找不到列索引，跳过验证");
+    return errors;
+  }
+
+  // 按目标分组
+  const groups = new Map();
+
+  for (const { data, rowNumber } of rows) {
+    // 获取分组字段值
+    let groupValue = data[groupBy];
+    if (!groupValue && groupBy === "hospitalName") {
+      groupValue = data["医疗机构名称"] || data["医疗机构\n名称"] || data["医院名称"];
+    }
+
+    // 获取日期值
+    let dateValue = data[rule.field] || data["收集时间"] || data["拜访开始时间"];
+
+    if (!groupValue || !dateValue) {
+      continue;
+    }
+
+    const date = parseDate(dateValue);
+    if (!date) {
+      continue;
+    }
+
+    if (!groups.has(groupValue)) {
+      groups.set(groupValue, []);
+    }
+
+    groups.get(groupValue).push({
+      date,
+      rowNumber,
+      target: groupValue,
+    });
+  }
+
+  // 检查每个分组内的日期间隔（要求间隔180天以上）
+  const SIX_MONTHS_DAYS = 180;
+
+  for (const [groupValue, visits] of groups) {
+    visits.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    for (let i = 1; i < visits.length; i++) {
+      const current = visits[i];
+      const previous = visits[i - 1];
+
+      const daysDiff = Math.floor(
+        (current.date.getTime() - previous.date.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      if (daysDiff < SIX_MONTHS_DAYS) {
+        errors.push({
+          row: current.rowNumber,
+          column: XLSX.utils.encode_col(columnIndex),
+          field: rule.field,
+          value: groupValue,
+          message: `${rule.message}（与第${previous.rowNumber}行冲突，间隔${daysDiff}天，要求≥${SIX_MONTHS_DAYS}天）`,
+          errorType: rule.type,
+        });
+      }
+    }
+  }
+
+  debugLog(`\n✅ [SixMonthsInterval] 验证完成，发现${errors.length}个错误\n`);
+  return errors;
+}
+
+// 跨任务验证：同一目标不能同时出现在互斥的任务中
+function validateCrossTaskValidation(rule, rows, fieldMapping) {
+  debugLog("\n🔍 [CrossTaskValidation] 开始验证规则:", {
+    field: rule.field,
+    params: rule.params,
+    message: rule.message,
+    totalRows: rows.length,
+  });
+
+  const errors = [];
+  const { params = {} } = rule;
+  const { scope, excludeTasks, groupBy } = params;
+  const columnIndex = fieldMapping.get(rule.field);
+
+  if (columnIndex === undefined) {
+    debugWarn("⚠️ [CrossTaskValidation] 找不到列索引，跳过验证");
+    return errors;
+  }
+
+  // 按目标和任务分组
+  const targetTaskMap = new Map(); // target -> Set of task titles
+
+  for (const { data, rowNumber } of rows) {
+    // 获取分组字段值（如医院名称）
+    let groupValue = data[groupBy];
+    if (!groupValue && groupBy === "hospitalName") {
+      groupValue = data["医疗机构名称"] || data["医疗机构\n名称"] || data["医院名称"];
+    }
+
+    // 获取任务标题
+    const taskTitle = data["任务标题"] || data["taskTitle"] || "";
+
+    // 获取日期用于scope判断
+    let dateValue = data["拜访开始时间"] || data["拜访开始\n时间"] || data["visitStartTime"];
+
+    if (!groupValue || !taskTitle) {
+      continue;
+    }
+
+    // 解析日期获取月份（用于month scope）
+    let monthKey = "";
+    if (scope === "month" && dateValue) {
+      const date = parseDate(dateValue);
+      if (date) {
+        monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      }
+    }
+
+    const uniqueKey = scope === "month" ? `${groupValue}|${monthKey}` : groupValue;
+
+    if (!targetTaskMap.has(uniqueKey)) {
+      targetTaskMap.set(uniqueKey, { tasks: new Set(), rows: [] });
+    }
+
+    const entry = targetTaskMap.get(uniqueKey);
+    entry.tasks.add(taskTitle);
+    entry.rows.push({ rowNumber, taskTitle, target: groupValue });
+  }
+
+  // 检查是否有目标同时出现在互斥任务中
+  for (const [uniqueKey, { tasks, rows: targetRows }] of targetTaskMap) {
+    // 检查当前任务是否与排除列表中的任务同时出现
+    const currentTasks = Array.from(tasks);
+
+    // 找出是否有当前任务和排除任务同时存在
+    const hasExcludedTask = currentTasks.some(task =>
+      excludeTasks && excludeTasks.some(excluded => task.includes(excluded))
+    );
+    const hasCurrentTask = currentTasks.some(task =>
+      !excludeTasks || !excludeTasks.some(excluded => task.includes(excluded))
+    );
+
+    if (hasExcludedTask && hasCurrentTask && currentTasks.length > 1) {
+      // 找出违规的行
+      for (const row of targetRows) {
+        const isExcludedTask = excludeTasks && excludeTasks.some(excluded => row.taskTitle.includes(excluded));
+        if (!isExcludedTask) {
+          errors.push({
+            row: row.rowNumber,
+            column: XLSX.utils.encode_col(columnIndex),
+            field: rule.field,
+            value: row.target,
+            message: `${rule.message}（${row.target} 同时出现在多个互斥任务中）`,
+            errorType: rule.type,
+          });
+        }
+      }
+    }
+  }
+
+  debugLog(`\n✅ [CrossTaskValidation] 验证完成，发现${errors.length}个错误\n`);
   return errors;
 }
 
 // 同一目标需由同一人拜访验证
 function validateSameImplementer(rule, rows, fieldMapping) {
-  console.log("\n🔍 [SameImplementer] 开始验证规则:", {
+  debugLog("\n🔍 [SameImplementer] 开始验证规则:", {
     field: rule.field,
     params: rule.params,
     message: rule.message,
@@ -1873,7 +2066,7 @@ function validateSameImplementer(rule, rows, fieldMapping) {
   const columnIndex = fieldMapping.get(rule.field);
 
   if (columnIndex === undefined) {
-    console.warn("⚠️ [SameImplementer] 找不到目标列索引，跳过验证");
+    debugWarn("⚠️ [SameImplementer] 找不到目标列索引，跳过验证");
     return errors;
   }
 
@@ -1884,7 +2077,7 @@ function validateSameImplementer(rule, rows, fieldMapping) {
     fieldMapping.get("implementer");
 
   if (implementerIndex === undefined) {
-    console.warn("⚠️ [SameImplementer] 找不到实施人列索引，跳过验证");
+    debugWarn("⚠️ [SameImplementer] 找不到实施人列索引，跳过验证");
     return errors;
   }
 
@@ -1912,7 +2105,7 @@ function validateSameImplementer(rule, rows, fieldMapping) {
     targetGroups.get(targetKey).rows.push({ rowNumber, implementer });
   }
 
-  console.log("📊 [SameImplementer] 分组统计:", {
+  debugLog("📊 [SameImplementer] 分组统计:", {
     totalGroups: targetGroups.size,
     groups: Array.from(targetGroups.entries())
       .slice(0, 10)
@@ -1945,13 +2138,13 @@ function validateSameImplementer(rule, rows, fieldMapping) {
           errorType: rule.type,
         };
 
-        console.log(`  ❌ 发现违规！`, error);
+        debugLog(`  ❌ 发现违规！`, error);
         errors.push(error);
       }
     }
   }
 
-  console.log(`\n✅ [SameImplementer] 验证完成，发现${errors.length}个错误\n`);
+  debugLog(`\n✅ [SameImplementer] 验证完成，发现${errors.length}个错误\n`);
   return errors;
 }
 
@@ -2009,7 +2202,7 @@ function parseDate(value) {
       const month = parseInt(chineseDateMatch[2], 10);
       const day = parseInt(chineseDateMatch[3], 10);
       const date = new Date(year, month - 1, day); // month is 0-indexed
-      console.log(
+      debugLog(
         `  ✓ 中文日期解析成功: ${str} -> ${date.toISOString().split("T")[0]}`
       );
       return date;
@@ -2113,7 +2306,17 @@ function validateSingleRow(row, fieldMapping, template, rowNumber) {
   // 遍历所有验证规则
   for (const rule of template.validationRules || []) {
     // 跳过跨行验证规则（这些在 validateCrossRows 中处理）
-    if (["unique", "frequency", "dateInterval"].includes(rule.type)) {
+    // 注意：此列表需要与 CROSS_ROW_RULE_HANDLERS 注册表保持同步
+    const CROSS_ROW_RULE_TYPES = [
+      "unique",
+      "frequency",
+      "dateInterval",
+      "sameImplementer",
+      "conditionalDateInterval",
+      "sixMonthsInterval",
+      "crossTaskValidation"
+    ];
+    if (CROSS_ROW_RULE_TYPES.includes(rule.type)) {
       continue;
     }
 
@@ -2404,7 +2607,7 @@ async function validateExcel(data) {
         );
         result.imageValidation = imageValidationResult;
       } catch (imageError) {
-        console.warn("图片验证失败:", imageError);
+        debugWarn("图片验证失败:", imageError);
         result.imageValidation = {
           totalImages: 0,
           blurryImages: 0,
@@ -2554,7 +2757,7 @@ async function validateImagesInternal(
           }
         }
       } catch (e) {
-        console.warn("应用图片列过滤失败:", e);
+        debugWarn("应用图片列过滤失败:", e);
       }
     })();
 
@@ -3033,7 +3236,7 @@ async function validateImagesInternal(
                 result.webReasons = webEval.reasons;
               }
             } catch (scoringError) {
-              console.warn(`评分系统失败: ${image.name}`, scoringError);
+              debugWarn(`评分系统失败: ${image.name}`, scoringError);
             }
 
             // 边框检测
@@ -3056,23 +3259,23 @@ async function validateImagesInternal(
                 }
               }
             } catch (borderError) {
-              console.warn(`边框检测失败: ${image.name}`, borderError);
+              debugWarn(`边框检测失败: ${image.name}`, borderError);
             }
 
             // 水印检测（仅当启用时）
-            console.log(
+            debugLog(
               "[调试] 水印检测开关状态:",
               enableWatermarkDetection,
               "| 图片:",
               image.name
             );
             if (enableWatermarkDetection) {
-              console.log("[调试] 开始执行水印检测 -", image.name);
+              debugLog("[调试] 开始执行水印检测 -", image.name);
               try {
                 const watermarkInfo = await detectWatermarkTwoBranch(
                   image.data
                 );
-                console.log(`[水印检测] ${image.name} 结果:`, {
+                debugLog(`[水印检测] ${image.name} 结果:`, {
                   confidence: watermarkInfo.watermarkConfidence,
                   level: watermarkInfo.watermarkLevel,
                   hasWatermark: watermarkInfo.hasWatermark,
@@ -3098,7 +3301,7 @@ async function validateImagesInternal(
                   }
                 }
               } catch (watermarkError) {
-                console.warn(`水印检测失败: ${image.name}`, watermarkError);
+                debugWarn(`水印检测失败: ${image.name}`, watermarkError);
               }
             }
 
@@ -3230,7 +3433,7 @@ async function validateImagesInternal(
         }
       }
     } catch (e) {
-      console.warn("为重复图片生成缩略图失败:", e);
+      debugWarn("为重复图片生成缩略图失败:", e);
     }
 
     // 调试：输出重复检测结果
@@ -3327,7 +3530,7 @@ async function validateImages(data) {
     !self.blockhash ||
     typeof self.blockhash.bmvbhash !== "function"
   ) {
-    console.warn("图片验证跳过：blockhash 不可用");
+    debugWarn("图片验证跳过：blockhash 不可用");
     sendResult({
       images: [],
       duplicates: [],
@@ -3425,7 +3628,7 @@ async function calculateImageSharpness(imageData) {
 
     return sharpnessScore;
   } catch (error) {
-    console.warn("清晰度计算失败:", error);
+    debugWarn("清晰度计算失败:", error);
     return 50; // 默认中等清晰度
   }
 }
@@ -3466,7 +3669,7 @@ async function calculateImageHash(imageData) {
 
     return { hash, width, height };
   } catch (error) {
-    console.warn("感知哈希计算失败:", error);
+    debugWarn("感知哈希计算失败:", error);
     return { hash: "", width: 0, height: 0 }; // 返回空哈希，避免误判
   }
 }
@@ -3580,7 +3783,7 @@ async function detectSolidBorder(imageData) {
       borderWidth,
     };
   } catch (error) {
-    console.warn("边框检测失败:", error);
+    debugWarn("边框检测失败:", error);
     return { hasBorder: false, borderSides: [], borderWidth: {} };
   }
 }
@@ -3838,7 +4041,7 @@ async function detectWatermark(imageData) {
       watermarkConfidence,
     };
   } catch (error) {
-    console.warn("水印检测失败:", error);
+    debugWarn("水印检测失败:", error);
     return {
       hasWatermark: false,
       watermarkRegions: [],
@@ -4118,7 +4321,7 @@ async function createThumbnail(
     canvas.height = 0;
     return new Uint8Array(buf);
   } catch (err) {
-    console.warn("缩略图生成失败:", err);
+    debugWarn("缩略图生成失败:", err);
     return null;
   }
 }
@@ -4643,7 +4846,7 @@ function validateField(value, rule, row, column, rowData) {
       if (value && typeof value === "string") {
         const addressError = validateAddressFormat(value, rule.params);
         if (addressError) {
-          console.log(
+          debugLog(
             `❌ [地址格式] 行${row} 字段"${rule.field}"地址不完整: ${value}`
           );
           return {
@@ -4668,7 +4871,7 @@ function validateField(value, rule, row, column, rowData) {
             rule.params.threshold || 0.8
           );
           if (!similarityResult.isValid) {
-            console.log(
+            debugLog(
               `❌ [内容相似度] 行${row} 字段"${rule.field}"与模板差异过大: ${similarityResult.maxSimilarity.toFixed(2)}`
             );
             return {
@@ -4943,11 +5146,11 @@ async function detectDuplicates(results, imageDataMap) {
   const skippedCount = results.length - validResults.length;
 
   if (skippedCount > 0) {
-    console.warn(`⚠️ ${skippedCount} 张图片的视觉哈希计算失败，跳过重复检测`);
+    debugWarn(`⚠️ ${skippedCount} 张图片的视觉哈希计算失败，跳过重复检测`);
   }
 
   if (validResults.length === 0) {
-    console.warn("⚠️ 没有图片成功计算视觉哈希，无法进行重复检测");
+    debugWarn("⚠️ 没有图片成功计算视觉哈希，无法进行重复检测");
     return;
   }
 
@@ -4970,7 +5173,7 @@ async function detectDuplicates(results, imageDataMap) {
             try {
               mad = await averageAbsDiffFromImageData(dataA, dataB);
             } catch (e) {
-              console.warn(`[MAD] 计算失败:`, e);
+              debugWarn(`[MAD] 计算失败:`, e);
               mad = Infinity;
             }
           }
@@ -4986,7 +5189,7 @@ async function detectDuplicates(results, imageDataMap) {
             try {
               ssim = await computeSSIM(dataA, dataB, 64);
             } catch (e) {
-              console.warn("SSIM 计算失败:", e);
+              debugWarn("SSIM 计算失败:", e);
             }
           }
 
@@ -5238,7 +5441,7 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
           }
         }
       } catch (error) {
-        console.warn("Failed to get sheet file name:", error);
+        debugWarn("Failed to get sheet file name:", error);
       }
 
       return null;
@@ -5278,7 +5481,7 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
           (file) => file === targetSheetFile
         );
       } else {
-        console.warn(
+        debugWarn(
           `⚠️ 无法找到工作表 "${selectedSheet}" 对应的文件，已跳过其他工作表的图片解析`
         );
         // 严格模式：当指定了工作表但无法映射到具体文件时，不解析其它工作表
@@ -5427,7 +5630,7 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
             const basename = target.replace(/^.*\//, "");
 
             embedRelMap.set(id, basename);
-            console.log(
+            debugLog(
               `[Drawing Rels] rId: ${id} -> basename: ${basename} (from target: ${target})`
             );
           }
@@ -5461,7 +5664,7 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
         // Skip absolute anchors (no estimation allowed)
         const tagNameLower = (anchor.tagName || "").toLowerCase();
         if (tagNameLower.includes("absoluteanchor")) {
-          console.warn("检测到 absoluteAnchor，无法精确定位到单元格，跳过");
+          debugWarn("检测到 absoluteAnchor，无法精确定位到单元格，跳过");
           continue;
         }
 
@@ -5523,10 +5726,10 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
         const list = imagePositions.get(mediaKeyFromRel) || [];
         list.push({ position, row: excelRow, column: excelColLetter });
         imagePositions.set(mediaKeyFromRel, list);
-        console.log(
+        debugLog(
           `[Image Position] Set mapping: ${mediaKeyFromRel} -> ${position} (${excelColLetter}${excelRow})`
         );
-        console.log(
+        debugLog(
           `[Image Position] Current mappings for ${mediaKeyFromRel}:`,
           list
         );
@@ -5535,7 +5738,7 @@ async function extractImagePositions(zipContent, selectedSheet = null) {
 
     return imagePositions;
   } catch (error) {
-    console.warn("无法提取图片位置信息:", error);
+    debugWarn("无法提取图片位置信息:", error);
     return new Map();
   }
 }
@@ -5706,11 +5909,11 @@ async function extractFromCellImagesWorker(
 
         // 检查是否有重复图片
         if (positionInfo && positionInfo.isDuplicate) {
-          console.warn(`🚨 Worker检测到重复图片: ${dispimgId}`);
-          console.warn(`   主位置: ${positionInfo.position}`);
+          debugWarn(`🚨 Worker检测到重复图片: ${dispimgId}`);
+          debugWarn(`   主位置: ${positionInfo.position}`);
           if (positionInfo.duplicates) {
             positionInfo.duplicates.forEach((dup, index) => {
-              console.warn(`   重复位置 ${index + 1}: ${dup.position}`);
+              debugWarn(`   重复位置 ${index + 1}: ${dup.position}`);
             });
           }
 
@@ -5759,7 +5962,7 @@ async function extractFromCellImagesWorker(
 
     return imagePositions;
   } catch (error) {
-    console.warn("Worker 无法提取 WPS 图片位置信息:", error);
+    debugWarn("Worker 无法提取 WPS 图片位置信息:", error);
     return new Map();
   }
 }
@@ -5833,7 +6036,7 @@ async function analyzeTableStructureWorker(
 
     return structurePatterns["药店拜访"];
   } catch (error) {
-    console.warn("Worker 表格结构分析失败，使用默认结构:", error);
+    debugWarn("Worker 表格结构分析失败，使用默认结构:", error);
     return {
       visitType: "药店拜访",
       imageColumns: ["M", "N"],
@@ -5902,7 +6105,7 @@ async function getPositionFromDISPIMGWorker(
               file.endsWith(targetSheetFile)
             );
           } else {
-            console.warn(
+            debugWarn(
               `⚠️ Worker无法找到工作表 "${selectedSheet}" 对应的文件`
             );
             // 当明确指定了工作表但无法映射时，避免跨表扫描，直接放弃定位
@@ -5910,7 +6113,7 @@ async function getPositionFromDISPIMGWorker(
           }
         }
       } catch (error) {
-        console.warn("Worker获取工作表文件名失败:", error);
+        debugWarn("Worker获取工作表文件名失败:", error);
       }
     }
 
@@ -5965,11 +6168,11 @@ async function getPositionFromDISPIMGWorker(
 
     // 检测重复图片
     if (allPositions.length > 1) {
-      console.warn(
+      debugWarn(
         `⚠️ Worker检测到重复图片ID: ${dispimgId}，出现在 ${allPositions.length} 个位置:`
       );
       allPositions.forEach((pos, index) => {
-        console.warn(`   ${index + 1}. ${pos.position}`);
+        debugWarn(`   ${index + 1}. ${pos.position}`);
       });
 
       // 返回第一个位置，并标记为重复
@@ -5982,7 +6185,7 @@ async function getPositionFromDISPIMGWorker(
 
     return allPositions[0];
   } catch (error) {
-    console.warn("Worker从DISPIMG公式获取位置失败:", error);
+    debugWarn("Worker从DISPIMG公式获取位置失败:", error);
     return null;
   }
 }
@@ -6119,13 +6322,13 @@ async function detectWatermarkAdvanced(imageData) {
         analysisDetails: {},
       };
     }
-    console.log("[水印检测] 开始高级检测流程...");
+    debugLog("[水印检测] 开始高级检测流程...");
     const startTime = performance.now();
 
     const blob = new Blob([imageData]);
     const bitmap = await createImageBitmap(blob);
 
-    console.log(`[水印检测] 原始图片尺寸: ${bitmap.width}x${bitmap.height}px`);
+    debugLog(`[水印检测] 原始图片尺寸: ${bitmap.width}x${bitmap.height}px`);
 
     // 性能优化：降采样到合理尺寸（但保持足够细节用于分析）
     const maxSize = 2000; // 提高到2000以更好地检测小水印（特别是Excel中的图片）
@@ -6133,7 +6336,7 @@ async function detectWatermarkAdvanced(imageData) {
     const width = Math.floor(bitmap.width * scale);
     const height = Math.floor(bitmap.height * scale);
 
-    console.log(
+    debugLog(
       `[水印检测] 分析尺寸: ${width}x${height}px (缩放比例: ${(
         scale * 100
       ).toFixed(1)}%)`
@@ -6158,7 +6361,7 @@ async function detectWatermarkAdvanced(imageData) {
 
     // ==================== 多种分析方法并行执行 ====================
 
-    console.log("[水印检测] 执行像素级分�?..");
+    debugLog("[水印检测] 执行像素级分�?..");
 
     // 1. 频域分析 - 检测重复模�?
     const frequencyAnalysis = analyzeFrequencyDomain(data, width, height);
@@ -6182,7 +6385,7 @@ async function detectWatermarkAdvanced(imageData) {
     // 6. 透明度分析（如果有alpha通道�?
     const alphaAnalysis = analyzeAlphaChannel(data, width, height);
 
-    console.log("[水印检测] 分析结果:", {
+    debugLog("[水印检测] 分析结果:", {
       frequency: frequencyAnalysis.score,
       gradient: gradientAnalysis.score,
       texture: textureAnalysis.score,
@@ -6225,7 +6428,7 @@ async function detectWatermarkAdvanced(imageData) {
     const hasWatermark = confidence >= 50; // 提高阈值以减少误报，同时保持maxSize=2000保留细节
 
     const processingTime = (performance.now() - startTime).toFixed(2);
-    console.log(
+    debugLog(
       `[水印检测] 完成！耗时: ${processingTime}ms, 置信�? ${confidence.toFixed(
         2
       )}`
@@ -6349,7 +6552,7 @@ function analyzeFrequencyDomain(data, width, height) {
       )} V:${verticalPeriodicity.toFixed(1)}`,
     };
   } catch (error) {
-    console.warn("[频域分析] 失败:", error);
+    debugWarn("[频域分析] 失败:", error);
     return { score: 0, horizontalPeriodicity: 0, verticalPeriodicity: 0 };
   }
 }
@@ -6537,7 +6740,7 @@ function analyzeGradientConsistency(data, width, height) {
       suspiciousRegions,
     };
   } catch (error) {
-    console.warn("[梯度分析] 失败:", error);
+    debugWarn("[梯度分析] 失败:", error);
     return {
       score: 0,
       inconsistentEdges: 0,
@@ -6689,7 +6892,7 @@ function analyzeTexturePattern(data, width, height) {
       anomalyCount: anomalyRegions.length,
     };
   } catch (error) {
-    console.warn("[纹理分析] 失败:", error);
+    debugWarn("[纹理分析] 失败:", error);
     return { score: 0, globalEntropy: 0, avgEntropy: 0, anomalyRegions: [] };
   }
 }
@@ -6752,7 +6955,7 @@ function analyzeColorChannelDifference(data, width, height) {
       channelImbalance,
     };
   } catch (error) {
-    console.warn("[颜色通道分析] 失败:", error);
+    debugWarn("[颜色通道分析] 失败:", error);
     return {
       score: 0,
       avgRDiff: 0,
@@ -6843,7 +7046,7 @@ function analyzeRegionsAdvanced(data, width, height) {
       detectedCount: detectedRegions.length,
     };
   } catch (error) {
-    console.warn("[区域分析] 失败:", error);
+    debugWarn("[区域分析] 失败:", error);
     return { score: 0, detectedRegions: [], detectedCount: 0 };
   }
 }
@@ -7018,7 +7221,7 @@ function analyzeAlphaChannel(data, width, height) {
       dominantAlphaRatio,
     };
   } catch (error) {
-    console.warn("[Alpha通道分析] 失败:", error);
+    debugWarn("[Alpha通道分析] 失败:", error);
     return {
       score: 0,
       semiTransparentRatio: 0,
@@ -7247,7 +7450,7 @@ async function detectWatermarkTwoBranch(imageData) {
     );
 
     // 🔍 详细调试日志
-    console.log("[水印检测详情]", {
+    debugLog("[水印检测详情]", {
       图片尺寸: `${width}×${height}`,
       Repeated分支: {
         periodicity,
