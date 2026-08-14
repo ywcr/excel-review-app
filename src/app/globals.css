@@ -9,8 +9,54 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-surface: var(--surface);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+.persona-flow {
+  --background: #ffffff;
+  --foreground: #172033;
+  --card: #ffffff;
+  --card-foreground: #172033;
+  --primary: #1f5f8b;
+  --primary-foreground: #ffffff;
+  --secondary: #edf3f7;
+  --secondary-foreground: #183044;
+  --muted: #edf3f7;
+  --muted-foreground: #617184;
+  --accent: #e7f0f5;
+  --accent-foreground: #183044;
+  --destructive: #c63b3b;
+  --destructive-foreground: #ffffff;
+  --border: #dbe4ea;
+  --input: #ccd8e0;
+  --ring: #6c98b5;
+  --success: #16805b;
+  --warning: #9a6500;
+  --info: #286aa1;
+  --surface: #f4f7f9;
+  background-image:
+    radial-gradient(circle at 12% -10%, rgb(31 95 139 / 10%), transparent 30rem),
+    linear-gradient(180deg, #f9fbfc 0%, #f3f7f9 100%);
 }
 
 @media (prefers-color-scheme: dark) {

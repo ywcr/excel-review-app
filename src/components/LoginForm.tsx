@@ -15,7 +15,7 @@ function LoginFormContent({ onSuccess }: LoginFormProps) {
 
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") || "/";
+  const redirectTo = searchParams.get("redirect") || "/excel-review";
   const message = searchParams.get("message");
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -116,6 +116,9 @@ export default function UserMenu({
             )}
             {user?.role === "admin" && (
               <>
+                <Link href="/" className={itemClass}>
+                  人员清单审核
+                </Link>
                 <Link href="/compare" className={itemClass}>
                   📊 文件对比
                 </Link>

@@ -15,12 +15,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Excel 审核系统",
-  description: "Excel 文件验证和审查应用程序 - 前端验证版本",
+  title: "Persona Flow · Excel 审核工具集",
+  description: "本地优先的人员清单审核与 Excel 文件验证工具集",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Excel审核",
+    title: "Persona Flow",
   },
 };
 

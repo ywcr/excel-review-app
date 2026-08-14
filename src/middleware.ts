@@ -3,7 +3,7 @@ import { decodeJWT, validateSessionInEdge } from "@/lib/auth-edge";
 
 // 需要认证的路径
 const protectedPaths = [
-  "/",
+  "/excel-review",
   "/api/tasks",
   "/api/templates",
   "/api/test",
@@ -11,7 +11,13 @@ const protectedPaths = [
 ];
 
 // 公开路径（不需要认证）
-const publicPaths = ["/login", "/api/auth/login", "/api/auth/logout"];
+const publicPaths = [
+  "/",
+  "/persona-flow",
+  "/login",
+  "/api/auth/login",
+  "/api/auth/logout",
+];
 
 // 强制HTTPS重定向（生产环境）
 function enforceHTTPS(request: NextRequest) {
@@ -58,16 +64,17 @@ export function middleware(request: NextRequest) {
   }
 
   // 检查是否是公开路径
-  if (publicPaths.some((path) => pathname.startsWith(path))) {
+  if (
+    publicPaths.some((path) =>
+      path === "/" ? pathname === "/" : pathname.startsWith(path)
+    )
+  ) {
     const response = NextResponse.next();
     return addSecurityHeaders(response);
   }
 
   // 检查是否是需要保护的路径
   const isProtectedPath = protectedPaths.some((path) => {
-    if (path === "/") {
-      return pathname === "/";
-    }
     return pathname.startsWith(path);
   });
 
