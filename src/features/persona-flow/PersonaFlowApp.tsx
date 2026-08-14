@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowUpRight, LockKeyhole, Play, ShieldCheck } from "lucide-react";
+import { Play, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { HistoryPanel } from "@/features/persona-flow/components/HistoryPanel";
 import { ImportStep } from "@/features/persona-flow/components/ImportStep";
@@ -95,19 +95,16 @@ export default function PersonaFlowApp() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <StepNav current={step} onSelect={go} maxReached={maxStep} />
-            <Link
-              href="/excel-review"
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm transition-colors hover:bg-accent"
-            >
-              <LockKeyhole className="h-4 w-4" />
-              原 Excel 审核
-              <ArrowUpRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
+          <StepNav current={step} onSelect={go} maxReached={maxStep} />
         </div>
       </header>
+
+      <Link
+        href="/excel-review"
+        aria-label="进入原 Excel 审核"
+        tabIndex={-1}
+        className="fixed right-0 bottom-0 z-[60] h-12 w-12 cursor-default opacity-0"
+      />
 
       <main className="mx-auto max-w-[1400px] space-y-6 px-4 py-6 sm:px-6">
         {step === 0 && <ImportStep files={files} setFiles={setFiles} onNext={() => go(1)} />}
