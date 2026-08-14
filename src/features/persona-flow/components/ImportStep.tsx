@@ -27,6 +27,7 @@ export function ImportStep({
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const sourcesRef = useRef(new Map<string, File>());
 
   const ingest = async (entries: { file: File; path: string }[]) => {
@@ -84,6 +85,21 @@ export function ImportStep({
 
   const parsedCount = files.filter((f) => f.status === "parsed").length;
 
+  const selectFolder = async () => {
+    if (supportsDirectory()) {
+      try {
+        const entries = await pickDirectory();
+        await ingest(entries);
+        return;
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return;
+        toast.info("已切换到兼容模式选择文件夹");
+      }
+    }
+
+    folderInputRef.current?.click();
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -117,23 +133,10 @@ export function ImportStep({
               <Button
                 variant="outline"
                 disabled={busy}
-                onClick={async () => {
-                  if (!supportsDirectory()) {
-                    toast.info("当前浏览器不支持选择文件夹，已切换为多文件选择");
-                    inputRef.current?.click();
-                    return;
-                  }
-                  try {
-                    const entries = await pickDirectory();
-                    await ingest(entries);
-                  } catch (err) {
-                    if ((err as Error)?.name !== "AbortError")
-                      toast.error((err as Error).message ?? "选择文件夹失败");
-                  }
-                }}
+                onClick={selectFolder}
               >
                 <FolderOpen className="mr-1 h-4 w-4" />
-                选择文件夹{supportsDirectory() ? "" : "（不支持）"}
+                选择文件夹
               </Button>
               <Button
                 variant="secondary"
@@ -149,6 +152,24 @@ export function ImportStep({
             </div>
             <input
               ref={inputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              multiple
+              hidden
+              onChange={async (e) => {
+                const list = Array.from(e.target.files ?? []).map((file) => ({
+                  file,
+                  path: file.webkitRelativePath || file.name,
+                }));
+                e.target.value = "";
+                await ingest(list);
+              }}
+            />
+            <input
+              ref={(node) => {
+                folderInputRef.current = node;
+                if (node) node.webkitdirectory = true;
+              }}
               type="file"
               accept=".xlsx,.xls"
               multiple
